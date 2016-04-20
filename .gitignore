@@ -1,3 +1,8 @@
 bin/*
 src/*.o
 src/util/*.o
+
+# from prool:
+config.cache
+config.status
+*.log

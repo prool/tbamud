@@ -869,6 +869,8 @@ void game_loop(socket_t local_mother_desc)
       if (!get_from_q(&d->input, comm, &aliased))
         continue;
 
+//	printf("prooldebug: comm %s\n", comm);
+
       if (d->character) {
 	/* Reset the idle timer & pull char back from void if necessary */
 	d->character->char_specials.timer = 0;
@@ -1830,6 +1832,8 @@ static int process_input(struct descriptor_data *t)
   char *ptr, *read_point, *write_point, *nl_pos = NULL;
   char tmp[MAX_INPUT_LENGTH];
   static char read_buf[MAX_PROTOCOL_BUFFER] = { '\0' }; /* KaVir's plugin */
+
+//printf("prooldebug process_input() t->inbuf %s\n", t->inbuf);
   
   /* first, find the point where we left off reading data */
   buf_length = strlen(t->inbuf);
@@ -1847,10 +1851,13 @@ static int process_input(struct descriptor_data *t)
     if ((bytes_read = perform_socket_read(t->descriptor, read_buf, space_left)) > 0)
       read_buf[bytes_read] = '\0';
 
+//printf("prooldebug process_input() read_buf %s\n", read_buf);
+
     /* Since we have recieved atleast 1 byte of data from the socket, lets run it through
      * ProtocolInput() and rip out anything that is Out Of Band */ 
     if ( bytes_read > 0 )
       bytes_read = ProtocolInput( t, read_buf, bytes_read, t->inbuf );
+//printf("prooldebug #1 t->inbuf %s \n", t->inbuf);
 
     if (bytes_read < 0)	/* Error, disconnect them. */
       return (-1);
@@ -1904,7 +1911,8 @@ static int process_input(struct descriptor_data *t)
 	  } else
 	    space_left++;
 	}
-      } else if (isascii(*ptr) && isprint(*ptr)) {
+      //} else if (isascii(*ptr) && isprint(*ptr)) {
+      } else if (((unsigned char)*ptr)>=32U) { // prool: for support full 8bit for cyrillic UTF-8, koi8-r, cp1251
 	if ((*(write_point++) = *ptr) == '$') {		/* copy one character */
 	  *(write_point++) = '$';	/* if it's a $, double it */
 	  space_left -= 2;
@@ -1915,6 +1923,8 @@ static int process_input(struct descriptor_data *t)
 
     *write_point = '\0';
 
+//printf("prooldebug #2 t->inbuf %s \n", t->inbuf);
+
     if ((space_left <= 0) && (ptr < nl_pos)) {
       char buffer[MAX_INPUT_LENGTH + 64];
 
@@ -1922,6 +1932,7 @@ static int process_input(struct descriptor_data *t)
       if (write_to_descriptor(t->descriptor, buffer) < 0)
 	return (-1);
     }
+//printf("prooldebug #2.0 t->inbuf %s \n", t->inbuf);
     if (t->snoop_by)
       write_to_output(t->snoop_by, "%% %s\r\n", tmp);
     failed_subst = 0;
@@ -1933,7 +1944,9 @@ static int process_input(struct descriptor_data *t)
       int starting_pos = t->history_pos,
 	  cnt = (t->history_pos == 0 ? HISTORY_SIZE - 1 : t->history_pos - 1);
 
+//printf("prooldebug #2.1 t->inbuf %s \n", t->inbuf);
       skip_spaces(&commandln);
+//printf("prooldebug #2.2 t->inbuf %s \n", t->inbuf);
       for (; cnt != starting_pos; cnt--) {
 	if (t->history[cnt] && is_abbrev(commandln, t->history[cnt])) {
 	  strcpy(tmp, t->history[cnt]);	/* strcpy: OK (by mutual MAX_INPUT_LENGTH) */
@@ -1955,6 +1968,7 @@ static int process_input(struct descriptor_data *t)
       if (++t->history_pos >= HISTORY_SIZE)	/* Wrap to top. */
 	t->history_pos = 0;
     }
+//printf("prooldebug #2.X t->inbuf %s \n", t->inbuf);
 
    /* The '--' command flushes the queue. */
    if ( (*tmp == '-') && (*(tmp+1) == '-') && !(*(tmp+2)) )
@@ -1967,22 +1981,27 @@ static int process_input(struct descriptor_data *t)
     if (!failed_subst)
       write_to_q(tmp, &t->input, 0);
 
+//printf("prooldebug #2.A t->inbuf %s \n", t->inbuf);
     /* find the end of this line */
     while (ISNEWL(*nl_pos))
       nl_pos++;
 
+//printf("prooldebug #2.b t->inbuf %s \n", t->inbuf);
     /* see if there's another newline in the input buffer */
     read_point = ptr = nl_pos;
     for (nl_pos = NULL; *ptr && !nl_pos; ptr++)
       if (ISNEWL(*ptr))
 	nl_pos = ptr;
   }
+//printf("prooldebug #2.c t->inbuf %s \n", t->inbuf);
 
   /* now move the rest of the buffer up to the beginning for the next pass */
   write_point = t->inbuf;
   while (*read_point)
     *(write_point++) = *(read_point++);
   *write_point = '\0';
+
+//printf("prooldebug #3 t->inbuf %s \n", t->inbuf);
 
   return (1);
 }
