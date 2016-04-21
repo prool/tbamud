@@ -564,6 +564,10 @@ void stop_follower(struct char_data *ch)
     ch->master->followers = k->next;
     free(k);
   } else {			/* locate follower who is not head of list */
+  printf("prooldebug: locate follower who is not head of list\r\n");
+// crash here! in for. prool
+    if (ch)
+	if (ch->master)
     for (k = ch->master->followers; k->next->follower != ch; k = k->next);
 
     j = k->next;
