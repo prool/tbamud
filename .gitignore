@@ -6,3 +6,15 @@ src/util/*.o
 config.cache
 config.status
 *.log
+src/util/depend
+src/depend
+src/Makefile
+src/util/Makefile
+src/conf.h
+src/.accepted
+lib/etc/config
+lib/etc/last
+lib/etc/plrmail
+lib/etc/time
+lib/plrfiles/*
+lib/plrobjs/*
