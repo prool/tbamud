@@ -640,6 +640,7 @@ static socket_t init_socket(ush_int local_port)
 
   if (bind(s, (struct sockaddr *) &sa, sizeof(sa)) < 0) {
     perror("SYSERR: bind");
+    prool_log("bind error");
     CLOSE_SOCKET(s);
     exit(1);
   }
