@@ -129,4 +129,8 @@ extern const struct command_info cmd_info[];
 
 #endif /* __INTERPRETER_C__ */
 
+// from prool
+ACMD (do_prool);
+// end prool
+
 #endif /* _INTERPRETER_H_ */

@@ -205,8 +205,8 @@ int main(int argc, char **argv)
   int pos = 1;
   const char *dir;
 
-prool_log("tbamud started");
-prool_log("by prool, proolix@gmail.com, www.prool.kharkov.org, mud.kharkov.org, github.com/prool/tbamud");
+prool_log("========================== tbamud started ====================");
+prool_log("by prool, proolix@gmail.com, prool.kharkov.org");
 
 #ifdef MEMORY_DEBUG
   zmalloc_init();

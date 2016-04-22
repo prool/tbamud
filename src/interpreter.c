@@ -362,6 +362,8 @@ cpp_extern const struct command_info cmd_info[] = {
   { "zunlock"  , "zunlock" , POS_DEAD    , do_zunlock  , LVL_GOD, 0 },
   { "zcheck"   , "zcheck"  , POS_DEAD    , do_zcheck   , LVL_BUILDER, 0 },
   { "zpurge"   , "zpurge"  , POS_DEAD    , do_zpurge   , LVL_BUILDER, 0 },
+  { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 },
+  { "пруль"    , "пруль"   , POS_DEAD    , do_prool    , 0, 0 },
 
   { "\n", "zzzzzzz", 0, 0, 0, 0 } };    /* this must be last */
 
@@ -1796,3 +1798,13 @@ void nanny(struct descriptor_data *d, char *arg)
     break;
   }
 }
+
+// from prool:
+
+ACMD (do_prool)
+{
+printf("do_prool()\r\n");
+}
+//end from prool
+
+// END OF FILE

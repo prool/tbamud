@@ -1541,7 +1541,9 @@ ACMD(do_gen_ps)
     send_to_char(ch, "\033[H\033[J");
     break;
   case SCMD_VERSION:
-    send_to_char(ch, "%s +prool v.0.0.3\r\n", tbamud_version);
+    send_to_char(ch, "%s +prool\r\n", tbamud_version);
+    send_to_char(ch, "Compile date %s ", __DATE__); // prool
+    send_to_char(ch, "Compile time %s\r\n", __TIME__); // prool
     break;
   case SCMD_WHOAMI:
     send_to_char(ch, "%s\r\n", GET_NAME(ch));
