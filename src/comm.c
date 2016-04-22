@@ -205,6 +205,9 @@ int main(int argc, char **argv)
   int pos = 1;
   const char *dir;
 
+prool_log("tbamud started");
+prool_log("by prool, proolix@gmail.com, www.prool.kharkov.org, mud.kharkov.org, github.com/prool/tbamud");
+
 #ifdef MEMORY_DEBUG
   zmalloc_init();
 #endif
@@ -552,6 +555,7 @@ static void init_game(ush_int local_port)
     exit(52);			/* what's so great about HHGTTG, anyhow? */
   }
   log("Normal termination of game.");
+  prool_log("Normal termination of game.");
 }
 
 /* init_socket sets up the mother descriptor - creates the socket, sets
@@ -2281,6 +2285,7 @@ static RETSIGTYPE checkpointing(int sig)
 /* Dying anyway... */
 static RETSIGTYPE hupsig(int sig)
 {
+  prool_log("prool log: Received SIGHUP, SIGINT, or SIGTERM.  Shutting down...");
   log("SYSERR: Received SIGHUP, SIGINT, or SIGTERM.  Shutting down...");
   exit(1); /* perhaps something more elegant should substituted */
 }

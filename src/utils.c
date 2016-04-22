@@ -564,7 +564,7 @@ void stop_follower(struct char_data *ch)
     ch->master->followers = k->next;
     free(k);
   } else {			/* locate follower who is not head of list */
-  printf("prooldebug: locate follower who is not head of list\r\n");
+  prool_log("locate follower who is not head of list\r\n");
 // crash here! in for. gdb rulez! prool
     if (ch==0) printf("prooldebug: ERROR #1\r\n");
     else if (ch->master==0) printf("prooldebug: ERROR #2\r\n");
@@ -1539,3 +1539,30 @@ char * convert_from_tabs(char * string)
   parse_tab(buf);
   return(buf);
 }
+
+// prool's subprograms
+
+char *ptime(void) // Возвращаемое значение: ссылка на текстовую строку с текущим временем
+	{
+	char *tmstr;
+	time_t mytime;
+
+	mytime = time(0);
+
+	tmstr = (char *) asctime(localtime(&mytime));
+	*(tmstr + strlen(tmstr) - 1) = '\0';
+
+	return tmstr;
+	}
+
+void prool_log(char *str)
+{
+FILE *fp;
+fp=fopen("/home/prool/tbamud-prool.log", "a");
+printf("%s %s\n", ptime(), str);
+fprintf(fp,"%s %s\n",ptime(),str);
+fclose(fp);
+}
+
+// end of prool's subprograms
+// END OF FILE

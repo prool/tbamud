@@ -1065,4 +1065,10 @@ do                                                              \
 /** What is the minimum level character to put on the wizlist? */
 #define CONFIG_MIN_WIZLIST_LEV  config_info.autowiz.min_wizlist_lev
 
+
+// prool's subprograms
+char *ptime(void);
+void prool_log(char *str);
+// end of prool's subprograms
+
 #endif /* _UTILS_H_ */
