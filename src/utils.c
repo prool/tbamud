@@ -560,6 +560,7 @@ void stop_follower(struct char_data *ch)
   }
 
   if (ch->master->followers->follower == ch) {	/* Head of follower-list? */
+    prool_log("Head of follower-list");
     k = ch->master->followers;
     ch->master->followers = k->next;
     free(k);
