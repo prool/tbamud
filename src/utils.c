@@ -566,6 +566,8 @@ void stop_follower(struct char_data *ch)
     free(k);
   } else {			/* locate follower who is not head of list */
   prool_log("locate follower who is not head of list");
+  printf("prool: circle_shutdown = %i\r\n", circle_shutdown);
+  if (circle_shutdown==1) return;
 // crash here! in for. gdb rulez! prool
     if (ch==0) printf("prooldebug: ERROR #1\r\n");
     else if (ch->master==0) printf("prooldebug: ERROR #2\r\n");
