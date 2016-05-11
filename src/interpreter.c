@@ -1803,7 +1803,11 @@ void nanny(struct descriptor_data *d, char *arg)
 
 ACMD (do_prool)
 {
-printf("do_prool()\r\n");
+send_to_char(ch, "do_prool\r\n");
+
+if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
+    send_to_char(ch, "You are summonable by other players.\r\n");
+
 }
 //end from prool
 

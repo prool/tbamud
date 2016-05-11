@@ -82,4 +82,9 @@ extern int next_tick;
 
 #endif /* __COMM_C__ */
 
+// from prool
+void koi_to_utf8(char *str_i, char *str_o);
+void utf8_to_koi(char *str_i, char *str_o);
+// end prool
+
 #endif /* _COMM_H_ */

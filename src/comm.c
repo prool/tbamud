@@ -19,6 +19,8 @@
 # include <mcheck.h>
 #endif
 
+#include <iconv.h> // prool
+
 #ifdef CIRCLE_MACINTOSH		/* Includes for the Macintosh */
 # define SIGPIPE 13
 # define SIGALRM 14
@@ -1295,12 +1297,29 @@ size_t vwrite_to_output(struct descriptor_data *t, const char *format, va_list a
   static char txt[MAX_STRING_LENGTH];
   size_t wantsize;
   int size;
+  char prool_buffer [MAX_STRING_LENGTH];
 
   /* if we're in the overflow state already, ignore this new output */
   if (t->bufspace == 0)
     return (0);
 
   wantsize = size = vsnprintf(txt, sizeof(txt), format, args);
+// prool recode
+  // Cyrillic recode here
+  if (t->character)
+  {
+  if (PRF_FLAGGED(t->character, PRF_SUMMONABLE))
+	{int ii;
+	for (ii=0; ii<MAX_STRING_LENGTH; ii++) prool_buffer[ii]=0;
+	strcpy(prool_buffer,txt);
+	//printf("prooldebug: prool_buffer='%s'", prool_buffer);
+	for (ii=0; ii<MAX_STRING_LENGTH; ii++) txt[ii]=0;
+	utf8_to_koi(prool_buffer, txt);
+	//printf("prooldebug: txt='%s'", txt);
+	wantsize = size = strlen (txt);
+	}
+  }
+// prool recode end
 
   strcpy(txt, ProtocolOutput( t, txt, (int*)&wantsize )); /* <--- Add this line */
   size = wantsize;                    /* <--- Add this line */
@@ -1571,6 +1590,7 @@ static int process_output(struct descriptor_data *t)
   strcpy(i, "\r\n");	/* strcpy: OK (for 'MAX_SOCK_BUF >= 3') */
 
   /* now, append the 'real' output */
+  // Cyrillic recode was here: тут глючит!!! prool
   strcpy(osb, t->output);	/* strcpy: OK (t->output:LARGE_BUFSIZE < osb:MAX_SOCK_BUF-2) */
 
   /* if we're in the overflow state, notify the user */
@@ -1632,6 +1652,7 @@ static int process_output(struct descriptor_data *t)
 
   } else {
     /* Not all data in buffer sent.  result < output buffersize. */
+    prool_log("prooldebug: Not all data in buffer sent.  result < output buffersize");
     strcpy(t->output, t->output + result);	/* strcpy: OK (overlap) */
     t->bufptr   -= result;
     t->bufspace += result;
@@ -1731,6 +1752,7 @@ static ssize_t perform_socket_write(socket_t desc, const char *txt, size_t lengt
  * delivered to the OS, or until an error is encountered. Returns:
  * >=0  If all is well and good.
  *  -1  If an error was encountered, so that the player should be cut off. */
+
 int write_to_descriptor(socket_t desc, const char *txt)
 {
   ssize_t bytes_written;
@@ -2898,3 +2920,55 @@ static void msdp_update( void )
     MSSPSetPlayers( PlayerCount );
   }
 }
+
+// from prool:
+#if 1
+void koi_to_utf8(char *str_i, char *str_o)
+{
+	iconv_t cd;
+	size_t len_i, len_o = MAX_SOCK_BUF * 6;
+	size_t i;
+
+	if ((cd = iconv_open("UTF-8","KOI8-R")) == (iconv_t) - 1)
+	{
+		printf("koi_to_utf8: iconv_open error\n");
+		return;
+	}
+	len_i = strlen(str_i);
+	if ((i = iconv(cd, &str_i, &len_i, &str_o, &len_o)) == (size_t) - 1)
+	{
+		printf("koi_to_utf8: iconv error\n");
+		return;
+	}
+	*str_o = 0;
+	if (iconv_close(cd) == -1)
+	{
+		printf("koi_to_utf8: iconv_close error\n");
+		return;
+	}
+}
+
+void utf8_to_koi(char *str_i, char *str_o)
+{
+	iconv_t cd;
+	size_t len_i, len_o = MAX_SOCK_BUF * 6;
+	size_t i;
+
+	if ((cd = iconv_open("KOI8-R", "UTF-8")) == (iconv_t) - 1)
+	{
+		printf("utf8_to_koi: iconv_open error\n");
+		return;
+	}
+	len_i = strlen(str_i);
+	if ((i=iconv(cd, &str_i, &len_i, &str_o, &len_o)) == (size_t) - 1)
+	{
+		printf("utf8_to_koi: iconv error\n");
+		// return;
+	}
+	if (iconv_close(cd) == -1)
+	{
+		printf("utf8_to_koi: iconv_close error\n");
+		return;
+	}
+}
+#endif // HAVE_ICONV
