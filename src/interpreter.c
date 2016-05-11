@@ -480,6 +480,24 @@ void command_interpreter(struct char_data *ch, char *argument)
   char *line;
   char arg[MAX_INPUT_LENGTH];
 
+if (!IS_NPC(ch))
+	{
+	// recode input line here. prool
+	//printf("prooldebug: command='%s'\r\n", argument);
+  	if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
+		{int ii;
+		char prool_buffer[MAX_STRING_LENGTH];
+		char prool_buffer2[MAX_STRING_LENGTH];
+		for (ii=0; ii<MAX_STRING_LENGTH; ii++) prool_buffer[ii]=0;
+		strcpy(prool_buffer, argument);
+		for (ii=0; ii<MAX_STRING_LENGTH; ii++) prool_buffer2[ii]=0;
+		koi_to_utf8(prool_buffer, prool_buffer2);
+		strcpy(argument, prool_buffer2);
+		//printf("prooldebug: command recoded='%s'\r\n", argument);
+		}
+	// prool recode end
+	}
+
   REMOVE_BIT_AR(AFF_FLAGS(ch), AFF_HIDE);
 
   /* just drop to next line for hitting CR */
