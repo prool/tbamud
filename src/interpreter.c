@@ -363,7 +363,6 @@ cpp_extern const struct command_info cmd_info[] = {
   { "zcheck"   , "zcheck"  , POS_DEAD    , do_zcheck   , LVL_BUILDER, 0 },
   { "zpurge"   , "zpurge"  , POS_DEAD    , do_zpurge   , LVL_BUILDER, 0 },
   { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 },
-  { "пруль"    , "пруль"   , POS_DEAD    , do_prool    , 0, 0 },
 
   { "\n", "zzzzzzz", 0, 0, 0, 0 } };    /* this must be last */
 
@@ -1821,11 +1820,16 @@ void nanny(struct descriptor_data *d, char *arg)
 
 ACMD (do_prool)
 {
-send_to_char(ch, "do_prool\r\n");
+send_to_char(ch, "do_prool():\r\n");
 
 if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
-    send_to_char(ch, "You are summonable by other players.\r\n");
-
+	{
+    	send_to_char(ch, "You are summonable by other players\r\nCodetable koi8-r\r\n");
+	}
+else
+	{
+    	send_to_char(ch, "You are no summonable by other players\r\nCodetable UTF-8\r\n");
+	}
 }
 //end from prool
 
