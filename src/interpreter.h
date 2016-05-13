@@ -131,6 +131,9 @@ extern const struct command_info cmd_info[];
 
 // from prool
 ACMD (do_prool);
+ACMD (do_az);
+ACMD (do_buki);
+ACMD (do_vedi);
 // end prool
 
 #endif /* _INTERPRETER_H_ */

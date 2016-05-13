@@ -481,8 +481,13 @@ void command_interpreter(struct char_data *ch, char *argument)
 
 if (!IS_NPC(ch))
 	{
+	printf("prooldebug: command='%s'\r\n", argument);
+	// cyrillic interpreter
+	if (!strcmp(argument, "аз")) {do_az(ch, argument, 0, 0); return;}
+	else if (!strcmp(argument, "буки")) {do_buki(ch, argument, 0, 0); return;}
+	else if (!strcmp(argument, "веди")) {do_vedi(ch, argument, 0, 0); return;}
+
 	// recode input line here. prool
-	//printf("prooldebug: command='%s'\r\n", argument);
   	if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
 		{int ii;
 		char prool_buffer[MAX_STRING_LENGTH];
@@ -1817,6 +1822,21 @@ void nanny(struct descriptor_data *d, char *arg)
 }
 
 // from prool:
+
+ACMD (do_az)
+{
+send_to_char(ch, "do_az()\r\n");
+}
+
+ACMD (do_buki)
+{
+send_to_char(ch, "do_buki()\r\n");
+}
+
+ACMD (do_vedi)
+{
+send_to_char(ch, "do_vedi()\r\n");
+}
 
 ACMD (do_prool)
 {
