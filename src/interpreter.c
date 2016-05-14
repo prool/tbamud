@@ -481,11 +481,13 @@ void command_interpreter(struct char_data *ch, char *argument)
 
 if (!IS_NPC(ch))
 	{
-	printf("prooldebug: command='%s'\r\n", argument);
+	//printf("prooldebug: command='%s'\r\n", argument);
 	// cyrillic interpreter
 	if (!strcmp(argument, "аз")) {do_az(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "буки")) {do_buki(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "веди")) {do_vedi(ch, argument, 0, 0); return;}
+	else if (!strcmp(argument, "счет")) {do_score(ch, argument, 0, 0); return;}
+	else if (!strcmp(argument, "сч")) {do_score(ch, argument, 0, 0); return;}
 
 	// recode input line here. prool
   	if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
