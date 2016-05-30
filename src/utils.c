@@ -1565,6 +1565,7 @@ void prool_log(char *str)
 FILE *fp;
 fp=fopen("/home/prool/tbamud-prool.log", "a");
 printf("%s %s\n", ptime(), str);
+if (fp==0) return;
 fprintf(fp,"%s %s\n",ptime(),str);
 fclose(fp);
 }
