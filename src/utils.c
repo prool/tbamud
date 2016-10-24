@@ -1547,7 +1547,7 @@ char * convert_from_tabs(char * string)
 
 // prool's subprograms
 
-char *ptime(void) // Возвращаемое значение: ссылка на текстовую строку с текущим временем
+char *ptime(void) // Return value: ref to ASCII char string with current time. Возвращаемое значение: ссылка на текстовую строку с текущим временем
 	{
 	char *tmstr;
 	time_t mytime;
