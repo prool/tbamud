@@ -11,9 +11,13 @@ COMPILE AND RUN
 ---------------
 
 ./configure
+
 cd src
+
 make
+
 cd ..
+
 bin/circle
 
 OR USE autorun\* scripts
