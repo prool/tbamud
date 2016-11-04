@@ -23,7 +23,9 @@ bin/circle
 OR USE autorun\* scripts
 
 http://prool.kharkov.org
+
 http://mud.kharkov.org
-proolix <dog here> gmail.com
+
+proolix dog gmail.com
 
 4 nov 2016
