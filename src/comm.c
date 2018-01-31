@@ -2291,7 +2291,7 @@ static RETSIGTYPE reap(int sig)
 {
   while (waitpid(-1, NULL, WNOHANG) > 0);
 
-#ifdef ANDROID
+#ifndef ANDROID
   my_signal(SIGCHLD, reap);
 #endif
 }
@@ -2355,7 +2355,7 @@ static void signal_setup(void)
   struct itimerval itime;
   struct timeval interval;
 
-#ifdef ANDROID
+#ifndef ANDROID
   /* user signal 1: reread wizlists.  Used by autowiz system. */
   my_signal(SIGUSR1, reread_wizlists);
 
@@ -2371,7 +2371,7 @@ static void signal_setup(void)
   itime.it_interval = interval;
   itime.it_value = interval;
   setitimer(ITIMER_VIRTUAL, &itime, NULL);
-#ifdef ANDROID
+#ifndef ANDROID
   my_signal(SIGVTALRM, checkpointing);
 
   /* just to be on the safe side: */
@@ -2380,7 +2380,7 @@ static void signal_setup(void)
 #endif // ANDROID
 #endif /* CIRCLE_MACINTOSH */
   my_signal(SIGINT, hupsig);
-#ifdef ANDROID
+#ifndef ANDROID
   my_signal(SIGTERM, hupsig);
   my_signal(SIGPIPE, SIG_IGN);
   my_signal(SIGALRM, SIG_IGN);
