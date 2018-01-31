@@ -2291,7 +2291,9 @@ static RETSIGTYPE reap(int sig)
 {
   while (waitpid(-1, NULL, WNOHANG) > 0);
 
+#ifdef ANDROID
   my_signal(SIGCHLD, reap);
+#endif
 }
 
 /* Dying anyway... */
@@ -2353,12 +2355,14 @@ static void signal_setup(void)
   struct itimerval itime;
   struct timeval interval;
 
+#ifdef ANDROID
   /* user signal 1: reread wizlists.  Used by autowiz system. */
   my_signal(SIGUSR1, reread_wizlists);
 
   /* user signal 2: unrestrict game.  Used for emergencies if you lock
    * yourself out of the MUD somehow. */
   my_signal(SIGUSR2, websterlink);
+#endif
 
   /* set up the deadlock-protection so that the MUD aborts itself if it gets
    * caught in an infinite loop for more than 3 minutes. */
@@ -2367,16 +2371,20 @@ static void signal_setup(void)
   itime.it_interval = interval;
   itime.it_value = interval;
   setitimer(ITIMER_VIRTUAL, &itime, NULL);
+#ifdef ANDROID
   my_signal(SIGVTALRM, checkpointing);
 
   /* just to be on the safe side: */
   my_signal(SIGHUP, hupsig);
   my_signal(SIGCHLD, reap);
+#endif // ANDROID
 #endif /* CIRCLE_MACINTOSH */
   my_signal(SIGINT, hupsig);
+#ifdef ANDROID
   my_signal(SIGTERM, hupsig);
   my_signal(SIGPIPE, SIG_IGN);
   my_signal(SIGALRM, SIG_IGN);
+#endif // ANDROID
 }
 
 #endif	/* CIRCLE_UNIX || CIRCLE_MACINTOSH */
@@ -2922,7 +2930,7 @@ static void msdp_update( void )
 }
 
 // from prool:
-#if 1
+#ifndef ANDROID
 void koi_to_utf8(char *str_i, char *str_o)
 {
 	iconv_t cd;
@@ -2971,4 +2979,13 @@ void utf8_to_koi(char *str_i, char *str_o)
 		return;
 	}
 }
-#endif // HAVE_ICONV
+#else
+void koi_to_utf8(char *str_i, char *str_o)
+{
+strcpy(str_o, str_i);
+}
+void utf8_to_koi(char *str_i, char *str_o)
+{
+strcpy(str_o, str_i);
+}
+#endif // ANDROID
