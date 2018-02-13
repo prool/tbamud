@@ -1,6 +1,12 @@
                                T  B  A  M   U   D
                                     3 . 6 7 
 
++ russification (cyrillization) by Prool, proolix AT gmail.com
+codetable UTF-8
+http://mud.kharkov.org https://github.com/prool/tbamud
+
+Use command `prool` for Prool's help
+
    Based on CircleMUD by Jeremy Elson and DikuMUD by Hans-Henrik Staerfeldt,
         Katja Nyboe, Tom Madsen, Michael Seifert, and Sebastian Hammer
 
