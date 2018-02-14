@@ -1842,7 +1842,7 @@ send_to_char(ch, "do_vedi()\r\n");
 
 ACMD (do_prool)
 {
-send_to_char(ch, "do_prool():\r\n");
+send_to_char(ch, "\r\nSee `help prool`\r\n\r\n");
 
 if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
 	{

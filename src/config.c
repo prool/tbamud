@@ -87,7 +87,7 @@ int load_into_inventory = YES;
 
 /* "okay" etc. */
 const char *OK = "Okay.\r\n";
-const char *HUH = "Huh!?!\r\n";
+const char *HUH = "Invalid command\r\n";
 const char *NOPERSON = "No one by that name here.\r\n";
 const char *NOEFFECT = "Nothing seems to happen.\r\n";
 
@@ -276,7 +276,7 @@ const char *MENU =
 
 const char *WELC_MESSG =
 "\r\n"
-"Welcome to tbaMUD!  May your visit here be... Enlightening"
+"Welcome to tbaMUD!"
 "\r\n\r\n";
 
 const char *START_MESSG =

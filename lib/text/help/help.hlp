@@ -13567,6 +13567,14 @@ So 7 is the combination of permissions 4+2+1 (read, write, and execute), 5 is 4+
 #31
 PROOL
 
-test: prool Пруль
+Prool's help. Помощь от Пруля
+
+Prool commands. Кириллические команды Пруля
+
+Тестовые команды-заглушки: аз, буки, веди
+
+Кириллические команды:
+
+счет или сч - score
 #0
 $~
