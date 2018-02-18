@@ -1563,7 +1563,7 @@ char *ptime(void) // Return value: ref to ASCII char string with current time. Ð
 void prool_log(char *str)
 {
 FILE *fp;
-fp=fopen("/home/prool/tbamud-prool.log", "a");
+fp=fopen("tbamud-prool.log", "a");
 printf("%s %s\n", ptime(), str);
 if (fp==0) return;
 fprintf(fp,"%s %s\n",ptime(),str);
