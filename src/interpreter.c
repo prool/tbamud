@@ -40,6 +40,11 @@
 #include "ibt.h"
 #include "mud_event.h"
 
+// prool begin
+ACMD (do_prool);
+ACMD (do_dukhmada);
+// prool end
+
 /* local (file scope) functions */
 static int perform_dupe_check(struct descriptor_data *d);
 static struct alias_data *find_alias(struct alias_data *alias_list, char *str);
@@ -362,6 +367,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "zunlock"  , "zunlock" , POS_DEAD    , do_zunlock  , LVL_GOD, 0 },
   { "zcheck"   , "zcheck"  , POS_DEAD    , do_zcheck   , LVL_BUILDER, 0 },
   { "zpurge"   , "zpurge"  , POS_DEAD    , do_zpurge   , LVL_BUILDER, 0 },
+
   { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 },
 
   { "\n", "zzzzzzz", 0, 0, 0, 0 } };    /* this must be last */
@@ -488,6 +494,7 @@ if (!IS_NPC(ch))
 	else if (!strcmp(argument, "веди")) {do_vedi(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "счет")) {do_score(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "сч")) {do_score(ch, argument, 0, 0); return;}
+	else if (!strcmp(argument, "духмада")) {do_dukhmada(ch, argument, 0, 0); return;}
 
 	// recode input line here. prool
   	if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
@@ -1838,6 +1845,35 @@ send_to_char(ch, "do_buki()\r\n");
 ACMD (do_vedi)
 {
 send_to_char(ch, "do_vedi()\r\n");
+}
+
+ACMD (do_dukhmada)
+{
+    struct obj_data *obj;
+    obj_rnum r_num;
+
+    if ((r_num = real_object(1001/* гриб */)) == NOTHING) {
+      send_to_char(ch, "There is no object with that number.\r\n");
+      return;
+    }
+      obj = read_object(r_num, REAL);
+        obj_to_char(obj, ch);
+      act("$n makes a strange magical gesture.", TRUE, ch, 0, 0, TO_ROOM);
+      act("$n has created $p!", FALSE, ch, obj, 0, TO_ROOM);
+      act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
+      load_otrigger(obj);
+//
+    if ((r_num = real_object(1006/* бутылка воды */)) == NOTHING) {
+      send_to_char(ch, "There is no object with that number.\r\n");
+      return;
+    }
+      obj = read_object(r_num, REAL);
+        obj_to_char(obj, ch);
+      act("$n makes a strange magical gesture.", TRUE, ch, 0, 0, TO_ROOM);
+      act("$n has created $p!", FALSE, ch, obj, 0, TO_ROOM);
+      act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
+      load_otrigger(obj);
+//
 }
 
 ACMD (do_prool)

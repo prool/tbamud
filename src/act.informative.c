@@ -491,7 +491,7 @@ void look_at_room(struct char_data *ch, int ignore_brief)
     return;
 
   if (IS_DARK(IN_ROOM(ch)) && !CAN_SEE_IN_DARK(ch)) {
-    send_to_char(ch, "It is pitch black...\r\n");
+    send_to_char(ch, "Тут темно.\r\n");
     return;
   } else if (AFF_FLAGGED(ch, AFF_BLIND) && GET_LEVEL(ch) < LVL_IMMORT) {
     send_to_char(ch, "You see nothing but infinite darkness...\r\n");
@@ -713,7 +713,7 @@ ACMD(do_look)
   else if (AFF_FLAGGED(ch, AFF_BLIND) && GET_LEVEL(ch) < LVL_IMMORT)
     send_to_char(ch, "You can't see a damned thing, you're blind!\r\n");
   else if (IS_DARK(IN_ROOM(ch)) && !CAN_SEE_IN_DARK(ch)) {
-    send_to_char(ch, "It is pitch black...\r\n");
+    send_to_char(ch, "Здесь темнота, однако.\r\n");
     list_char_to_char(world[IN_ROOM(ch)].people, ch);	/* glowing red eyes */
   } else {
     char arg[MAX_INPUT_LENGTH], arg2[MAX_INPUT_LENGTH];

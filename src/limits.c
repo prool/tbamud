@@ -320,14 +320,14 @@ void gain_condition(struct char_data *ch, int condition, int value)
 
   switch (condition) {
   case HUNGER:
-    send_to_char(ch, "You are hungry.\r\n");
+    send_to_char(ch, "Ты испытываешь голод.\r\n");
     break;
   case THIRST:
-    send_to_char(ch, "You are thirsty.\r\n");
+    send_to_char(ch, "Ты испытываешь жажду.\r\n");
     break;
   case DRUNK:
     if (intoxicated)
-      send_to_char(ch, "You are now sober.\r\n");
+      send_to_char(ch, "Ты находишься в трезвом уме.\r\n");
     break;
   default:
     break;
@@ -344,8 +344,8 @@ static void check_idling(struct char_data *ch)
 	stop_fighting(FIGHTING(ch));
 	stop_fighting(ch);
       }
-      act("$n disappears into the void.", TRUE, ch, 0, 0, TO_ROOM);
-      send_to_char(ch, "You have been idle, and are pulled into a void.\r\n");
+      act("$n перемещен в никуда.", TRUE, ch, 0, 0, TO_ROOM);
+      send_to_char(ch, "Вы давно не нажимали клавиш и за это вас переместили в никуда.\r\n");
       save_char(ch);
       Crash_crashsave(ch);
       char_from_room(ch);

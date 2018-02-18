@@ -47,19 +47,19 @@ static void another_hour(int mode)
     switch (time_info.hours) {
     case 5:
       weather_info.sunlight = SUN_RISE;
-      send_to_outdoor("The sun rises in the east.\r\n");
+      send_to_outdoor("Краешек Солнца показался на востоке.\r\n");
       break;
     case 6:
       weather_info.sunlight = SUN_LIGHT;
-      send_to_outdoor("The day has begun.\r\n");
+      send_to_outdoor("Начался день.\r\n");
       break;
     case 21:
       weather_info.sunlight = SUN_SET;
-      send_to_outdoor("The sun slowly disappears in the west.\r\n");
+      send_to_outdoor("Солнце начало медленно заходить за горизонт.\r\n");
       break;
     case 22:
       weather_info.sunlight = SUN_DARK;
-      send_to_outdoor("The night has begun.\r\n");
+      send_to_outdoor("Наступила ночь.\r\n");
       break;
     default:
       break;

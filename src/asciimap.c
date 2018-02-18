@@ -214,6 +214,9 @@ static void perform_map( struct char_data *ch, char *argument, bool worldmap );
 
 
 bool can_see_map(struct char_data *ch) {
+#if 1 // 1 - prool, map enabled for all; 0 - standard tbamud code
+	return TRUE;
+#else
   /* Is the map funcionality disabled? */
   if (CONFIG_MAP == MAP_OFF)
     return FALSE;
@@ -221,6 +224,7 @@ bool can_see_map(struct char_data *ch) {
     return FALSE;
 
   return TRUE;
+#endif
 }
 
 /* MapArea function - create the actual map */
