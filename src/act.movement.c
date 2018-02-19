@@ -345,14 +345,14 @@ int perform_move(struct char_data *ch, int dir, int need_specials_check)
   if (ch == NULL || dir < 0 || dir >= NUM_OF_DIRS || FIGHTING(ch))
     return (0);
   else if (!CONFIG_DIAGONAL_DIRS && IS_DIAGONAL(dir))
-    send_to_char(ch, "Alas, you cannot go that way...\r\n");
+    send_to_char(ch, "Увы, вы не можете туда пройти.\r\n");
   else if ((!EXIT(ch, dir) && !buildwalk(ch, dir)) || EXIT(ch, dir)->to_room == NOWHERE)
-    send_to_char(ch, "Alas, you cannot go that way...\r\n");
+    send_to_char(ch, "Вы не можете туда переместиться!\r\n");
   else if (EXIT_FLAGGED(EXIT(ch, dir), EX_CLOSED) && (GET_LEVEL(ch) < LVL_IMMORT || (!IS_NPC(ch) && !PRF_FLAGGED(ch, PRF_NOHASSLE)))) {
     if (EXIT(ch, dir)->keyword)
-      send_to_char(ch, "The %s seems to be closed.\r\n", fname(EXIT(ch, dir)->keyword));
+      send_to_char(ch, "%s закрыто.\r\n", fname(EXIT(ch, dir)->keyword));
     else
-      send_to_char(ch, "It seems to be closed.\r\n");
+      send_to_char(ch, "Мммм, закрыто.\r\n");
   } else {
     if (!ch->followers)
       return (do_simple_move(ch, dir, need_specials_check));

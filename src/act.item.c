@@ -840,14 +840,14 @@ ACMD(do_drink)
       case SECT_WATER_NOSWIM:
       case SECT_UNDERWATER:
         if ((GET_COND(ch, HUNGER) > 20) && (GET_COND(ch, THIRST) > 0)) {
-          send_to_char(ch, "Your stomach can't contain anymore!\r\n");
+          send_to_char(ch, "Вы не можете больше пить!\r\n");
         }
-        snprintf(buf, sizeof(buf), "$n takes a refreshing drink.");
+        snprintf(buf, sizeof(buf), "$n принимает внутрь освежающий напиток.");
         act(buf, TRUE, ch, 0, 0, TO_ROOM);
-        send_to_char(ch, "You take a refreshing drink.\r\n");
+        send_to_char(ch, "Вы выпили освежающтй напиток.\r\n");
         gain_condition(ch, THIRST, 1);
         if (GET_COND(ch, THIRST) > 20)
-          send_to_char(ch, "You don't feel thirsty any more.\r\n");
+          send_to_char(ch, "Вы больше не испытываете жажды.\r\n");
         return;
       default:
     send_to_char(ch, "Drink from what?\r\n");
@@ -877,11 +877,11 @@ ACMD(do_drink)
     return;
   }
   if ((GET_COND(ch, HUNGER) > 20) && (GET_COND(ch, THIRST) > 0)) {
-    send_to_char(ch, "Your stomach can't contain anymore!\r\n");
+    send_to_char(ch, "Вы не можете больше выпить ни глоточка!\r\n");
     return;
   }
   if ((GET_OBJ_VAL(temp, 1) == 0) || (!GET_OBJ_VAL(temp, 0) == 1)) {
-    send_to_char(ch, "It is empty.\r\n");
+    send_to_char(ch, "Сосуд пуст.\r\n");
     return;
   }
 
@@ -894,7 +894,7 @@ ACMD(do_drink)
     snprintf(buf, sizeof(buf), "$n drinks %s from $p.", drinks[GET_OBJ_VAL(temp, 2)]);
     act(buf, TRUE, ch, temp, 0, TO_ROOM);
 
-    send_to_char(ch, "You drink the %s.\r\n", drinks[GET_OBJ_VAL(temp, 2)]);
+    send_to_char(ch, "Вы выпили: %s.\r\n", drinks[GET_OBJ_VAL(temp, 2)]);
 
     if (drink_aff[GET_OBJ_VAL(temp, 2)][DRUNK] > 0)
       amount = (25 - GET_COND(ch, THIRST)) / drink_aff[GET_OBJ_VAL(temp, 2)][DRUNK];
@@ -976,11 +976,11 @@ ACMD(do_eat)
     return;
   }
   if ((GET_OBJ_TYPE(food) != ITEM_FOOD) && (GET_LEVEL(ch) < LVL_IMMORT)) {
-    send_to_char(ch, "You can't eat THAT!\r\n");
+    send_to_char(ch, "Вы не можете есть ЭТО!\r\n");
     return;
   }
   if (GET_COND(ch, HUNGER) > 20) { /* Stomach full */
-    send_to_char(ch, "You are too full to eat more!\r\n");
+    send_to_char(ch, "Вы слишком сыты и не можете проглотить ни кусочка!\r\n");
     return;
   }
 
@@ -988,11 +988,11 @@ ACMD(do_eat)
     return;
 
   if (subcmd == SCMD_EAT) {
-    act("You eat $p.", FALSE, ch, food, 0, TO_CHAR);
-    act("$n eats $p.", TRUE, ch, food, 0, TO_ROOM);
+    act("Вы съели: $p.", FALSE, ch, food, 0, TO_CHAR);
+    act("$n съел $p.", TRUE, ch, food, 0, TO_ROOM);
   } else {
-    act("You nibble a little bit of $p.", FALSE, ch, food, 0, TO_CHAR);
-    act("$n tastes a little bit of $p.", TRUE, ch, food, 0, TO_ROOM);
+    act("Вы продегустировали: $p.", FALSE, ch, food, 0, TO_CHAR);
+    act("$n попробовал маленький кусочек: $p.", TRUE, ch, food, 0, TO_ROOM);
   }
 
   amount = (subcmd == SCMD_EAT ? GET_OBJ_VAL(food, 0) : 1);
@@ -1004,8 +1004,8 @@ ACMD(do_eat)
 
   if (GET_OBJ_VAL(food, 3) && (GET_LEVEL(ch) < LVL_IMMORT)) {
     /* The crap was poisoned ! */
-    send_to_char(ch, "Oops, that tasted rather strange!\r\n");
-    act("$n coughs and utters some strange sounds.", FALSE, ch, 0, 0, TO_ROOM);
+    send_to_char(ch, "У этой еды какой-то странный привкус!\r\n");
+    act("$n закашлялся и мычит что-то невнятное.", FALSE, ch, 0, 0, TO_ROOM);
 
     new_affect(&af);
     af.spell = SPELL_POISON;
@@ -1017,7 +1017,7 @@ ACMD(do_eat)
     extract_obj(food);
   else {
     if (!(--GET_OBJ_VAL(food, 0))) {
-      send_to_char(ch, "There's nothing left now.\r\n");
+      send_to_char(ch, "Не осталось ни кусочка.\r\n");
       extract_obj(food);
     }
   }

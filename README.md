@@ -18,8 +18,8 @@ https://bitbucket.org/prool/quickmud-lua-russian/
 
 (изменения от 3 апреля 2017 года)
 
-COMPILE AND RUN
----------------
+Compile and run (any systems)
+-----------------------------
 
 ./configure
 
@@ -33,10 +33,32 @@ bin/circle
 
 OR USE autorun\* scripts
 
+For Windows/cygwin add -liconv to LIBS in Makefile
+
+Compile under Android 6.0 (dirty instruction)
+---------------------------------------------
+
+cp configure.android configure
+
+./configure
+
+cd src
+
+add flag '-DANDROID' to Makefile to end of line 'CFLAGS=...'
+
+make
+
+cd ..
+
+bin/circle
+
+Contacts
+--------
+
 http://prool.kharkov.org
 
 http://mud.kharkov.org
 
 proolix dog gmail.com
 
-4 nov 2016
+19 Feb 2018
