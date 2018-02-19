@@ -585,7 +585,7 @@ if %actor.level% == 0
   end
 end
 wait 3 sec
-%zoneecho% 3001 A booming voice announces, 'Welcome %actor.name% to the realm!'
+%zoneecho% 3001 Громовой голос прокричал: 'Добро пожаловать в наш мир, %actor.name% !'
 ~
 #3099
 Test~

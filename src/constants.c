@@ -47,6 +47,21 @@ const char *dirs[] =
   "\n"
 };
 
+const char *dirs_r[] =
+{
+  "север",
+  "восток",
+  "юг",
+  "запад",
+  "вверх",
+  "вниз",
+  "северо-запад", /* Diagonals only used if CONFIG_DIAGONAL_DIRS is set */
+  "северо-восток",
+  "юго-восток",
+  "юго-запад",
+  "\n"
+};
+
 const char *autoexits[] =
 {
   "n",

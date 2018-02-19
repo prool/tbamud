@@ -973,9 +973,13 @@ ACMD(do_time)
   /* 35 days in a month, 7 days a week */
   weekday = ((35 * time_info.month) + day) % 7;
 
+#if 1 // 1 - prool, 0 - tbamud
+  send_to_char(ch,"Время %d часов. День недели %s.\r\n", time_info.hours, weekdays[weekday]);
+#else
   send_to_char(ch, "It is %d o'clock %s, on %s.\r\n",
 	  (time_info.hours % 12 == 0) ? 12 : (time_info.hours % 12),
 	  time_info.hours >= 12 ? "pm" : "am", weekdays[weekday]);
+#endif
 
   /* Peter Ajamian supplied the following as a fix for a bug introduced in the
    * ordinal display that caused 11, 12, and 13 to be incorrectly displayed as

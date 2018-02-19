@@ -159,27 +159,27 @@ static void weather_change(void)
   case 0:
     break;
   case 1:
-    send_to_outdoor("The sky starts to get cloudy.\r\n");
+    send_to_outdoor("Небо начало хмуриться.\r\n");
     weather_info.sky = SKY_CLOUDY;
     break;
   case 2:
-    send_to_outdoor("It starts to rain.\r\n");
+    send_to_outdoor("Начался дождь.\r\n");
     weather_info.sky = SKY_RAINING;
     break;
   case 3:
-    send_to_outdoor("The clouds disappear.\r\n");
+    send_to_outdoor("Облака рассеиваются.\r\n");
     weather_info.sky = SKY_CLOUDLESS;
     break;
   case 4:
-    send_to_outdoor("Lightning starts to show in the sky.\r\n");
+    send_to_outdoor("В небе засверкали молнии.\r\n");
     weather_info.sky = SKY_LIGHTNING;
     break;
   case 5:
-    send_to_outdoor("The rain stops.\r\n");
+    send_to_outdoor("Дождь прекратился.\r\n");
     weather_info.sky = SKY_CLOUDY;
     break;
   case 6:
-    send_to_outdoor("The lightning stops.\r\n");
+    send_to_outdoor("Молнии прекратили сверкать.\r\n");
     weather_info.sky = SKY_RAINING;
     break;
   default:
