@@ -183,17 +183,32 @@ void * next_in_list(struct iterator_data * pIterator)
   void * pContent;
   struct item_data * pTempItem;
 
+  printf("prooldebug: next_in_list()\n"); // prool
+
+  if (pIterator==NULL) {
+	  printf("prool: ACHTUNG! next_in_list() error #1: pIteraror==0\n");
+	  prool_log("prool: ACHTUNG! next_in_list() error #1: pIteraror==0");
+	  return NULL;
+  }
+
   if (pIterator->pList == NULL) {
     mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to get content from iterator with NULL list.");
     return NULL;
   }
 
   /* Cycle down the list */
+
+  if (pIterator->pItem) {
+	  printf("prool: ACHTUNG! next_in_list() error #2: pIteraror->pItem==0\n");
+	  prool_log("prool: ACHTUNG! next_in_list() error #2: pIteraror->pItem==0");
+	  return NULL;
+  }
+
   pTempItem = pIterator->pItem->pNextItem;
   pIterator->pItem = pTempItem;
 
   /* Grab the content */
-  pContent = pIterator->pItem ? pIterator->pItem->pContent : NULL;
+  pContent = pIterator->pItem ? pIterator->pItem->pContent : NULL; // prool: тут крешает
 
   return (pContent);
 }
