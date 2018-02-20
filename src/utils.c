@@ -1557,7 +1557,7 @@ char *ptime(void) // Return value: ref to ASCII char string with current time. Ð
 	tmstr = (char *) asctime(localtime(&mytime));
 	*(tmstr + strlen(tmstr) - 1) = '\0';
 
-	return tmstr;
+	return tmstr+4;
 	}
 
 void prool_log(char *str)

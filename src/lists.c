@@ -183,10 +183,10 @@ void * next_in_list(struct iterator_data * pIterator)
   void * pContent;
   struct item_data * pTempItem;
 
-  printf("prooldebug: next_in_list()\n"); // prool
+  //printf("prooldebug: next_in_list()\n"); // prool
 
   if (pIterator==NULL) {
-	  printf("prool: ACHTUNG! next_in_list() error #1: pIteraror==0\n");
+	  //printf("prool: ACHTUNG! next_in_list() error #1: pIteraror==0\n");
 	  prool_log("prool: ACHTUNG! next_in_list() error #1: pIteraror==0");
 	  return NULL;
   }
@@ -199,7 +199,7 @@ void * next_in_list(struct iterator_data * pIterator)
   /* Cycle down the list */
 
   if (pIterator->pItem) {
-	  printf("prool: ACHTUNG! next_in_list() error #2: pIteraror->pItem==0\n");
+	  //printf("prool: ACHTUNG! next_in_list() error #2: pIteraror->pItem==0\n");
 	  prool_log("prool: ACHTUNG! next_in_list() error #2: pIteraror->pItem==0");
 	  return NULL;
   }
