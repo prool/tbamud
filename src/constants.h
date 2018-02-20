@@ -35,11 +35,14 @@ extern const char *extra_bits[];
 extern const char *apply_types[];
 extern const char *container_bits[];
 extern const char *drinks[];
+extern const char *drinks_r[]; // prool
 extern const char *drinknames[];
 extern const char *color_liquid[];
 extern const char *fullness[];
 extern const char *weekdays[];
+extern const char *weekdays_r[]; // prool
 extern const char *month_name[];
+extern const char *month_name_r[]; // prool
 extern const struct str_app_type str_app[];
 extern const struct dex_skill_type dex_app_skill[];
 extern const struct dex_app_type dex_app[];

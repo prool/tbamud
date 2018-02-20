@@ -1,13 +1,13 @@
-                               T  B  A  M   U   D
-                                    3 . 6 7 
+                    TBA  MUD  3.67 (tbamud.com)
 
-+ russification (cyrillization) by Prool, proolix AT gmail.com
-codetable UTF-8
++ russification (cyrillization) by Prool (русифицировано Прулём)
+
 http://mud.kharkov.org https://github.com/prool/tbamud
 
 Use command `prool` for Prool's help
+После входа наберите команду prool для получ. помощи от Пруля.
 
-   Based on CircleMUD by Jeremy Elson and DikuMUD by Hans-Henrik Staerfeldt,
+Based on CircleMUD by Jeremy Elson and DikuMUD by Hans-Henrik Staerfeldt,
         Katja Nyboe, Tom Madsen, Michael Seifert, and Sebastian Hammer
 
-By what name do you wish to be known? 
+Your name? (Ваше имя? Пока разрешены только имена из латинских букв!) > 

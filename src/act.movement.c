@@ -300,7 +300,7 @@ int do_simple_move(struct char_data *ch, int dir, int need_specials_check)
 
   /* Display arrival information to anyone in the destination room... */
   if (!AFF_FLAGGED(ch, AFF_SNEAK))
-    act("$n has arrived.", TRUE, ch, 0, 0, TO_ROOM);
+    act("$n пришёл.", TRUE, ch, 0, 0, TO_ROOM);
 
   /* ... and the room description to the character. */
   if (ch->desc != NULL)

@@ -494,6 +494,7 @@ if (!IS_NPC(ch))
 	else if (!strcmp(argument, "веди")) {do_vedi(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "счет")) {do_score(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "сч")) {do_score(ch, argument, 0, 0); return;}
+	else if (!strcmp(argument, "см")) {do_look(ch, argument+strlen("см"), 0, SCMD_LOOK); return;}
 	else if (!strcmp(argument, "духмада")) {do_dukhmada(ch, argument, 0, 0); return;}
 
 	// recode input line here. prool
@@ -1878,6 +1879,9 @@ ACMD (do_dukhmada)
 
 ACMD (do_prool)
 {
+
+printf("do_prool: argument='%s'\n", argument);
+
 send_to_char(ch, "\r\nSee `help prool`\r\n\r\n");
 
 if (PRF_FLAGGED(ch, PRF_SUMMONABLE))

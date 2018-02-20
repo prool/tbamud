@@ -535,6 +535,27 @@ const char *drinks[] =
   "\n"
 };
 
+const char *drinks_r[] =
+{
+  "вода",
+  "пиво",
+  "вино",
+  "эль",
+  "темный эль",
+  "виски",
+  "лимонад",
+  "жидкий огонь",
+  "местное пойло",
+  "слизь",
+  "молоко",
+  "чай",
+  "кофе",
+  "кровь",
+  "соленая вода",
+  "чистая вода",
+  "\n"
+};
+
 /** Describes a one word alias for each type of liquid.
  * @pre Must be in the same order as the defines.
  * Must end array with a single newline. */
@@ -848,6 +869,16 @@ const char *weekdays[] = {
   "the Day of the Sun"
 };
 
+const char *weekdays_r[] = {
+  "День Луны",
+  "День Быка",
+  "День Обманщика",
+  "День Грома",
+  "День Свободы",
+  "День Богов",
+  "День Солнца"
+};
+
 /** The names of the mud months. Not used in sprinttype(). */
 const char *month_name[] = {
   "Month of Winter",		/* 0 */
@@ -867,6 +898,26 @@ const char *month_name[] = {
   "Month of the Long Shadows",
   "Month of the Ancient Darkness",
   "Month of the Great Evil"
+};
+
+const char *month_name_r[] = {
+  "Месяц начала зимы",		/* 0 */
+  "Месяц зимнего волка",
+  "Месяц ледяного гиганта",
+  "Месяц древних сил",
+  "Месяц перелома",
+  "Месяц начала весны",
+  "Месяц пробуждения природы",
+  "Вставной месяц",
+  "Драконий месяц",
+  "Солнечный месяц",
+  "Месяц жары",
+  "Месяц битв",
+  "Месяц сумерек",
+  "Месяц теней",
+  "Месяц длинных теней",
+  "Месяц тьмы",
+  "Дьяволов месяц"
 };
 
 /** Names for mob trigger types. */

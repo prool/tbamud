@@ -420,7 +420,7 @@ static void perform_drop_gold(struct char_data *ch, int amount, byte mode, room_
 	snprintf(buf, sizeof(buf), "$n drops %s.", money_desc(amount));
 	act(buf, TRUE, ch, 0, 0, TO_ROOM);
 
-	send_to_char(ch, "You drop some gold.\r\n");
+	send_to_char(ch, "Вы бросили несколько монет.\r\n");
 	obj_to_room(obj, IN_ROOM(ch));
       }
     } else {
@@ -429,7 +429,7 @@ static void perform_drop_gold(struct char_data *ch, int amount, byte mode, room_
       snprintf(buf, sizeof(buf), "$n drops %s which disappears in a puff of smoke!", money_desc(amount));
       act(buf, FALSE, ch, 0, 0, TO_ROOM);
 
-      send_to_char(ch, "You drop some gold which disappears in a puff of smoke!\r\n");
+      send_to_char(ch, "Вы бросили несколько монет, которые с хлопком исчезли, оставив после себя облачко дыма.\r\n");
     }
     decrease_gold(ch, amount);
   }
@@ -844,7 +844,7 @@ ACMD(do_drink)
         }
         snprintf(buf, sizeof(buf), "$n принимает внутрь освежающий напиток.");
         act(buf, TRUE, ch, 0, 0, TO_ROOM);
-        send_to_char(ch, "Вы выпили освежающтй напиток.\r\n");
+        send_to_char(ch, "Вы выпили освежающий напиток.\r\n");
         gain_condition(ch, THIRST, 1);
         if (GET_COND(ch, THIRST) > 20)
           send_to_char(ch, "Вы больше не испытываете жажды.\r\n");
@@ -894,7 +894,7 @@ ACMD(do_drink)
     snprintf(buf, sizeof(buf), "$n drinks %s from $p.", drinks[GET_OBJ_VAL(temp, 2)]);
     act(buf, TRUE, ch, temp, 0, TO_ROOM);
 
-    send_to_char(ch, "Вы выпили: %s.\r\n", drinks[GET_OBJ_VAL(temp, 2)]);
+    send_to_char(ch, "Вы выпили: %s.\r\n", drinks_r[GET_OBJ_VAL(temp, 2)]);
 
     if (drink_aff[GET_OBJ_VAL(temp, 2)][DRUNK] > 0)
       amount = (25 - GET_COND(ch, THIRST)) / drink_aff[GET_OBJ_VAL(temp, 2)][DRUNK];
@@ -920,13 +920,13 @@ ACMD(do_drink)
   gain_condition(ch, THIRST, drink_aff[GET_OBJ_VAL(temp, 2)][THIRST] * amount / 4);
 
   if (GET_COND(ch, DRUNK) > 10)
-    send_to_char(ch, "You feel drunk.\r\n");
+    send_to_char(ch, "Вы пьяны.\r\n");
 
   if (GET_COND(ch, THIRST) > 20)
-    send_to_char(ch, "You don't feel thirsty any more.\r\n");
+    send_to_char(ch, "Вы больше не испытываете жажды.\r\n");
 
   if (GET_COND(ch, HUNGER) > 20)
-    send_to_char(ch, "You are full.\r\n");
+    send_to_char(ch, "Вы сыты.\r\n");
 
   if (GET_OBJ_VAL(temp, 3) && GET_LEVEL(ch) < LVL_IMMORT) { /* The crap was poisoned ! */
     send_to_char(ch, "Oops, it tasted rather strange!\r\n");
@@ -1000,7 +1000,7 @@ ACMD(do_eat)
   gain_condition(ch, HUNGER, amount);
 
   if (GET_COND(ch, HUNGER) > 20)
-    send_to_char(ch, "You are full.\r\n");
+    send_to_char(ch, "Вы насытились.\r\n");
 
   if (GET_OBJ_VAL(food, 3) && (GET_LEVEL(ch) < LVL_IMMORT)) {
     /* The crap was poisoned ! */
