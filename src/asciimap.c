@@ -504,6 +504,7 @@ static void perform_map( struct char_data *ch, char *argument, bool worldmap )
   /* marks the center, where ch is */
   map[centre][centre] = SECT_HERE;
 
+#if 0 // prool
   /* Feel free to put your own MUD name or header in here */
   send_to_char(ch, " \tY-\tytbaMUD Map System\tY-\tn\r\n"
                    "\tD  .-.__--.,--.__.-.\tn\r\n" );
@@ -529,6 +530,12 @@ static void perform_map( struct char_data *ch, char *argument, bool worldmap )
 
   /* Paste the legend */
   strcpy(buf2, strpaste(buf1, buf, "\tD | \tn"));
+#endif
+
+#if 1 // prool
+  buf1[0]=0;
+  buf2[0]=0;
+#endif
 
   /* Set up the map */
   memset(buf, ' ', CANVAS_WIDTH);
@@ -540,13 +547,13 @@ static void perform_map( struct char_data *ch, char *argument, bool worldmap )
   memset(buf + count, ' ', CANVAS_WIDTH);
   strcpy(buf + count + CANVAS_WIDTH, "\r\n");
   /* Paste it on */
-  strcpy(buf2, strpaste(buf2, buf, "\tD | \tn"));
+  strcpy(buf2, strpaste(buf2, buf, ""/*"\tD | \tn"*/)); // prool
   /* Paste on the right border */
   strcpy(buf2, strpaste(buf2, buf1, "  "));
   /* Print it all out */
   send_to_char(ch, "%s", buf2);
 
-  send_to_char(ch, "\tD `.-.__--.,-.__.-.-'\tn\r\n");
+//  send_to_char(ch, "\tD `.-.__--.,-.__.-.-'\tn\r\n"); // prool
   return;
 }
 
@@ -606,6 +613,7 @@ static bool show_worldmap(struct char_data *ch) {
 }
 
 ACMD(do_map) {
+#if 0 // map is anyway!
   if (!can_see_map(ch)) {
     send_to_char(ch, "Sorry, the map is disabled!\r\n");
     return;
@@ -617,5 +625,6 @@ ACMD(do_map) {
     send_to_char(ch, "You can't see the map while blind!\r\n");
     return;
   }
+#endif
   perform_map(ch, argument, show_worldmap(ch));
 }
