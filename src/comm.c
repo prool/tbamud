@@ -1798,7 +1798,7 @@ static ssize_t perform_socket_read(socket_t desc, char *read_point, size_t space
 
   /* read() returned 0, meaning we got an EOF. */
   if (ret == 0) {
-    log("WARNING: EOF on socket read (connection broken by peer)");
+    //log("WARNING: EOF on socket read (connection broken by peer)");
     prool_log("WARNING: EOF on socket read (connection broken by peer)");
     return (-1);
   }
