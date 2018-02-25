@@ -2316,13 +2316,6 @@ static RETSIGTYPE hupsig(int sig)
   exit(1); /* perhaps something more elegant should substituted */
 }
 
-#ifdef ANDROID
-static RETSIGTYPE sigvtalarm(int sig)
-{
-  prool_log("prool log: Received SIGVTALARM. Ignored...");
-}
-#endif
-
 #endif	/* CIRCLE_UNIX */
 
 /* This is an implementation of signal() using sigaction() for portability.
@@ -2378,8 +2371,8 @@ static void signal_setup(void)
   itime.it_interval = interval;
   itime.it_value = interval;
   setitimer(ITIMER_VIRTUAL, &itime, NULL);
-#ifndef ANDROID
   my_signal(SIGVTALRM, checkpointing);
+#ifndef ANDROID
 
   /* just to be on the safe side: */
   my_signal(SIGHUP, hupsig);
@@ -2392,10 +2385,6 @@ static void signal_setup(void)
   my_signal(SIGPIPE, SIG_IGN);
   my_signal(SIGALRM, SIG_IGN);
 #endif // ANDROID
-
-#ifdef ANDROID
-  my_signal(SIGVTALARM, sigvtalarm);
-#endif
 }
 
 #endif	/* CIRCLE_UNIX || CIRCLE_MACINTOSH */
