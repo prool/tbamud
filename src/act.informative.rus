@@ -491,7 +491,7 @@ void look_at_room(struct char_data *ch, int ignore_brief)
     return;
 
   if (IS_DARK(IN_ROOM(ch)) && !CAN_SEE_IN_DARK(ch)) {
-    send_to_char(ch, "It is pitch black...\r\n");
+    send_to_char(ch, "Тут темно.\r\n");
     return;
   } else if (AFF_FLAGGED(ch, AFF_BLIND) && GET_LEVEL(ch) < LVL_IMMORT) {
     send_to_char(ch, "You see nothing but infinite darkness...\r\n");
@@ -713,7 +713,7 @@ ACMD(do_look)
   else if (AFF_FLAGGED(ch, AFF_BLIND) && GET_LEVEL(ch) < LVL_IMMORT)
     send_to_char(ch, "You can't see a damned thing, you're blind!\r\n");
   else if (IS_DARK(IN_ROOM(ch)) && !CAN_SEE_IN_DARK(ch)) {
-    send_to_char(ch, "It is pitch black...\r\n");
+    send_to_char(ch, "Здесь темнота, однако.\r\n");
     list_char_to_char(world[IN_ROOM(ch)].people, ch);	/* glowing red eyes */
   } else {
     char arg[MAX_INPUT_LENGTH], arg2[MAX_INPUT_LENGTH];
@@ -937,7 +937,7 @@ ACMD(do_score)
 
 ACMD(do_inventory)
 {
-  send_to_char(ch, "You are carrying:\r\n");
+  send_to_char(ch, "Вы несёте в инвентаре:\r\n");
   list_obj_to_char(ch->carrying, ch, SHOW_OBJ_SHORT, TRUE);
 }
 
@@ -945,7 +945,7 @@ ACMD(do_equipment)
 {
   int i, found = 0;
 
-  send_to_char(ch, "You are using:\r\n");
+  send_to_char(ch, "Вы используете (надето и держите):\r\n");
   for (i = 0; i < NUM_WEARS; i++) {
     if (GET_EQ(ch, i)) {
       found = TRUE;
@@ -954,12 +954,12 @@ ACMD(do_equipment)
         show_obj_to_char(GET_EQ(ch, i), ch, SHOW_OBJ_SHORT);
       } else {
         send_to_char(ch, "%s", wear_where[i]);
-        send_to_char(ch, "Something.\r\n");
+        send_to_char(ch, "Что-то.\r\n");
       }
     }
   }
   if (!found)
-    send_to_char(ch, " Nothing.\r\n");
+    send_to_char(ch, " Ничего.\r\n");
 }
 
 ACMD(do_time)
@@ -973,9 +973,13 @@ ACMD(do_time)
   /* 35 days in a month, 7 days a week */
   weekday = ((35 * time_info.month) + day) % 7;
 
+#if 0 // 1 - prool, 0 - tbamud
+  send_to_char(ch,"Время %d ч. День недели %s.\r\n", time_info.hours, weekdays_r[weekday]);
+#else
   send_to_char(ch, "It is %d o'clock %s, on %s.\r\n",
 	  (time_info.hours % 12 == 0) ? 12 : (time_info.hours % 12),
 	  time_info.hours >= 12 ? "pm" : "am", weekdays[weekday]);
+#endif
 
   /* Peter Ajamian supplied the following as a fix for a bug introduced in the
    * ordinal display that caused 11, 12, and 13 to be incorrectly displayed as
@@ -996,8 +1000,8 @@ ACMD(do_time)
       break;
     }
   }
-  send_to_char(ch, "The %d%s Day of the %s, Year %d.\r\n",
-	  day, suf, month_name[time_info.month], time_info.year);
+  send_to_char(ch, "День %d, %s, год %d.\r\n",
+	  day, month_name_r[time_info.month], time_info.year);
 }
 
 ACMD(do_weather)
@@ -1009,20 +1013,27 @@ ACMD(do_weather)
     "lit by flashes of lightning"
   };
 
+  const char *sky_look_r[] = {
+    "безоблачное",
+    "хмурое",
+    "дождливое",
+    "грозовое"
+  };
+
   if (OUTSIDE(ch))
     {
-    send_to_char(ch, "The sky is %s and %s.\r\n", sky_look[weather_info.sky],
-	    weather_info.change >= 0 ? "you feel a warm wind from south" :
-	     "your foot tells you bad weather is due");
+    send_to_char(ch, "Небо %s и %s.\r\n", sky_look_r[weather_info.sky],
+	    weather_info.change >= 0 ? "тёплый южный ветер" :
+	     "нет ничего лучше плохой погоды");
     if (GET_LEVEL(ch) >= LVL_GOD)
-      send_to_char(ch, "Pressure: %d (change: %d), Sky: %d (%s)\r\n",
+      send_to_char(ch, "Давление: %d (change: %d), Небо: %d (%s)\r\n",
                  weather_info.pressure,
                  weather_info.change,
                  weather_info.sky,
                  sky_look[weather_info.sky]);
     }
   else
-    send_to_char(ch, "You have no feeling about the weather at all.\r\n");
+    send_to_char(ch, "Отсюда вы не видите состояние погоды.\r\n");
 }
 
 /* puts -'s instead of spaces */

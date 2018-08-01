@@ -369,6 +369,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "zpurge"   , "zpurge"  , POS_DEAD    , do_zpurge   , LVL_BUILDER, 0 },
 
   { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 },
+  { "dukhmada" , "dukhmada", POS_DEAD    , do_dukhmada , 0, 0 },
 
   { "\n", "zzzzzzz", 0, 0, 0, 0 } };    /* this must be last */
 
@@ -1666,6 +1667,10 @@ void nanny(struct descriptor_data *d, char *arg)
 
     mudlog(NRM, LVL_GOD, TRUE, "%s [%s] new player.", GET_NAME(d->character), d->host);
 
+	char proolbuf[200];
+	snprintf(proolbuf,200,"%s [%s] new player", GET_NAME(d->character), d->host);
+	prool_log(proolbuf);
+
     /* Add to the list of 'recent' players (since last reboot) */
     if (AddRecentPlayer(GET_NAME(d->character), d->host, TRUE, FALSE) == FALSE)
     {
@@ -1853,7 +1858,7 @@ ACMD (do_dukhmada)
     struct obj_data *obj;
     obj_rnum r_num;
 
-    if ((r_num = real_object(1001/* гриб */)) == NOTHING) {
+    if ((r_num = real_object(1008/* fastfood */)) == NOTHING) {
       send_to_char(ch, "There is no object with that number.\r\n");
       return;
     }
@@ -1864,7 +1869,7 @@ ACMD (do_dukhmada)
       act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
       load_otrigger(obj);
 //
-    if ((r_num = real_object(1006/* бутылка воды */)) == NOTHING) {
+    if ((r_num = real_object(1007/* bottle */)) == NOTHING) {
       send_to_char(ch, "There is no object with that number.\r\n");
       return;
     }

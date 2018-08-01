@@ -1,13 +1,15 @@
-                    TBA  MUD  3.67 (tbamud.com)
 
-+ russification (cyrillization) by Prool (русифицировано Прулём)
 
-http://mud.kharkov.org https://github.com/prool/tbamud
+                    GLORY TO THE HEROES MUD
+                            by Prool
+
+                     Site http://glorymud.kharkov.org
 
 Use command `prool` for Prool's help
-После входа наберите команду prool для получ. помощи от Пруля.
+
+Based on TBA MUD 3.67 (tbamud.com)
 
 Based on CircleMUD by Jeremy Elson and DikuMUD by Hans-Henrik Staerfeldt,
         Katja Nyboe, Tom Madsen, Michael Seifert, and Sebastian Hammer
 
-Your name? (Ваше имя? Пока разрешены только имена из латинских букв!) > 
+Your name? > 

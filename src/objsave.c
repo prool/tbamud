@@ -1187,6 +1187,7 @@ static int Crash_load_objs(struct char_data *ch) {
   int rentcode = RENT_UNDEF;
   int timed,netcost,gold,account,nitems;
 	obj_save_data *loaded, *current;
+char proolbuf[200]; // prool
 
   if (!get_filename(filename, sizeof(filename), CRASH_FILE, GET_NAME(ch)))
     return 1;
@@ -1203,6 +1204,8 @@ static int Crash_load_objs(struct char_data *ch) {
                        "Contact a God for assistance.\r\n");
     }
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE, "%s entering game with no equipment.", GET_NAME(ch));
+	snprintf(proolbuf,200,"%s entering game with no eq.", GET_NAME(ch));
+	prool_log(proolbuf);
     return 1;
   }
  
@@ -1219,6 +1222,10 @@ static int Crash_load_objs(struct char_data *ch) {
       fclose(fl);
       mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
              "%s entering game, rented equipment lost (no $).", GET_NAME(ch));
+
+	snprintf(proolbuf,200,"%s entering game, equipment lost (no $)", GET_NAME(ch));
+	prool_log(proolbuf);
+
       Crash_crashsave(ch);
       return 2;
     } else {
@@ -1231,24 +1238,35 @@ static int Crash_load_objs(struct char_data *ch) {
   case RENT_RENTED:
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "%s un-renting and entering game.", GET_NAME(ch));
+	snprintf(proolbuf,200,"%s un-renting and entering game", GET_NAME(ch));
+	prool_log(proolbuf);
+
     break;
   case RENT_CRASH:
 
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "%s retrieving crash-saved items and entering game.", GET_NAME(ch));
+	snprintf(proolbuf,200,"%s retr. crash-saved and entering game", GET_NAME(ch));
+	prool_log(proolbuf);
     break;
   case RENT_CRYO:
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "%s un-cryo'ing and entering game.", GET_NAME(ch));
+	snprintf(proolbuf,200,"%s un-cryo and entering game", GET_NAME(ch));
+	prool_log(proolbuf);
     break;
   case RENT_FORCED:
   case RENT_TIMEDOUT:
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "%s retrieving force-saved items and entering game.", GET_NAME(ch));
+	snprintf(proolbuf,200,"%s retr. force-saved and entering game", GET_NAME(ch));
+	prool_log(proolbuf);
     break;
   default:
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "WARNING: %s entering game with undefined rent code.", GET_NAME(ch));
+	snprintf(proolbuf,200,"%s entering game with undef. rent code", GET_NAME(ch));
+	prool_log(proolbuf);
     break;
   }
 

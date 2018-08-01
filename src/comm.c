@@ -207,8 +207,8 @@ int main(int argc, char **argv)
   int pos = 1;
   const char *dir;
 
-prool_log("========================== tbamud started ====================");
-prool_log("by prool, proolix@gmail.com, prool.kharkov.org");
+prool_log("========================== glorymud started ====================");
+prool_log("by prool, proolix@gmail.com, glorymud.kharkov.org");
 
 #ifdef MEMORY_DEBUG
   zmalloc_init();
@@ -764,7 +764,7 @@ void game_loop(socket_t local_mother_desc)
 
     /* Sleep if we don't have any connections */
     if (descriptor_list == NULL) {
-      log("No connections.  Going to sleep.");
+      log("GLORYMUD: No connections.  Going to sleep.");
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
       if (select(local_mother_desc + 1, &input_set, (fd_set *) 0, (fd_set *) 0, NULL) < 0) {
@@ -1083,7 +1083,7 @@ static void record_usage(void)
       sockets_playing++;
   }
 
-  log("nusage: %-3d sockets connected, %-3d sockets playing",
+  log("GLORYMUD: nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
 
 #ifdef RUSAGE	/* Not RUSAGE_SELF because it doesn't guarantee prototype. */
@@ -2085,6 +2085,7 @@ static int perform_subst(struct descriptor_data *t, char *orig, char *subst)
 void close_socket(struct descriptor_data *d)
 {
   struct descriptor_data *temp;
+	char proolbuf[200];
 
   REMOVE_FROM_LIST(d, descriptor_list, next);
   CLOSE_SOCKET(d->descriptor);
@@ -2123,12 +2124,18 @@ void close_socket(struct descriptor_data *d)
       act("$n has lost $s link.", TRUE, link_challenged, 0, 0, TO_ROOM);
       save_char(link_challenged);
       mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(link_challenged)), TRUE, "Closing link to: %s.", GET_NAME(link_challenged));
+	snprintf(proolbuf,200,"%s closing link", GET_NAME(link_challenged));
+	prool_log(proolbuf);
     } else {
       mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
+	snprintf(proolbuf,200,"%s losing player", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
+	prool_log(proolbuf);
       free_char(d->character);
     }
-  } else
+  } else {
     mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char.");
+    prool_log("Losing descriptor without char.");
+  }
 
   /* JE 2/22/95 -- part of my unending quest to make switch stable */
   if (d->original && d->original->desc)

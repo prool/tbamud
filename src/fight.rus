@@ -8,6 +8,8 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
+#define __FIGHT_C__
+
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -48,6 +50,25 @@ struct attack_hit_type attack_hit_text[] =
   {"blast", "blasts"},
   {"punch", "punches"},
   {"stab", "stabs"}
+};
+
+struct attack_hit_type attack_hit_text_r[] =
+{
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"},
+  {"ударить", "ударить"}
 };
 
 /* local (file scope only) variables */
@@ -117,8 +138,7 @@ void check_killer(struct char_data *ch, struct char_data *vict)
 
   SET_BIT_AR(PLR_FLAGS(ch), PLR_KILLER);
   send_to_char(ch, "If you want to be a PLAYER KILLER, so be it...\r\n");
-  mudlog(BRF, MAX(LVL_IMMORT, MAX(GET_INVIS_LEV(ch), GET_INVIS_LEV(vict))), 
-    TRUE, "PC Killer bit set on %s for initiating attack on %s at %s.",
+  mudlog(BRF, LVL_IMMORT, TRUE, "PC Killer bit set on %s for initiating attack on %s at %s.",
     GET_NAME(ch), GET_NAME(vict), world[IN_ROOM(vict)].name);
 }
 
@@ -174,10 +194,10 @@ static void make_corpse(struct char_data *ch)
   IN_ROOM(corpse) = NOWHERE;
   corpse->name = strdup("corpse");
 
-  snprintf(buf2, sizeof(buf2), "The corpse of %s is lying here.", GET_NAME(ch));
+  snprintf(buf2, sizeof(buf2), "Труп %s лежит здесь.", GET_NAME(ch));
   corpse->description = strdup(buf2);
 
-  snprintf(buf2, sizeof(buf2), "the corpse of %s", GET_NAME(ch));
+  snprintf(buf2, sizeof(buf2), "труп %s", GET_NAME(ch));
   corpse->short_description = strdup(buf2);
 
   GET_OBJ_TYPE(corpse) = ITEM_CONTAINER;
@@ -243,17 +263,15 @@ void death_cry(struct char_data *ch)
 {
   int door;
 
-  act("Your blood freezes as you hear $n's death cry.", FALSE, ch, 0, 0, TO_ROOM);
+  act("Кровушка застыла у вас в жилах от предсмертного крика $n!", FALSE, ch, 0, 0, TO_ROOM);
 
   for (door = 0; door < DIR_COUNT; door++)
     if (CAN_GO(ch, door))
-      send_to_room(world[IN_ROOM(ch)].dir_option[door]->to_room, "Your blood freezes as you hear someone's death cry.\r\n");
+      send_to_room(world[IN_ROOM(ch)].dir_option[door]->to_room, "Ваша кровь застыла в жилах, когда вы услышали чей-то предсмертный крик!\r\n");
 }
 
 void raw_kill(struct char_data * ch, struct char_data * killer)
 {
-struct char_data *i;
-
   if (FIGHTING(ch))
     stop_fighting(ch);
 
@@ -269,14 +287,8 @@ struct char_data *i;
   } else
     death_cry(ch);
 
-  if (killer) {
-    if (killer->group) {
-      while ((i = (struct char_data *) simple_list(killer->group->members)) != NULL)
-        if(IN_ROOM(i) == IN_ROOM(ch)  || (world[IN_ROOM(i)].zone == world[IN_ROOM(ch)].zone))
-          autoquest_trigger_check(i, ch, NULL, AQ_MOB_KILL);      
-    } else
-        autoquest_trigger_check(killer, ch, NULL, AQ_MOB_KILL);
-  }
+  if (killer)
+    autoquest_trigger_check(killer, ch, NULL, AQ_MOB_KILL);
 
   /* Alert Group if Applicable */
   if (GROUP(ch))
@@ -317,9 +329,9 @@ static void perform_group_gain(struct char_data *ch, int base,
     share = MIN(CONFIG_MAX_EXP_GAIN, MAX(1, hap_share));
   }
   if (share > 1)
-    send_to_char(ch, "You receive your share of experience -- %d points.\r\n", share);
+    send_to_char(ch, "Вы получили свою долю опыта -- %d единиц.\r\n", share);
   else
-    send_to_char(ch, "You receive your share of experience -- one measly little point!\r\n");
+    send_to_char(ch, "Вы получили свою долю опыта - всего лишь одно жалкое очко!\r\n");
 
   gain_exp(ch, share);
   change_alignment(ch, victim);
@@ -371,9 +383,9 @@ static void solo_gain(struct char_data *ch, struct char_data *victim)
   }
 
   if (exp > 1)
-    send_to_char(ch, "You receive %d experience points.\r\n", exp);
+    send_to_char(ch, "Вы получили %d очков опыта.\r\n", exp);
   else
-    send_to_char(ch, "You receive one lousy experience point.\r\n");
+    send_to_char(ch, "Вы получили одно несчастное очко опытаr!\r\n");
 
   gain_exp(ch, exp);
   change_alignment(ch, victim);
@@ -422,57 +434,57 @@ static void dam_message(int dam, struct char_data *ch, struct char_data *victim,
     /* use #w for singular (i.e. "slash") and #W for plural (i.e. "slashes") */
 
     {
-      "$n tries to #w $N, but misses.",	/* 0: 0     */
-      "You try to #w $N, but miss.",
-      "$n tries to #w you, but misses."
+      "$n попробовал #w $N, но промахнулся.",	/* 0: 0     */
+      "Вы попробовали #w $N, но промахнулись.",
+      "$n попробовал #w вас, но не попал."
     },
 
     {
-      "$n tickles $N as $e #W $M.",	/* 1: 1..2  */
-      "You tickle $N as you #w $M.",
-      "$n tickles you as $e #W you."
+      "$n оцарапал $N пытаясь $e #W $M.",	/* 1: 1..2  */
+      "Вы оцарапали $N пытаясь #w $M.",
+      "$n поцарапал вас, пытаясь $e #W."
     },
 
     {
-      "$n barely #W $N.",		/* 2: 3..4  */
-      "You barely #w $N.",
-      "$n barely #W you."
+      "$n едва #W $N.",		/* 2: 3..4  */
+      "Вы едва #w $N.",
+      "$n едва #W вас."
     },
 
     {
       "$n #W $N.",			/* 3: 5..6  */
-      "You #w $N.",
-      "$n #W you."
+      "Вы #w $N.",
+      "$n #W вас."
     },
 
     {
-      "$n #W $N hard.",			/* 4: 7..10  */
-      "You #w $N hard.",
-      "$n #W you hard."
+      "$n #W $N сильно.",			/* 4: 7..10  */
+      "Вы #w $N сильно.",
+      "$n #W вас сильно."
     },
 
     {
-      "$n #W $N very hard.",		/* 5: 11..14  */
-      "You #w $N very hard.",
-      "$n #W you very hard."
+      "$n #W $N очень сильно.",		/* 5: 11..14  */
+      "Вы #w $N очень сильно.",
+      "$n #W вас очень сильно."
     },
 
     {
-      "$n #W $N extremely hard.",	/* 6: 15..19  */
-      "You #w $N extremely hard.",
-      "$n #W you extremely hard."
+      "$n #W $N исключительно сильно.",	/* 6: 15..19  */
+      "Вы #w $N исключительно сильно.",
+      "$n #W вас исключительно сильно."
     },
 
     {
-      "$n massacres $N to small fragments with $s #w.",	/* 7: 19..23 */
-      "You massacre $N to small fragments with your #w.",
-      "$n massacres you to small fragments with $s #w."
+      "$n порубил $N в капусту $s #w.",	/* 7: 19..23 */
+      "Вы порубили $N в капусту #w.",
+      "$n порубил вас в капусту $s #w."
     },
 
     {
-      "$n OBLITERATES $N with $s deadly #w!!",	/* 8: > 23   */
-      "You OBLITERATE $N with your deadly #w!!",
-      "$n OBLITERATES you with $s deadly #w!!"
+      "$n сокрушил $N with $s смертельно #w!!",	/* 8: > 23   */
+      "Вы сокрушили $N смертельно #w!!",
+      "$n сокрушил вас $s смертельно #w!!"
     }
   };
 
@@ -490,14 +502,14 @@ static void dam_message(int dam, struct char_data *ch, struct char_data *victim,
 
   /* damage message to onlookers */
   buf = replace_string(dam_weapons[msgnum].to_room,
-	  attack_hit_text[w_type].singular, attack_hit_text[w_type].plural);
+	  attack_hit_text_r[w_type].singular, attack_hit_text_r[w_type].plural);
   act(buf, FALSE, ch, NULL, victim, TO_NOTVICT);
 
   /* damage message to damager */
   if (GET_LEVEL(ch) >= LVL_IMMORT)
 	send_to_char(ch, "(%d) ", dam);
   buf = replace_string(dam_weapons[msgnum].to_char,
-	  attack_hit_text[w_type].singular, attack_hit_text[w_type].plural);
+	  attack_hit_text_r[w_type].singular, attack_hit_text_r[w_type].plural);
   act(buf, FALSE, ch, NULL, victim, TO_CHAR);
   send_to_char(ch, CCNRM(ch, C_CMP));
 
@@ -505,7 +517,7 @@ static void dam_message(int dam, struct char_data *ch, struct char_data *victim,
   if (GET_LEVEL(victim) >= LVL_IMMORT)
     send_to_char(victim, "\tR(%d)", dam);
   buf = replace_string(dam_weapons[msgnum].to_victim,
-	  attack_hit_text[w_type].singular, attack_hit_text[w_type].plural);
+	  attack_hit_text_r[w_type].singular, attack_hit_text_r[w_type].plural);
   act(buf, FALSE, ch, NULL, victim, TO_VICT | TO_SLEEP);
   send_to_char(victim, CCNRM(victim, C_CMP));
 }
@@ -685,25 +697,25 @@ int damage(struct char_data *ch, struct char_data *victim, int dam, int attackty
   /* Use send_to_char -- act() doesn't send message if you are DEAD. */
   switch (GET_POS(victim)) {
   case POS_MORTALLYW:
-    act("$n is mortally wounded, and will die soon, if not aided.", TRUE, victim, 0, 0, TO_ROOM);
-    send_to_char(victim, "You are mortally wounded, and will die soon, if not aided.\r\n");
+    act("$n смертельно ранен и умрет, если ему никто не поможет.", TRUE, victim, 0, 0, TO_ROOM);
+    send_to_char(victim, "Вы смертельно ранены и умрете, если вам никто не поможет.\r\n");
     break;
   case POS_INCAP:
-    act("$n is incapacitated and will slowly die, if not aided.", TRUE, victim, 0, 0, TO_ROOM);
-    send_to_char(victim, "You are incapacitated and will slowly die, if not aided.\r\n");
+    act("$n недееспособен и медленно умирает.", TRUE, victim, 0, 0, TO_ROOM);
+    send_to_char(victim, "Вы медленно умираете.\r\n");
     break;
   case POS_STUNNED:
-    act("$n is stunned, but will probably regain consciousness again.", TRUE, victim, 0, 0, TO_ROOM);
-    send_to_char(victim, "You're stunned, but will probably regain consciousness again.\r\n");
+    act("$n оглушен, но может скоро очнуться.", TRUE, victim, 0, 0, TO_ROOM);
+    send_to_char(victim, "Вас оглушили, но вы еще можете прийти в себя.\r\n");
     break;
   case POS_DEAD:
-    act("$n is dead!  R.I.P.", FALSE, victim, 0, 0, TO_ROOM);
-    send_to_char(victim, "You are dead!  Sorry...\r\n");
+    act("$n МЕРТВ!", FALSE, victim, 0, 0, TO_ROOM);
+    send_to_char(victim, "Вы мертвы. Такие дела.\r\n");
     break;
 
   default:			/* >= POSITION SLEEPING */
     if (dam > (GET_MAX_HIT(victim) / 4))
-      send_to_char(victim, "That really did HURT!\r\n");
+      send_to_char(victim, "Это было реально больно!\r\n");
 
     if (GET_HIT(victim) < (GET_MAX_HIT(victim) / 4)) {
       send_to_char(victim, "%sYou wish that your wounds would stop BLEEDING so much!%s\r\n",
@@ -744,8 +756,7 @@ int damage(struct char_data *ch, struct char_data *victim, int dam, int attackty
     }
 
     if (!IS_NPC(victim)) {
-      mudlog(BRF, MAX(LVL_IMMORT, MAX(GET_INVIS_LEV(ch), GET_INVIS_LEV(victim))), 
-        TRUE, "%s killed by %s at %s", GET_NAME(victim), GET_NAME(ch), world[IN_ROOM(victim)].name);
+      mudlog(BRF, LVL_IMMORT, TRUE, "%s killed by %s at %s", GET_NAME(victim), GET_NAME(ch), world[IN_ROOM(victim)].name);
       if (MOB_FLAGGED(ch, MOB_MEMORY))
 	forget(ch, victim);
     }
@@ -932,11 +943,8 @@ void perform_violence(void)
       continue;
     }
 
- if (GROUP(ch) && GROUP(ch)->members && GROUP(ch)->members->iSize) {
-      struct iterator_data Iterator;
-
-      tch = (struct char_data *) merge_iterator(&Iterator, GROUP(ch)->members);
-    for (; tch ; tch = next_in_list(&Iterator)) {
+    if (GROUP(ch)) {
+      while ((tch = (struct char_data *) simple_list(GROUP(ch)->members)) != NULL) {
         if (tch == ch)
           continue;
         if (!IS_NPC(tch) && !PRF_FLAGGED(tch, PRF_AUTOASSIST))

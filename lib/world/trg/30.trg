@@ -585,7 +585,7 @@ if %actor.level% == 0
   end
 end
 wait 3 sec
-%zoneecho% 3001 Громовой голос прокричал: 'Добро пожаловать в наш мир, %actor.name% !'
+%zoneecho% 3001 WELCOME TO MUD, %actor.name% !
 ~
 #3099
 Test~
