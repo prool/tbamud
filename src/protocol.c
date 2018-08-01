@@ -2262,36 +2262,42 @@ static void SendMSSP( descriptor_t *apDescriptor )
 
       /* Generic */
       { "CRAWL DELAY",        "-1", NULL },
+      { "HOSTNAME",           "glorymud.kharkov.org" },
+      { "PORT",               "5000" },
+      { "CODEBASE",           "tbaMUD" },
+      { "CONTACT",            "proolix@gmail.com" },
+      { "IP",                 "185.82.217.164" },
+      { "LANGUAGE",           "English" },
+      { "LOCATION",           "BU" },
+      { "WEBSITE",            "http://glorymud.kharkov.org" },
+      { "CREATED",            "2018" },
+      { "FAMILY",             "DikuMUD" },
+      { "GENRE",              "Fantasy" },
+      { "STATUS",             "Alpha" },
+      { "AREAS",              "206" },
+      { "MOBILES",            "3706" },
+      { "OBJECTS",            "4774" },
+      { "ROOMS",              "12699" },
+      { "HELPFILES",          "1" },
+      { "HIRING BUILDERS",    "1" },
+      { "HIRING CODERS",      "1" },
+      { "UTF-8",              "1" },
+      { "ADULT MATERIAL",     "0" },
+      { "MUDTRIGS",           "1462" },
+      { "ANSI",               "1" },
 /*
-      { "HOSTNAME",           "" },
-      { "PORT",               "" },
-      { "CODEBASE",           "" },
-      { "CONTACT",            "" },
-      { "CREATED",            "" },
       { "ICON",               "" },
-      { "IP",                 "" },
-      { "LANGUAGE",           "" },
-      { "LOCATION",           "" },
       { "MINIMUM AGE",        "" },
-      { "WEBSITE",            "" },
 */
       /* Categorisation */
 /*
-      { "FAMILY",             "" },
-      { "GENRE",              "" },
       { "GAMEPLAY",           "" },
-      { "STATUS",             "" },
       { "GAMESYSTEM",         "" },
       { "INTERMUD",           "" },
       { "SUBGENRE",           "" },
 */
       /* World */
 /*
-      { "AREAS",              "0" },
-      { "HELPFILES",          "0" },
-      { "MOBILES",            "0" },
-      { "OBJECTS",            "0" },
-      { "ROOMS",              "0" },
       { "CLASSES",            "0" },
       { "LEVELS",             "0" },
       { "RACES",              "0" },
@@ -2299,7 +2305,6 @@ static void SendMSSP( descriptor_t *apDescriptor )
 */
       /* Protocols */
 /*
-      { "ANSI",               "1" },
       { "GMCP",               "0" },
 #ifdef USING_MCCP
       { "MCCP",               "1" },
@@ -2311,7 +2316,6 @@ static void SendMSSP( descriptor_t *apDescriptor )
       { "MSP",                "1" },
       { "MXP",                "1" },
       { "PUEBLO",             "0" },
-      { "UTF-8",              "1" },
       { "VT100",              "0" },
       { "XTERM 256 COLORS",   "1" },
 */
@@ -2322,8 +2326,6 @@ static void SendMSSP( descriptor_t *apDescriptor )
 */
       /* Hiring */
 /*
-      { "HIRING BUILDERS",    "0" },
-      { "HIRING CODERS",      "0" },
 */
       /* Extended variables */
 
@@ -2333,12 +2335,10 @@ static void SendMSSP( descriptor_t *apDescriptor )
       { "EXITS",              "0" },
       { "EXTRA DESCRIPTIONS", "0" },
       { "MUDPROGS",           "0" },
-      { "MUDTRIGS",           "0" },
       { "RESETS",             "0" },
 */
       /* Game */
 /*
-      { "ADULT MATERIAL",     "0" },
       { "MULTICLASSING",      "0" },
       { "NEWBIE FRIENDLY",    "0" },
       { "PLAYER CITIES",      "0" },
