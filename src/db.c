@@ -778,8 +778,7 @@ void boot_db(void)
 #endif
 
   for (i = 0; i <= top_of_zone_table; i++) {
-    log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
-	zone_table[i].name, zone_table[i].bot, zone_table[i].top);
+    //log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number, zone_table[i].name, zone_table[i].bot, zone_table[i].top); // prool
     reset_zone(i);
   }
 
