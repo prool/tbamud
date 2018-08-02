@@ -1070,6 +1070,7 @@ static int perform_dupe_check(struct descriptor_data *d)
   int mode = 0;
   int pref_temp = 0; /* for "last" log */
   int id = GET_IDNUM(d->character);
+	char proolbuf[200];
 
   /* Now that this descriptor has successfully logged in, disconnect all
    * other descriptors controlling a character with the same ID number. */
@@ -1183,6 +1184,8 @@ static int perform_dupe_check(struct descriptor_data *d)
     write_to_output(d, "Reconnecting.\r\n");
     act("$n has reconnected.", TRUE, d->character, 0, 0, TO_ROOM);
     mudlog(NRM, MAX(0, GET_INVIS_LEV(d->character)), TRUE, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
+	snprintf(proolbuf,200, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
+	prool_log(proolbuf);
     if (has_mail(GET_IDNUM(d->character)))
       write_to_output(d, "You have mail waiting.\r\n");
     break;
@@ -1193,10 +1196,14 @@ static int perform_dupe_check(struct descriptor_data *d)
 	TRUE, d->character, 0, 0, TO_ROOM);
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE,
 	"%s has re-logged in ... disconnecting old socket.", GET_NAME(d->character));
+	snprintf(proolbuf,200,"%s has re-logged in ... disconnecting old socket.", GET_NAME(d->character));
+	prool_log(proolbuf);
     break;
   case UNSWITCH:
     write_to_output(d, "Reconnecting to unswitched char.");
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
+	snprintf(proolbuf,200, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
+	prool_log(proolbuf);
     break;
   }
 

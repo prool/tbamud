@@ -2124,7 +2124,7 @@ void close_socket(struct descriptor_data *d)
       act("$n has lost $s link.", TRUE, link_challenged, 0, 0, TO_ROOM);
       save_char(link_challenged);
       mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(link_challenged)), TRUE, "Closing link to: %s.", GET_NAME(link_challenged));
-	snprintf(proolbuf,200,"%s closing link", GET_NAME(link_challenged));
+	snprintf(proolbuf,200,"%s closing link...", GET_NAME(link_challenged));
 	prool_log(proolbuf);
     } else {
       mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
