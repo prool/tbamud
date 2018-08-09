@@ -13577,14 +13577,18 @@ Prool commands. Кириллические команды Пруля
 
 счет или сч - score
 духмада - выдача воды и еды
+
+Русификация только начата и больше русскиз команд пока нет
 #0
 PROOL
 Prool's help
 
+prool [parameter] - test command for Prool
+
+help proolcyr - cyrillic (russian) help for russian-spoke players
+
 If you need food and water, use the command
-
 dukhmada
-
 #0
 DUKHMADA
 The command issues water and food

@@ -1890,9 +1890,16 @@ ACMD (do_dukhmada)
 }
 
 ACMD (do_prool)
-{
+{char proolbuf[200];
+int i;
 
-printf("do_prool: argument='%s'\n", argument);
+i=atoi(argument);
+printf("do_prool: argument='%s' i=%i\n", argument,i);
+
+if (i) {
+	snprintf(proolbuf,200,"prool param. set to %i\r\n",i);
+	ch->player_specials->prool=i;
+	}
 
 send_to_char(ch, "\r\nSee `help prool`\r\n\r\n");
 
@@ -1904,6 +1911,13 @@ else
 	{
     	send_to_char(ch, "You are no summonable by other players\r\nCodetable UTF-8\r\n");
 	}
+
+// ch->player_specials->poofin
+snprintf(proolbuf,200,"prool parameter = %i\r\n", ch->player_specials->prool);
+send_to_char(ch,proolbuf);
+
+snprintf(proolbuf,200,"player name '%s'\r\n", GET_NAME(ch));
+send_to_char(ch,proolbuf);
 }
 //end from prool
 

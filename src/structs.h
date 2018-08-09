@@ -986,6 +986,7 @@ struct player_special_data
   int last_olc_mode;     /**< ? Currently Unused ? */
   char *host;            /**< Resolved hostname, or ip, for player. */
   int buildwalk_sector;  /**< Default sector type for buildwalk */
+  int prool; // prool's test parameter. Usage in code: ch->player_specials->prool
 };
 
 /** Special data used by NPCs, not PCs */
