@@ -172,7 +172,7 @@ int selfdelete_fastwipe = YES;
 
 /* ROOM NUMBERS */
 /* Virtual number of room that mortals should enter at. */
-room_vnum mortal_start_room = 3001;
+room_vnum mortal_start_room = 1000 /*3001*/;
 
 /* Virtual number of room that immorts should enter at by default. */
 room_vnum immort_start_room = 1204;

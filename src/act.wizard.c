@@ -8,6 +8,8 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
+#define PROOLDEBUG 1
+
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -317,6 +319,10 @@ ACMD(do_teleport)
   char buf[MAX_INPUT_LENGTH], buf2[MAX_INPUT_LENGTH];
   struct char_data *victim;
   room_rnum target;
+
+#ifdef PROOLDEBUG
+printf("do_teleport\r\n");
+#endif
 
   two_arguments(argument, buf, buf2);
 

@@ -1086,7 +1086,7 @@ static void record_usage(void)
   log("GLORYMUD: nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
 
-  prool_log("5 minut statisctics...");
+  //prool_log("5 minut statisctics...");
 
 #ifdef RUSAGE	/* Not RUSAGE_SELF because it doesn't guarantee prototype. */
   {

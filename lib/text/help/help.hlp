@@ -13589,8 +13589,15 @@ help proolcyr - cyrillic (russian) help for russian-spoke players
 
 If you need food and water, use the command
 dukhmada
+
+For main help use
+HELP
+command
 #0
 DUKHMADA
 The command issues water and food
+#0
+SCOOP
+Dig the ground. You can find stones, ore, etc.
 #0
 $~

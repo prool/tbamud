@@ -43,6 +43,7 @@
 // prool begin
 ACMD (do_prool);
 ACMD (do_dukhmada);
+ACMD (do_scoop);
 // prool end
 
 /* local (file scope) functions */
@@ -284,6 +285,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "say"      , "s"       , POS_RESTING , do_say      , 0, 0 },
   { "score"    , "sc"      , POS_DEAD    , do_score    , 0, 0 },
   { "scan"     , "sca"     , POS_RESTING , do_scan     , 0, 0 },
+  { "scoop"    , "scoop"   , POS_DEAD    , do_scoop    , 0, 0 }, // prool
   { "scopy"    , "scopy"   , POS_DEAD    , do_oasis_copy, LVL_GOD, CON_SEDIT },
   { "sit"      , "si"      , POS_RESTING , do_sit      , 0, 0 },
   { "'"        , "'"       , POS_RESTING , do_say      , 0, 0 },
@@ -368,8 +370,8 @@ cpp_extern const struct command_info cmd_info[] = {
   { "zcheck"   , "zcheck"  , POS_DEAD    , do_zcheck   , LVL_BUILDER, 0 },
   { "zpurge"   , "zpurge"  , POS_DEAD    , do_zpurge   , LVL_BUILDER, 0 },
 
-  { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 },
-  { "dukhmada" , "dukhmada", POS_DEAD    , do_dukhmada , 0, 0 },
+  { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 }, // prool
+  { "dukhmada" , "dukhmada", POS_DEAD    , do_dukhmada , 0, 0 }, // prool
 
   { "\n", "zzzzzzz", 0, 0, 0, 0 } };    /* this must be last */
 
@@ -1847,7 +1849,8 @@ void nanny(struct descriptor_data *d, char *arg)
 
 ACMD (do_az)
 {
-send_to_char(ch, "do_az()\r\n");
+send_to_char(ch, "do_az: вы вконец устали!!!111\r\n");
+GET_MOVE(ch)=1;
 }
 
 ACMD (do_buki)
@@ -1887,6 +1890,57 @@ ACMD (do_dukhmada)
       act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
       load_otrigger(obj);
 //
+}
+
+ACMD (do_scoop) // горные работы
+{
+    struct obj_data *obj;
+    obj_rnum r_num;
+    int i, n;
+
+switch ( SECT(IN_ROOM(ch)))
+	{
+	case  SECT_FIELD: break;
+	case  SECT_FOREST: break;
+	case  SECT_HILLS: break;
+	case  SECT_MOUNTAIN: break;
+	default:
+      		send_to_char(ch, "Here you can not dig!\r\n");
+		return;
+	}
+
+    switch (rand_number(1,10))
+	{
+	case 1: n=23612; break; // a lump of ore
+	default: n=23622; // rock
+	}
+
+    if (GET_MOVE(ch)<1) {// нету сил
+      send_to_char(ch, "You are too exhausted to diggin.\r\n");
+      return;
+    }
+
+    GET_MOVE(ch) = GET_MOVE(ch) - 1;
+
+    i=rand_number(1,10);
+
+    if (i<9) {
+      act("$n digs the ground.", TRUE, ch, 0, 0, TO_ROOM);
+      act("$n dug up nothing!", FALSE, ch, 0, 0, TO_ROOM);
+      act("You dug up nothing!", FALSE, ch, 0, 0, TO_CHAR);
+      return;
+    }
+
+    if ((r_num = real_object(n)) == NOTHING) {
+      send_to_char(ch, "You dig up NOTHING!!!111\r\n");
+      return;
+    }
+      obj = read_object(r_num, REAL);
+        obj_to_char(obj, ch);
+      act("$n digs the ground.", TRUE, ch, 0, 0, TO_ROOM);
+      act("$n dug up $p!", FALSE, ch, obj, 0, TO_ROOM);
+      act("You dug up $p.", FALSE, ch, obj, 0, TO_CHAR);
+      load_otrigger(obj);
 }
 
 ACMD (do_prool)
