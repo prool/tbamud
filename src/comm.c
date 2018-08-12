@@ -94,6 +94,9 @@
 extern time_t motdmod;
 extern time_t newsmod;
 
+/* prool's functions */
+void send_email2 (char *from, char *to, char *subj, char *text);
+
 /* locally defined globals, used externally */
 struct descriptor_data *descriptor_list = NULL;   /* master desc list */
 int buf_largecount = 0;   /* # of large buffers which exist */
@@ -209,6 +212,8 @@ int main(int argc, char **argv)
 
 prool_log("========================== glorymud started ====================");
 prool_log("by prool, proolix@gmail.com, glorymud.kharkov.org");
+
+//send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD started!", "Subj\r\n-- \r\n");
 
 #ifdef MEMORY_DEBUG
   zmalloc_init();

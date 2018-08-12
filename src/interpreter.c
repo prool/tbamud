@@ -487,10 +487,12 @@ void command_interpreter(struct char_data *ch, char *argument)
   int cmd, length;
   char *line;
   char arg[MAX_INPUT_LENGTH];
+  char proolbuf[200];
 
 if (!IS_NPC(ch))
 	{
-	//printf("prooldebug: command='%s'\r\n", argument);
+	snprintf(proolbuf,200,"prooldebug: command_interpreter() plr %s room %i cmd '%s'", GET_NAME(ch), world[IN_ROOM(ch)].number, argument);
+	prool_log(proolbuf);
 	// cyrillic interpreter
 	if (!strcmp(argument, "аз")) {do_az(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "буки")) {do_buki(ch, argument, 0, 0); return;}

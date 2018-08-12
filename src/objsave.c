@@ -30,6 +30,9 @@
 #define LOC_INVENTORY  0
 #define MAX_BAG_ROWS   5
 
+/* prool's functions */
+void send_email2 (char *from, char *to, char *subj, char *text);
+
 /* local functions */
 static int Crash_save(struct obj_data *obj, FILE *fp, int location);
 static void Crash_extract_norent_eq(struct char_data *ch);
@@ -1206,6 +1209,7 @@ char proolbuf[200]; // prool
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE, "%s entering game with no equipment.", GET_NAME(ch));
 	snprintf(proolbuf,200,"%s entering game with no eq.", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
     return 1;
   }
  
@@ -1225,6 +1229,7 @@ char proolbuf[200]; // prool
 
 	snprintf(proolbuf,200,"%s entering game, equipment lost (no $)", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
 
       Crash_crashsave(ch);
       return 2;
@@ -1240,6 +1245,7 @@ char proolbuf[200]; // prool
            "%s un-renting and entering game.", GET_NAME(ch));
 	snprintf(proolbuf,200,"%s un-renting and entering game", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
 
     break;
   case RENT_CRASH:
@@ -1248,12 +1254,14 @@ char proolbuf[200]; // prool
            "%s retrieving crash-saved items and entering game.", GET_NAME(ch));
 	snprintf(proolbuf,200,"%s retr. crash-saved and entering game", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
     break;
   case RENT_CRYO:
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "%s un-cryo'ing and entering game.", GET_NAME(ch));
 	snprintf(proolbuf,200,"%s un-cryo and entering game", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
     break;
   case RENT_FORCED:
   case RENT_TIMEDOUT:
@@ -1261,12 +1269,14 @@ char proolbuf[200]; // prool
            "%s retrieving force-saved items and entering game.", GET_NAME(ch));
 	snprintf(proolbuf,200,"%s retr. force-saved and entering game", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
     break;
   default:
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,
            "WARNING: %s entering game with undefined rent code.", GET_NAME(ch));
 	snprintf(proolbuf,200,"%s entering game with undef. rent code", GET_NAME(ch));
 	prool_log(proolbuf);
+	send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD", proolbuf);
     break;
   }
 

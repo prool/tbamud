@@ -1570,5 +1570,22 @@ fprintf(fp,"%s %s\n",ptime(),str);
 fclose(fp);
 }
 
+void system_(char *cmd) // prool: from VMUD source
+{
+if (system(cmd)==-1)
+	{
+	printf("system_(): error, maybe system() fork() error, RAM overflow\n");
+	}
+}
+
+void send_email2 (char *from, char *to, char *subj, char *text) // prool: from VMUD source
+{char buf [80*25];
+
+sprintf(buf,"echo \"Subject: %s\r\nContent-Type: text/plain; charset=koi8-r\r\n\r\n%s\"|/usr/sbin/sendmail -F\"%s\" %s\r\n",
+subj,text,from,to);
+system_(buf);
+}
+
+
 // end of prool's subprograms
 // END OF FILE
