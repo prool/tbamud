@@ -98,25 +98,52 @@ S
 Prool's Oval Cabinet~
 The cabinet of Prool, The Creator of Glory MUD
 The predefined colours are:
-@r: dark red                          @R: bright red
-@g: dark green                        @G: bright green
-@b: dark blue                         @B: bright blue
-@y: dark yellow                       @Y: bright yellow
-@m: dark magenta                      @M: bright magenta
-@c: dark cyan                         @C: bright cyan
-@w: dark white                        @W: bright white
-@o: dark orange                       @O: bright orange
-/* Vatiken Additions */
-@p: dark pink                         @P: bright pink
-@+: bold                              @n
-   This is a @[F010]very dark green foreground@n.
+@rdark red                          @Rbright red
+@gdark green                        @Gbright green
+@bdark blue                         @Bbright blue
+@ydark yellow                       @Ybright yellow
+@mdark magenta                      @Mbright magenta
+@cdark cyan                         @Cbright cyan
+@wdark white                        @Wbright white
+@odark orange                       @Obright orange
+@nVatiken Additions:
+@pdark pink                         @Pbright pink
+@+bold @nThis is a @[F010]very dark green foreground@n.
    This is a @[B210]dark brown background@n.
 ~
-12 0 0 0 0 0
+12 8 0 0 0 0
+D4
+~
+~
+0 0 1211
 D5
 ~
 ~
 0 0 1204
+S
+#1211
+Prool's Attic~
+It's a dusty loft.
+~
+12 8 0 0 0 0
+D4
+~
+~
+0 0 1212
+D5
+~
+~
+0 0 1210
+S
+#1212
+A Roof~
+A zync roof
+~
+12 0 0 0 0 1
+D5
+~
+~
+0 0 1211
 S
 #1290
 The Immortal Board Hall~
