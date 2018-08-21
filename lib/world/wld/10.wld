@@ -1,10 +1,14 @@
 #1000
-The plain~
+The Lantern~
 This is the plain.
 Here grass grows.
 The lantern stands here.
 ~
 10 0 0 0 0 1
+D0
+~
+~
+0 0 1002
 D3
 ~
 ~
@@ -24,5 +28,127 @@ D5
 ~
 ~
 0 0 3001
+S
+#1002
+The Plain~
+This is the plain. Here grass grows. 
+~
+10 0 0 0 0 2
+D0
+~
+~
+0 0 1003
+D1
+~
+~
+0 0 1006
+D2
+~
+~
+0 0 1000
+D3
+~
+~
+0 0 1005
+S
+#1003
+Oak Grove~
+Here grows an oak grove.
+~
+10 0 0 0 0 3
+D0
+~
+~
+0 0 1004
+D2
+~
+~
+0 0 1002
+S
+#1004
+Small Mountain~
+This is a small mountain.
+~
+10 0 0 0 0 5
+D0
+~
+~
+0 0 1009
+D2
+~
+~
+0 0 1003
+S
+#1005
+The Hills~
+This is the Hills
+~
+10 0 0 0 0 4
+D1
+~
+~
+0 0 1002
+S
+#1006
+The Pond~
+This is a water pond.
+~
+10 0 0 0 0 6
+D1
+~
+~
+0 0 1007
+D3
+~
+~
+0 0 1002
+S
+#1007
+Deep Water~
+This is a deep water.
+~
+10 0 0 0 0 7
+D3
+~
+~
+0 0 1006
+D5
+~
+~
+0 0 1008
+S
+#1008
+Deep Water~
+This is a deep water
+~
+10 0 0 0 0 9
+D4
+~
+~
+0 0 1007
+S
+#1009
+The Peak~
+The Peak of Mountain.
+~
+10 0 0 0 0 5
+D2
+~
+~
+0 0 1004
+D4
+~
+~
+0 0 1010
+S
+#1010
+The Air Space~
+This is The Air Space.
+~
+10 0 0 0 0 8
+D5
+~
+~
+0 0 1009
 S
 $~

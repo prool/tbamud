@@ -12,6 +12,11 @@
 #include "db.h"
 #include "dg_event.h"
 
+// prool's functions
+
+void prool_log(char *);
+void prool_log_(char *);
+
 static struct iterator_data Iterator;
 static bool loop = FALSE;
 static struct list_data *pLastList = NULL;
@@ -186,7 +191,7 @@ void * next_in_list(struct iterator_data * pIterator)
   //printf("prooldebug: next_in_list()\n"); // prool
 
   if (pIterator==NULL) {
-	  prool_log("achtung: next_in_list() error #1: pIteraror==0");
+	  prool_log_("achtung: next_in_list() error #1: pIteraror==0");
 	  return NULL;
   }
 
@@ -198,7 +203,7 @@ void * next_in_list(struct iterator_data * pIterator)
   /* Cycle down the list */
 
   if (pIterator->pItem) {
-	  prool_log("achtung: next_in_list() error #2: pIteraror->pItem==0");
+	  prool_log_("achtung: next_in_list() error #2: pIteraror->pItem==0");
 	  return NULL;
   }
 

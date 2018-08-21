@@ -1570,6 +1570,16 @@ fprintf(fp,"%s %s\n",ptime(),str);
 fclose(fp);
 }
 
+void prool_log_(char *str)
+{
+FILE *fp;
+fp=fopen("tbamud-prool.log", "a");
+//printf("%s %s\n", ptime(), str);
+if (fp==0) return;
+fprintf(fp,"%s %s\n",ptime(),str);
+fclose(fp);
+}
+
 void system_(char *cmd) // prool: from VMUD source
 {
 if (system(cmd)==-1)

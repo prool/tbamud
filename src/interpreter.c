@@ -46,6 +46,11 @@ ACMD (do_dukhmada);
 ACMD (do_scoop);
 // prool end
 
+// prool functions
+
+void prool_log(char *);
+void prool_log_(char *);
+
 /* local (file scope) functions */
 static int perform_dupe_check(struct descriptor_data *d);
 static struct alias_data *find_alias(struct alias_data *alias_list, char *str);
@@ -492,7 +497,7 @@ void command_interpreter(struct char_data *ch, char *argument)
 if (!IS_NPC(ch))
 	{
 	snprintf(proolbuf,200,"prooldebug: command_interpreter() plr %s room %i cmd '%s'", GET_NAME(ch), world[IN_ROOM(ch)].number, argument);
-	prool_log(proolbuf);
+	prool_log_(proolbuf);
 	// cyrillic interpreter
 	if (!strcmp(argument, "аз")) {do_az(ch, argument, 0, 0); return;}
 	else if (!strcmp(argument, "буки")) {do_buki(ch, argument, 0, 0); return;}
