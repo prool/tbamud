@@ -13569,16 +13569,25 @@ PROOLCYR
 
 Prool's help. Помощь от Пруля
 
-Prool commands. Кириллические команды Пруля
+Prool cyrillic commands. Кириллические команды Пруля
+
+Default codetable UTF-8. Second codetable koi8-r.
+Command for switch codetable:
+
+toggle summon
+
+sic! так надо
 
 Тестовые команды-заглушки: аз, буки, веди
 
-Кириллические команды:
+Кириллические команды (настоящие):
 
 счет или сч - score
 духмада - выдача воды и еды
 
-Русификация только начата и больше русских команд пока нет
+Русификация только начата и больше русских команд пока нет.
+
+Вчи англійську мову, москалику!
 #0
 PROOL
 Prool's help
@@ -13615,7 +13624,7 @@ O - is latin O letter
 0 - is zero digit (zero = nihil)
 О - is cyrillic "O" letter
 
-I like moloko.
+I like moloko. Without "plus" or "nozh".
 
 With best regards, Prool
 #0

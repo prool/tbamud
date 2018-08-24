@@ -212,8 +212,7 @@ int main(int argc, char **argv)
   char prool_buf[200];
 
 snprintf(prool_buf,200,
-"========================== GloryMUD started =======================\r\nby Prool, proolix@gmail.com, glorymud.kharkov.org v. %s %s",
-__DATE__,__TIME__);
+"========================== GloryMUD started =======================\r\nby Prool, proolix@gmail.com, glorymud.kharkov.org");
 prool_log(prool_buf);
 
 //send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD started!", "Subj\r\n-- \r\n");

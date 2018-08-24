@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# prool's simply script for autorun for Glory MUD
+
+while [ 1 ]; do
+
+# date "+%d-%m-%Y %H:%M:%S Glory MUD start"
+date "+%d-%m-%Y %H:%M:%S GloryMUD start" >> autolog.txt
+bin/circle
+date "+%d-%m-%Y %H:%M:%S GloryMUDexit" >> autolog.txt
+date "+%d-%m-%Y %H:%M:%S GloryMUD exit"
+
+# save syslog
+mv log_.log log-`date "+%d-%m-%Y-%H-%M-%S"`
+
+  if [ -r .killscript ]; then
+    DATE=`date`;
+    echo "MUD shutdown $DATE"  >> autolog.txt
+    rm .killscript
+    exit
+  fi
+
+# echo pause 6 sec begin
+# sleep 6
+# echo - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+done

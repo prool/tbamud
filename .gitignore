@@ -21,3 +21,5 @@ lib/plrobjs/*
 board.immortal
 log/*
 syslog.CRASH
+.fastboot
+autolog.txt
