@@ -164,5 +164,103 @@ D0
 ~
 ~
 0 0 1000
+D2
+~
+~
+0 0 1012
+S
+#1012
+The Gate of Kharkiv-city~
+The Gate.
+~
+10 0 0 0 0 1
+D0
+~
+~
+0 0 1011
+D2
+~
+~
+0 0 1013
+S
+#1013
+Prool's Road (1)~
+This is Prool's Road
+~
+10 0 0 0 0 1
+D0
+~
+~
+0 0 1012
+D2
+~
+~
+0 0 1014
+S
+#1014
+Prool's Road (2)~
+This is Prool's Road
+~
+10 0 0 0 0 1
+D0
+~
+~
+0 0 1013
+D2
+~
+~
+0 0 1015
+S
+#1015
+Prool's Road (3)~
+Prool's Road
+~
+10 0 0 0 0 1
+D0
+~
+~
+0 0 1014
+D2
+~
+~
+0 0 1016
+S
+#1016
+Prool's Road (4)~
+Prool's Road
+~
+10 0 0 0 0 1
+D0
+~
+~
+0 0 1015
+D2
+~
+~
+0 0 1017
+D3
+~
+~
+0 0 1018
+S
+#1017
+Prool's Cabin~
+This is Prool's small cabin
+~
+10 8 0 0 0 0
+D0
+~
+~
+0 0 1016
+S
+#1018
+Khrushchev' House~
+This is Khruschchev' House
+~
+10 8 0 0 0 0
+D1
+~
+~
+0 0 1016
 S
 $~

@@ -23,6 +23,10 @@
 #include "interpreter.h"
 #include "class.h"
 
+// prool's functions
+
+void prool_log(char *);
+void prool_log_(char *);
 
 /** Aportable random number function.
  * @param from The lower bounds of the random number.

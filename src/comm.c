@@ -97,6 +97,9 @@ extern time_t newsmod;
 /* prool's functions */
 void send_email2 (char *from, char *to, char *subj, char *text);
 
+void prool_log(char *);
+void prool_log_(char *);
+
 /* locally defined globals, used externally */
 struct descriptor_data *descriptor_list = NULL;   /* master desc list */
 int buf_largecount = 0;   /* # of large buffers which exist */
@@ -1809,8 +1812,7 @@ static ssize_t perform_socket_read(socket_t desc, char *read_point, size_t space
 
   /* read() returned 0, meaning we got an EOF. */
   if (ret == 0) {
-    //log("WARNING: EOF on socket read (connection broken by peer)");
-    prool_log("WARNING: EOF on socket read (connection broken by peer)");
+    log("WARNING: EOF on socket read (connection broken by peer)");
     return (-1);
   }
 

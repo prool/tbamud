@@ -32,6 +32,8 @@
 
 /* prool's functions */
 void send_email2 (char *from, char *to, char *subj, char *text);
+void prool_log(char *);
+void prool_log_(char *);
 
 /* local functions */
 static int Crash_save(struct obj_data *obj, FILE *fp, int location);

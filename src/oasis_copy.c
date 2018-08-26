@@ -24,6 +24,11 @@
 #include "constants.h"
 #include "dg_scripts.h"
 
+/* prool's functions */
+
+void prool_log(char *);
+void prool_log_(char *);
+
 /* Local, filescope function prototypes */
 /* Utility function for buildwalk */
 static room_vnum redit_find_new_vnum(zone_rnum zone);
@@ -169,12 +174,28 @@ ACMD(do_dig)
     return;
   }
 
+  if (*sroom=='*') { // by prool
+  int r, i, z, j, rnum;
+  r = GET_ROOM_VNUM(IN_ROOM(ch));
+  z = r / 100;
+  //printf("prooldebug: do_dig() room %i zone %i\n",r,z);
+	for (i=0;i<100;i++) {
+	j=z*100+i;
+	rnum=real_room(j);
+	//printf("#%i %c ", j, (rnum!=NOWHERE)?'+':'-');
+	if (rnum==NOWHERE) {rawvnum=j; rvnum=j; rrnum=NOWHERE; break;}
+	else if (i==99) {send_to_char(ch,"This zone is full\r\n"); return; }
+	}
+  //printf("\n");
+  } else { // *sroom != '*'
   rawvnum = atoi(sroom);
   if (rawvnum == -1)
     rvnum = NOWHERE;
   else
     rvnum = (room_vnum)rawvnum;
   rrnum = real_room(rvnum);
+  }
+
   dir = search_block(sdir, dirs, FALSE);
   zone = world[IN_ROOM(ch)].zone;
 

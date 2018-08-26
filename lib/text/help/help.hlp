@@ -2432,23 +2432,26 @@ unabridged version that requires membership. They also offer a thesaurus at:
 @Chttp://m-w.com/@n
 
 #31
-DIG UNDIG RDIG RELINK RLINKS 
+DIG
 
-Builders working on their trial vnum do not need to learn this command, yet.   
+Builders working on their trial vnum do not need to learn this command, yet.
 Usage: dig <direction> <target room>
    This command creates a two-way exit from the room you're currently in to the
-room specified. The direction can be any of north, east, south, west, up and 
-down. If the target room does not exist it will be created. If either exit 
+room specified. The direction can be any of north, east, south, west, up and
+down. If the target room does not exist it will be created. If either exit
 already exists, you will receive an error. To purge an exit use: dig <dir> -1.
-Directions can be abbreviated. 
+Directions can be abbreviated.
 
-Examples: 
+Examples:
 dig north 1202
    Will make an exit to the north from here to 1202, and an exit from 1202 south
-back here.  
+back here.
 
 dig north -1
    Will remove the exit you just made.
+
+dig north *
+   Create new room with first available number. And make exit to this.
 
 NOTE: Dig does not autosave on exit. you must type SAVEALL. This way if you 
       mess up and want the links deleted we can just reboot and wipe them.
