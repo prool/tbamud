@@ -170,7 +170,8 @@ ACMD(do_dig)
   /* Can't dig if we don't know where to go. */
   if (!*sdir || !*sroom) {
     send_to_char(ch, "Format: dig <direction> <room> - to create an exit\r\n"
-                     "        dig <direction> -1     - to delete an exit\r\n");
+                     "        dig <direction> -1     - to delete an exit\r\n"
+		     "        dig <direction> *      - to create an exit to next free vnum\r\n");
     return;
   }
 

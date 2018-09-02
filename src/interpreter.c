@@ -1955,7 +1955,7 @@ ACMD (do_prool)
 int i;
 
 i=atoi(argument);
-printf("do_prool: argument='%s' i=%i\n", argument,i);
+//printf("do_prool: argument='%s' i=%i\n", argument,i);
 
 if (i) {
 	snprintf(proolbuf,200,"prool param. set to %i\r\n",i);
