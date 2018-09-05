@@ -2142,12 +2142,12 @@ void close_socket(struct descriptor_data *d)
     } else {
       mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
 	snprintf(proolbuf,200,"%s losing player", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
-	prool_log(proolbuf);
+	prool_log_(proolbuf);
       free_char(d->character);
     }
   } else {
     mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char.");
-    prool_log("Losing descriptor without char.");
+    prool_log_("Losing descriptor without char.");
   }
 
   /* JE 2/22/95 -- part of my unending quest to make switch stable */
