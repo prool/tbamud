@@ -1,12 +1,7 @@
-Glory MUD
-
-GloryMUD is based on tbaMUD.
-http://glorymud.kharkov.org
-
 tbaMUD is the continued development of the codebase formerly known as CircleMUD.
 http://tbamud.com/
 
-GloryMUD cyrillized by Prool. UTF-8 or koi8-r codetable.
+MUD cyrillized by Prool. UTF-8 or koi8-r codetable.
 
 Частично кириллизировано (русифицировано) Прулем, кодировка UTF-8 или koi8-r.
 
@@ -62,4 +57,4 @@ http://mud.kharkov.org
 
 proolix dog gmail.com
 
-23 Aug 2018
+Prool
