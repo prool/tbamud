@@ -1595,11 +1595,12 @@ if (system(cmd)==-1)
 void send_email2 (char *from, char *to, char *subj, char *text) // prool: from VMUD source
 {char buf [80*25];
 
+return; // send_email2 temporaryli disabled
+
 sprintf(buf,"echo \"Subject: %s\r\nContent-Type: text/plain; charset=koi8-r\r\n\r\n%s\"|/usr/sbin/sendmail -F\"%s\" %s\r\n",
 subj,text,from,to);
 system_(buf);
 }
-
 
 // end of prool's subprograms
 // END OF FILE
