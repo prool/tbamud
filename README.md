@@ -29,7 +29,23 @@ bin/circle
 
 OR USE autorun\* scripts
 
+Windows
+-------
+
 For Windows/cygwin add -liconv to LIBS in Makefile
+
+Compile under macOS (dirty instruction)
+---------------------------------------
+
+cd src
+
+cp Makefile.macos Makefile
+
+make
+
+cd ..
+
+bin/circle
 
 Compile under Android 6.0 (dirty instruction)
 ---------------------------------------------
