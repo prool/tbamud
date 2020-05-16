@@ -8,8 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-#define __DB_C__
-
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -39,6 +37,7 @@
 #include "ibt.h"
 #include "mud_event.h"
 #include "msgedit.h"
+#include "screen.h"
 #include <sys/stat.h>
 
 /*  declarations of most of the 'global' variables */
@@ -114,8 +113,8 @@ struct help_index_element *help_table = NULL;
 struct social_messg *soc_mess_list = NULL;      /* list of socials */
 int top_of_socialt = -1;                        /* number of socials */
 
- time_t newsmod; /* Time news file was last modified. */
- time_t motdmod; /* Time motd file was last modified. */
+time_t newsmod; /* Time news file was last modified. */
+time_t motdmod; /* Time motd file was last modified. */
 
 struct time_info_data time_info;  /* the infomation about the time    */
 struct weather_data weather_info;	/* the infomation about the weather */
@@ -156,17 +155,20 @@ static int hsort(const void *a, const void *b);
 char *fread_action(FILE *fl, int nr)
 {
   char buf[MAX_STRING_LENGTH];
-  char *buf1;
   int i;
 
-  buf1 = fgets(buf, MAX_STRING_LENGTH, fl);
-  if (feof(fl)) {
-    log("SYSERR: fread_action: unexpected EOF near action #%d", nr);
-    /* SYSERR_DESC: fread_action() will fail if it discovers an end of file
-     * marker before it is able to read in the expected string.  This can be
-     * caused by a truncated socials file. */
+  if(fgets(buf, MAX_STRING_LENGTH, fl) == NULL) {
+    if(feof(fl)) {
+      log("SYSERR: fread_action: unexpected EOF near action #%d", nr);
+      /* SYSERR_DESC: fread_action() will fail if it discovers an end of file
+      * marker before it is able to read in the expected string.  This can be
+      * caused by a truncated socials file. */
+    } else {
+      log("SYSERR: fread_action: read error near action #%d: %s", nr, strerror(errno));
+    }
     exit(1);
   }
+
   if (*buf == '#')
     return (NULL);
 
@@ -184,11 +186,11 @@ char *fread_action(FILE *fl, int nr)
   return (strdup(buf));
 }
 
-void boot_social_messages(void)
+static void boot_social_messages(void)
 {
   FILE *fl;
-  int nr = 0, hide, min_char_pos, min_pos, min_lvl, curr_soc = -1, i;
-  char next_soc[MAX_STRING_LENGTH], sorted[MAX_INPUT_LENGTH], *buf;
+  int line_number, nr = 0, hide, min_char_pos, min_pos, min_lvl, curr_soc = -1;
+  char next_soc[MAX_STRING_LENGTH], sorted[MAX_INPUT_LENGTH];
 
   if (CONFIG_NEW_SOCIALS == TRUE) {
     /* open social file */
@@ -201,9 +203,12 @@ void boot_social_messages(void)
     }
     /* count socials */
     *next_soc = '\0';
-    while (!feof(fl)) {
-    buf =  fgets(next_soc, MAX_STRING_LENGTH, fl);
+    while (fgets(next_soc, MAX_STRING_LENGTH, fl))
       if (*next_soc == '~') top_of_socialt++;
+
+    if(ferror(fl)) {
+      log("SYSERR: error encountered reading socials file %s: %s", SOCMESS_FILE_NEW, strerror(errno));
+      exit(1);
     }
   } else { /* old style */
 
@@ -216,9 +221,12 @@ void boot_social_messages(void)
       exit(1);
     }
     /* count socials */
-    while (!feof(fl)) {
-    buf =  fgets(next_soc, MAX_STRING_LENGTH, fl);
+    while (fgets(next_soc, MAX_STRING_LENGTH, fl))
       if (*next_soc == '\n' || *next_soc == '\r') top_of_socialt++; /* all socials are followed by a blank line */
+
+    if(ferror(fl)) {
+      log("SYSERR: error encountered reading socials file %s: %s", SOCMESS_FILE_NEW, strerror(errno));
+      exit(1);
     }
   }
 
@@ -228,8 +236,16 @@ void boot_social_messages(void)
   CREATE(soc_mess_list, struct social_messg, top_of_socialt + 1);
 
   /* now read 'em */
-  for (;;) {
-    i = fscanf(fl, " %s ", next_soc);
+  for (line_number = 0;; ++line_number) {
+    if (fscanf(fl, " %s ", next_soc) != 1) {
+      if(feof(fl))
+        log("SYSERR: unexpected end of file encountered in socials file %s", SOCMESS_FILE_NEW);
+      else if(ferror(fl))
+        log("SYSERR: error reading socials file %s: %s", SOCMESS_FILE_NEW, strerror(errno));
+      else
+        log("SYSERR: format error in social file near line %d", line_number);
+      exit(1);
+    }
     if (*next_soc == '$') break;
     if (CONFIG_NEW_SOCIALS == TRUE) {
       if (fscanf(fl, " %s %d %d %d %d \n",
@@ -485,15 +501,22 @@ static void free_extra_descriptions(struct extra_descr_data *edesc)
 void destroy_db(void)
 {
   ssize_t cnt, itr;
-  struct char_data *chtmp;
+  struct char_data *chtmp, *i = character_list;
   struct obj_data *objtmp;
 
   /* Active Mobiles & Players */
+  while (i) {
+    chtmp = i;
+    i = i->next;
+
+    if (chtmp->master)
+      stop_follower(chtmp);
+  }
+
   while (character_list) {
     chtmp = character_list;
     character_list = character_list->next;
-    if (chtmp->master)
-      stop_follower(chtmp);
+
     free_char(chtmp);
   }
 
@@ -778,7 +801,8 @@ void boot_db(void)
 #endif
 
   for (i = 0; i <= top_of_zone_table; i++) {
-    //log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number, zone_table[i].name, zone_table[i].bot, zone_table[i].top); // prool
+    log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
+	zone_table[i].name, zone_table[i].bot, zone_table[i].top);
     reset_zone(i);
   }
 
@@ -795,12 +819,17 @@ static void reset_time(void)
 {
   time_t beginning_of_time = 0;
   FILE *bgtime;
-  int i;
 
   if ((bgtime = fopen(TIME_FILE, "r")) == NULL)
     log("No time file '%s' starting from the beginning.", TIME_FILE);
   else {
-    i = fscanf(bgtime, "%ld\n", (long *)&beginning_of_time);
+    if(fscanf(bgtime, "%ld\n", (long *)&beginning_of_time) == EOF) {
+      if(feof(bgtime)) {
+        log("SYSERR: reset_time: unexpected end of file encountered reading %s.", TIME_FILE);
+      } else if(ferror(bgtime)) {
+        log("SYSERR: reset_time: unexpected end of file encountered reading %s: %s.", TIME_FILE, strerror(errno));
+      }
+    }
     fclose(bgtime);
   }
 
@@ -913,8 +942,8 @@ void index_boot(int mode)
 {
   const char *index_filename, *prefix = NULL;	/* NULL or egcs 1.1 complains */
   FILE *db_index, *db_file;
-  int rec_count = 0, size[2], i;
-  char buf2[PATH_MAX], buf1[MAX_STRING_LENGTH];
+  int line_number, rec_count = 0, size[2];
+  char buf2[PATH_MAX], buf1[PATH_MAX - 100];   // - 100 to make room for prefix
 
   switch (mode) {
   case DB_BOOT_WLD:
@@ -957,26 +986,38 @@ void index_boot(int mode)
     exit(1);
   }
 
-  /* first, count the number of records in the file so we can malloc */
-  i = fscanf(db_index, "%s\n", buf1);
-  while (*buf1 != '$') {
+  for (line_number = 0;; ++line_number) {
+    /* first, count the number of records in the file so we can malloc */
+    if (fscanf(db_index, "%s\n", buf1) != 1) {
+      if (feof(db_index))
+        log("SYSERR: boot error -- unexpected end of file encountered in index file ./%s%s. "
+            "Ensure that the last line of the file starts with the character '$'.",
+            prefix, index_filename);
+      else if (ferror(db_index))
+        log("SYSERR: boot error -- unexpected end of file encountered in index file ./%s%s: %s",
+            prefix, index_filename, strerror(errno));
+      else
+        log("SYSERR: boot error -- error parsing index file %s%s on line %d",
+            prefix, index_filename, line_number);
+      exit(1);
+    }
+
+    if (*buf1 == '$')
+      break;
+
     snprintf(buf2, sizeof(buf2), "%s%s", prefix, buf1);
     if (!(db_file = fopen(buf2, "r"))) {
       log("SYSERR: File '%s' listed in '%s/%s': %s", buf2, prefix,
-	  index_filename, strerror(errno));
-      i = fscanf(db_index, "%s\n", buf1);
-      continue;
+          index_filename, strerror(errno));
     } else {
       if (mode == DB_BOOT_ZON)
-	rec_count++;
+        rec_count++;
       else if (mode == DB_BOOT_HLP)
-	rec_count += count_alias_records(db_file);
+        rec_count += count_alias_records(db_file);
       else
-	rec_count += count_hash_records(db_file);
+        rec_count += count_hash_records(db_file);
+      fclose(db_file);
     }
-
-    fclose(db_file);
-    i = fscanf(db_index, "%s\n", buf1);
   }
 
   /* Exit if 0 records, unless this is shops */
@@ -1030,8 +1071,24 @@ void index_boot(int mode)
   }
 
   rewind(db_index);
-  i = fscanf(db_index, "%s\n", buf1);
-  while (*buf1 != '$') {
+
+  for (line_number = 1;; ++line_number) {
+    if (fscanf(db_index, "%s\n", buf1) != 1) {
+      if (feof(db_index))
+        log("SYSERR: boot error -- unexpected end of file encountered in index file ./%s%s",
+            prefix, index_filename);
+      else if (ferror(db_index))
+        log("SYSERR: boot error -- unexpected end of file encountered in index file ./%s%s: %s",
+            prefix, index_filename, strerror(errno));
+      else
+        log("SYSERR: boot error -- error parsing index file ./%s%s on line %d",
+            prefix, index_filename, line_number);
+      exit(1);
+    }
+
+    if (*buf1 == '$')
+      break;
+
     snprintf(buf2, sizeof(buf2), "%s%s", prefix, buf1);
     if (!(db_file = fopen(buf2, "r"))) {
       log("SYSERR: %s: %s", buf2, strerror(errno));
@@ -1057,7 +1114,6 @@ void index_boot(int mode)
     }
 
     fclose(db_file);
-    i = fscanf(db_index, "%s\n", buf1);
   }
   fclose(db_index);
 
@@ -1183,6 +1239,24 @@ static bitvector_t asciiflag_conv_aff(char *flag)
   return (flags);
 }
 
+/* Fix for crashes in the editor when formatting. E-descs are assumed to
+  * end with a \r\n. -Welcor */
+void ensure_newline_terminated(struct extra_descr_data* new_descr) {
+  char *with_term, *end;
+
+  if (new_descr->description == NULL) {
+    return;
+  }
+
+  end = strchr(new_descr->description, '\0');
+  if (end > new_descr->description && *(end - 1) != '\n') {
+    CREATE(with_term, char, strlen(new_descr->description) + 3);
+    sprintf(with_term, "%s\r\n", new_descr->description); /* snprintf ok : size checked above*/
+    free(new_descr->description);
+    new_descr->description = with_term;
+  }
+}
+
 /* load the rooms */
 void parse_room(FILE *fl, int virtual_nr)
 {
@@ -1252,7 +1326,7 @@ void parse_room(FILE *fl, int virtual_nr)
     world[room_nr].room_flags[2] = asciiflag_conv(flags3);
     world[room_nr].room_flags[3] = asciiflag_conv(flags4);
 
-    sprintf(flags, "object #%d", virtual_nr);	/* sprintf: OK (until 399-bit integers) */
+    sprintf(flags, "room #%d", virtual_nr);	/* sprintf: OK (until 399-bit integers) */
     for(taeller=0; taeller < AF_ARRAY_MAX; taeller++)
       check_bitvector_names(world[room_nr].room_flags[taeller], room_bits_count, flags, "room");
 
@@ -1290,17 +1364,8 @@ void parse_room(FILE *fl, int virtual_nr)
       CREATE(new_descr, struct extra_descr_data, 1);
       new_descr->keyword = fread_string(fl, buf2);
       new_descr->description = fread_string(fl, buf2);
-      /* Fix for crashes in the editor when formatting. E-descs are assumed to
-       * end with a \r\n. -Welcor */
-      {
-      	char *end = strchr(new_descr->description, '\0');
-      	if (end > new_descr->description && *(end-1) != '\n') {
-      	  CREATE(end, char, strlen(new_descr->description)+3);
-      	  sprintf(end, "%s\r\n", new_descr->description); /* snprintf ok : size checked above*/
-      	  free(new_descr->description);
-      	  new_descr->description = end;
-      	}
-      }
+      ensure_newline_terminated(new_descr);
+
       new_descr->next = world[room_nr].ex_description;
       world[room_nr].ex_description = new_descr;
       break;
@@ -1552,12 +1617,9 @@ static void parse_simple_mob(FILE *mob_f, int i, int nr)
  * assigns the correct value to the mob as appropriate.  Adding new e-specs is
  * absurdly easy -- just add a new CASE statement to this function! No other
  * changes need to be made anywhere in the code.
- * CASE		: Requires a parameter through 'value'.
- * BOOL_CASE	: Being specified at all is its value. */
+ * CASE		: Requires a parameter through 'value'. */
 #define CASE(test)	\
 	if (value && !matched && !str_cmp(keyword, test) && (matched = TRUE))
-#define BOOL_CASE(test)	\
-	if (!value && !matched && !str_cmp(keyword, test) && (matched = TRUE))
 #define RANGE(low, high)	\
 	(num_arg = MAX((low), MIN((high), (num_arg))))
 
@@ -2348,9 +2410,7 @@ struct char_data *create_char(void)
   ch->next = character_list;
   character_list = ch;
 
-  GET_ID(ch) = max_mob_id++;
-  /* find_char helper */
-  add_to_lookup_table(GET_ID(ch), (void *)ch);
+  ch->script_id = 0;	// set later by char_script_id
 
   return (ch);
 }
@@ -2401,10 +2461,7 @@ struct char_data *read_mobile(mob_vnum nr, int type) /* and mob_rnum */
 
   mob_index[i].number++;
 
-  GET_ID(mob) = max_mob_id++;
-  
-  /* find_char helper */
-  add_to_lookup_table(GET_ID(mob), (void *)mob);
+  mob->script_id = 0;	// this is set later by char_script_id
 
   copy_proto_script(&mob_proto[i], mob, MOB_TRIGGER);
   assign_triggers(mob, MOB_TRIGGER);
@@ -2424,9 +2481,7 @@ struct obj_data *create_obj(void)
   
   obj->events = NULL;
 
-  GET_ID(obj) = max_obj_id++;
-  /* find_obj helper */
-  add_to_lookup_table(GET_ID(obj), (void *)obj);
+  obj->script_id = 0;	// this is set later by obj_script_id
 
   return (obj);
 }
@@ -2452,9 +2507,7 @@ struct obj_data *read_object(obj_vnum nr, int type) /* and obj_rnum */
 
   obj_index[i].number++;
 
-  GET_ID(obj) = max_obj_id++;
-  /* find_obj helper */
-  add_to_lookup_table(GET_ID(obj), (void *)obj);
+  obj->script_id = 0;	// this is set later by obj_script_id
 
   copy_proto_script(&obj_proto[i], obj, OBJ_TRIGGER);
   assign_triggers(obj, OBJ_TRIGGER);
@@ -2510,10 +2563,14 @@ void zone_update(void)
     if (zone_table[update_u->zone_to_reset].reset_mode == 2 ||
 	is_empty(update_u->zone_to_reset)) {
       reset_zone(update_u->zone_to_reset);
-#if 0 // prool
-      mudlog(CMP, LVL_IMPL, FALSE, "Auto zone reset: %s (Zone %d)",
+      mudlog(CMP, LVL_IMPL+1, FALSE, "Auto zone reset: %s (Zone %d)",
           zone_table[update_u->zone_to_reset].name, zone_table[update_u->zone_to_reset].number);
-#endif
+      struct descriptor_data *pt;
+      for (pt = descriptor_list; pt; pt = pt->next)
+        if (IS_PLAYING(pt) && pt->character && PRF_FLAGGED(pt->character, PRF_ZONERESETS))
+          send_to_char(pt->character, "%s[Auto zone reset: %s (Zone %d)]%s", 
+            CCGRN(pt->character, C_NRM), zone_table[update_u->zone_to_reset].name, 
+            zone_table[update_u->zone_to_reset].number, CCNRM(pt->character, C_NRM));
       /* dequeue */
       if (update_u == reset_q.head)
 	reset_q.head = reset_q.head->next;
@@ -3251,8 +3308,9 @@ void free_char(struct char_data *ch)
 
   /* find_char helper, when free_char is called with a blank character struct,
    * ID is set to 0, and has not yet been added to the lookup table. */
-  if (GET_ID(ch) != 0)
-  remove_from_lookup_table(GET_ID(ch));
+  if (ch->script_id != 0) {
+    remove_from_lookup_table(ch->script_id);
+  }
 
   free(ch);
 }
@@ -3274,8 +3332,10 @@ void free_obj(struct obj_data *obj)
   if (SCRIPT(obj))
     extract_script(obj, OBJ_TRIGGER);
 
-  /* find_obj helper */
-  remove_from_lookup_table(GET_ID(obj));
+  /* find_obj helper (0 is not-yet-added to the table) */
+  if (obj->script_id != 0) {
+    remove_from_lookup_table(obj->script_id);
+  }
 
   free(obj);
 }
@@ -3856,7 +3916,7 @@ static void load_default_config( void )
 void load_config( void )
 {
   FILE *fl;
-  char line[MAX_STRING_LENGTH];
+  char line[READ_SIZE - 2]; // to make sure there's room for readding \r\n
   char tag[MAX_INPUT_LENGTH];
   int  num;
   char buf[MAX_INPUT_LENGTH];

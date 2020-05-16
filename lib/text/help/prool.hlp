@@ -1,0 +1,63 @@
+#31
+PROOLCYR
+
+Prool's help. Помощь от Пруля
+
+Prool cyrillic commands. Кириллические команды Пруля
+
+Default codetable UTF-8. Second codetable koi8-r.
+Command for switch codetable:
+
+toggle summon
+
+sic! так надо
+
+Тестовые команды-заглушки: аз, буки, веди
+
+Кириллические команды (настоящие):
+
+счет или сч - score
+духмада - выдача воды и еды
+
+Русификация только начата и больше русских команд пока нет.
+
+Вчи англійську мову, москалику!
+#0
+PROOL
+Prool's help
+
+prool command:
+
+prool [parameter] - test command for Prool
+
+help proolcyr - cyrillic (russian) help for russian-spoke players
+help proolimm - prool's help for immortals
+
+If you need food and water, use the command
+dukhmada
+
+For main help use
+HELP
+#0
+DUKHMADA
+The command issues water and food
+#0
+SCOOP
+Dig the ground. You can find stones, ore, etc.
+#0
+PROOLIMM
+Prool's help for immortals (builders, game masters, programmers)
+
+Hi, Prool!
+
+Immortal board here in room 1203.
+
+Players start room is 1000.
+
+O - is latin O letter
+0 - is zero digit (zero = nihil)
+О - is cyrillic "O" letter
+
+With best regards, Prool
+#0
+$~

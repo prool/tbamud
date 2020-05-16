@@ -2,11 +2,10 @@ TbaMUD is currently being developed by The Builder Academy. If you need any
 help, find any bugs, or have ideas for improvement please stop by TBA at 
 telnet://tbamud.com:9091 or email rumble@tbamud.com --Rumble
 @
-Development moved to Github:
+Development moved to Github in 2013, this document is no longer updated:
 https://github.com/tbamud/tbamud
 Changelog also available on Github:
 https://github.com/tbamud/tbamud/commits/master
-
 Changes prior to Github transition:
 [Jun 21 2013] - Vatiken
   Added 'toupper' as a dg_script command to capitalize the first letter
@@ -1174,6 +1173,9 @@ Xlist (mlist, olist, rlist, zlist, slist, tlist, qlist)
 (lots of major bugfixes too)
  
 tbaMUD Release history:
+tbaMUD 2019, January 2019
+tbaMUD 2018, January 2018
+Version 3.68 release: February, 2017
 Version 3.67 release: January, 2016
 Version 3.66 release: January, 2015
 Version 3.65 release: January, 2014

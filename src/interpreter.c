@@ -8,8 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-#define __INTERPRETER_C__
-
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -39,17 +37,6 @@
 #include "prefedit.h"
 #include "ibt.h"
 #include "mud_event.h"
-
-// prool begin
-ACMD (do_prool);
-ACMD (do_dukhmada);
-ACMD (do_scoop);
-// prool end
-
-// prool functions
-
-void prool_log(char *);
-void prool_log_(char *);
 
 /* local (file scope) functions */
 static int perform_dupe_check(struct descriptor_data *d);
@@ -116,6 +103,7 @@ cpp_extern const struct command_info cmd_info[] = {
 
   { "backstab" , "ba"      , POS_STANDING, do_backstab , 1, 0 },
   { "ban"      , "ban"     , POS_DEAD    , do_ban      , LVL_GRGOD, 0 },
+  { "bandage"  , "band"    , POS_RESTING , do_bandage  , 1, 0 },
   { "balance"  , "bal"     , POS_STANDING, do_not_here , 1, 0 },
   { "bash"     , "bas"     , POS_FIGHTING, do_bash     , 1, 0 },
   { "brief"    , "br"      , POS_DEAD    , do_gen_tog  , 0, SCMD_BRIEF },
@@ -137,7 +125,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "copyover" , "copyover", POS_DEAD    , do_copyover , LVL_GRGOD, 0 },
   { "credits"  , "cred"    , POS_DEAD    , do_gen_ps   , 0, SCMD_CREDITS },
 
-  { "date"     , "da"      , POS_DEAD    , do_date     , 1, SCMD_DATE },
+  { "date"     , "da"      , POS_DEAD    , do_date     , LVL_IMMORT, SCMD_DATE },
   { "dc"       , "dc"      , POS_DEAD    , do_dc       , LVL_GOD, 0 },
   { "deposit"  , "depo"    , POS_STANDING, do_not_here , 1, 0 },
   { "detach"   , "detach"  , POS_DEAD    , do_detach   , LVL_BUILDER, 0 },
@@ -290,7 +278,6 @@ cpp_extern const struct command_info cmd_info[] = {
   { "say"      , "s"       , POS_RESTING , do_say      , 0, 0 },
   { "score"    , "sc"      , POS_DEAD    , do_score    , 0, 0 },
   { "scan"     , "sca"     , POS_RESTING , do_scan     , 0, 0 },
-  { "scoop"    , "scoop"   , POS_DEAD    , do_scoop    , 0, 0 }, // prool
   { "scopy"    , "scopy"   , POS_DEAD    , do_oasis_copy, LVL_GOD, CON_SEDIT },
   { "sit"      , "si"      , POS_RESTING , do_sit      , 0, 0 },
   { "'"        , "'"       , POS_RESTING , do_say      , 0, 0 },
@@ -337,7 +324,8 @@ cpp_extern const struct command_info cmd_info[] = {
   { "unlock"   , "unlock"  , POS_SITTING , do_gen_door , 0, SCMD_UNLOCK },
   { "unban"    , "unban"   , POS_DEAD    , do_unban    , LVL_GRGOD, 0 },
   { "unaffect" , "unaffect", POS_DEAD    , do_wizutil  , LVL_GOD, SCMD_UNAFFECT },
-  { "uptime"   , "uptime"  , POS_DEAD    , do_date     , 1, SCMD_UPTIME },
+  { "unfollow" , "unf"     , POS_RESTING , do_unfollow , 0, 0 },
+  { "uptime"   , "uptime"  , POS_DEAD    , do_date     , LVL_GOD, SCMD_UPTIME },
   { "use"      , "use"     , POS_SITTING , do_use      , 1, SCMD_USE },
   { "users"    , "users"   , POS_DEAD    , do_users    , LVL_GOD, 0 },
 
@@ -361,12 +349,13 @@ cpp_extern const struct command_info cmd_info[] = {
   { "withdraw" , "withdraw", POS_STANDING, do_not_here , 1, 0 },
   { "wiznet"   , "wiz"     , POS_DEAD    , do_wiznet   , LVL_IMMORT, 0 },
   { ";"        , ";"       , POS_DEAD    , do_wiznet   , LVL_IMMORT, 0 },
-  { "wizhelp"  , "wizhelp" , POS_SLEEPING, do_commands , LVL_IMMORT, SCMD_WIZHELP },
+  { "wizhelp"  , "wizhelp" , POS_DEAD    , do_wizhelp  , LVL_IMMORT, 0 },
   { "wizlist"  , "wizlist" , POS_DEAD    , do_gen_ps   , 0, SCMD_WIZLIST },
   { "wizupdate", "wizupde" , POS_DEAD    , do_wizupdate, LVL_GRGOD, 0 },
   { "wizlock"  , "wizlock" , POS_DEAD    , do_wizlock  , LVL_IMPL, 0 },
   { "write"    , "write"   , POS_STANDING, do_write    , 1, 0 },
 
+  { "zoneresets", "zoner" ,  POS_DEAD    , do_gen_tog , LVL_IMPL, SCMD_ZONERESETS },
   { "zreset"   , "zreset"  , POS_DEAD    , do_zreset   , LVL_BUILDER, 0 },
   { "zedit"    , "zedit"   , POS_DEAD    , do_oasis_zedit, LVL_BUILDER, 0 },
   { "zlist"    , "zlist"   , POS_DEAD    , do_oasis_list, LVL_BUILDER, SCMD_OASIS_ZLIST },
@@ -375,15 +364,12 @@ cpp_extern const struct command_info cmd_info[] = {
   { "zcheck"   , "zcheck"  , POS_DEAD    , do_zcheck   , LVL_BUILDER, 0 },
   { "zpurge"   , "zpurge"  , POS_DEAD    , do_zpurge   , LVL_BUILDER, 0 },
 
-  { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 }, // prool
-  { "dukhmada" , "dukhmada", POS_DEAD    , do_dukhmada , 0, 0 }, // prool
-
   { "\n", "zzzzzzz", 0, 0, 0, 0 } };    /* this must be last */
 
 
   /* Thanks to Melzaren for this change to allow DG Scripts to be attachable
    *to player's while still disallowing them to manually use the DG-Commands. */
-  const struct mob_script_command_t mob_script_commands[] = {
+static const struct mob_script_command_t mob_script_commands[] = {
 
   /* DG trigger commands. minimum_level should be set to -1. */
   { "masound"  , do_masound  , 0 },
@@ -407,6 +393,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "mtransform", do_mtransform , 0 },
   { "mzoneecho", do_mzoneecho, 0 },
   { "mfollow"  , do_mfollow  , 0 },
+  { "mlog"     , do_mlog     , 0 },
   { "\n" , do_not_here , 0 } };
 
 int script_command_interpreter(struct char_data *ch, char *arg) {
@@ -435,7 +422,7 @@ int script_command_interpreter(struct char_data *ch, char *arg) {
   return 1; // We took care of execution. Let caller know.
 }
 
-const char *fill[] =
+static const char *fill[] =
 {
   "in",
   "from",
@@ -447,7 +434,7 @@ const char *fill[] =
   "\n"
 };
 
-const char *reserved[] =
+static const char *reserved[] =
 {
   "a",
   "an",
@@ -492,35 +479,6 @@ void command_interpreter(struct char_data *ch, char *argument)
   int cmd, length;
   char *line;
   char arg[MAX_INPUT_LENGTH];
-  char proolbuf[200];
-
-if (!IS_NPC(ch))
-	{
-	snprintf(proolbuf,200,"prooldebug: command_interpreter() plr %s room %i cmd '%s'", GET_NAME(ch), world[IN_ROOM(ch)].number, argument);
-	prool_log_(proolbuf);
-	// cyrillic interpreter
-	if (!strcmp(argument, "аз")) {do_az(ch, argument, 0, 0); return;}
-	else if (!strcmp(argument, "буки")) {do_buki(ch, argument, 0, 0); return;}
-	else if (!strcmp(argument, "веди")) {do_vedi(ch, argument, 0, 0); return;}
-	else if (!strcmp(argument, "счет")) {do_score(ch, argument, 0, 0); return;}
-	else if (!strcmp(argument, "сч")) {do_score(ch, argument, 0, 0); return;}
-	else if (!strcmp(argument, "см")) {do_look(ch, argument+strlen("см"), 0, SCMD_LOOK); return;}
-	else if (!strcmp(argument, "духмада")) {do_dukhmada(ch, argument, 0, 0); return;}
-
-	// recode input line here. prool
-  	if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
-		{int ii;
-		char prool_buffer[MAX_STRING_LENGTH];
-		char prool_buffer2[MAX_STRING_LENGTH];
-		for (ii=0; ii<MAX_STRING_LENGTH; ii++) prool_buffer[ii]=0;
-		strcpy(prool_buffer, argument);
-		for (ii=0; ii<MAX_STRING_LENGTH; ii++) prool_buffer2[ii]=0;
-		koi_to_utf8(prool_buffer, prool_buffer2);
-		strcpy(argument, prool_buffer2);
-		//printf("prooldebug: command recoded='%s'\r\n", argument);
-		}
-	// prool recode end
-	}
 
   REMOVE_BIT_AR(AFF_FLAGS(ch), AFF_HIDE);
 
@@ -1079,7 +1037,6 @@ static int perform_dupe_check(struct descriptor_data *d)
   int mode = 0;
   int pref_temp = 0; /* for "last" log */
   int id = GET_IDNUM(d->character);
-	char proolbuf[200];
 
   /* Now that this descriptor has successfully logged in, disconnect all
    * other descriptors controlling a character with the same ID number. */
@@ -1192,9 +1149,7 @@ static int perform_dupe_check(struct descriptor_data *d)
   case RECON:
     write_to_output(d, "Reconnecting.\r\n");
     act("$n has reconnected.", TRUE, d->character, 0, 0, TO_ROOM);
-    mudlog(NRM, MAX(0, GET_INVIS_LEV(d->character)), TRUE, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
-	snprintf(proolbuf,200, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
-	prool_log(proolbuf);
+    mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
     if (has_mail(GET_IDNUM(d->character)))
       write_to_output(d, "You have mail waiting.\r\n");
     break;
@@ -1205,14 +1160,10 @@ static int perform_dupe_check(struct descriptor_data *d)
 	TRUE, d->character, 0, 0, TO_ROOM);
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE,
 	"%s has re-logged in ... disconnecting old socket.", GET_NAME(d->character));
-	snprintf(proolbuf,200,"%s has re-logged in ... disconnecting old socket.", GET_NAME(d->character));
-	prool_log(proolbuf);
     break;
   case UNSWITCH:
     write_to_output(d, "Reconnecting to unswitched char.");
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
-	snprintf(proolbuf,200, "%s [%s] has reconnected.", GET_NAME(d->character), d->host);
-	prool_log(proolbuf);
     break;
   }
 
@@ -1303,9 +1254,9 @@ int enter_player_game (struct descriptor_data *d)
     load_room = r_frozen_start_room;
 
   /* copyover */
-  GET_ID(d->character) = GET_IDNUM(d->character);
+  d->character->script_id = GET_IDNUM(d->character);
   /* find_char helper */
-  add_to_lookup_table(GET_ID(d->character), (void *)d->character);
+  add_to_lookup_table(d->character->script_id, (void *)d->character);
 
   /* After moving saving of variables to the player file, this should only
    * be called in case nothing was found in the pfile. If something was
@@ -1355,7 +1306,7 @@ EVENTFUNC(get_protocols)
  
   len += snprintf(buf + len, MAX_STRING_LENGTH - len,   "\tO[\toMXP\tO] \tw%s\tn | ", d->pProtocol->bMXP ? "Yes" : "No");
   len += snprintf(buf + len, MAX_STRING_LENGTH - len,   "\tO[\toMSDP\tO] \tw%s\tn | ", d->pProtocol->bMSDP ? "Yes" : "No");
-  len += snprintf(buf + len, MAX_STRING_LENGTH - len,   "\tO[\toATCP\tO] \tw%s\tn\r\n\r\n", d->pProtocol->bATCP ? "Yes" : "No");
+  snprintf(buf + len, MAX_STRING_LENGTH - len,   "\tO[\toATCP\tO] \tw%s\tn\r\n\r\n", d->pProtocol->bATCP ? "Yes" : "No");
    
   write_to_output(d, buf, 0);
     
@@ -1405,7 +1356,6 @@ void nanny(struct descriptor_data *d, char *arg)
   case CON_GET_PROTOCOL:
     write_to_output(d, "Collecting Protocol Information... Please Wait.\r\n"); 
     return;
-  break;
   case CON_GET_NAME:		/* wait for input of name */
     if (d->character == NULL) {
       CREATE(d->character, struct char_data, 1);
@@ -1683,10 +1633,6 @@ void nanny(struct descriptor_data *d, char *arg)
 
     mudlog(NRM, LVL_GOD, TRUE, "%s [%s] new player.", GET_NAME(d->character), d->host);
 
-	char proolbuf[200];
-	snprintf(proolbuf,200,"%s [%s] new player", GET_NAME(d->character), d->host);
-	prool_log(proolbuf);
-
     /* Add to the list of 'recent' players (since last reboot) */
     if (AddRecentPlayer(GET_NAME(d->character), d->host, TRUE, FALSE) == FALSE)
     {
@@ -1830,7 +1776,8 @@ void nanny(struct descriptor_data *d, char *arg)
 
       delete_variables(GET_NAME(d->character));
       write_to_output(d, "Character '%s' deleted! Goodbye.\r\n", GET_NAME(d->character));
-      mudlog(NRM, LVL_GOD, TRUE, "%s (lev %d) has self-deleted.", GET_NAME(d->character), GET_LEVEL(d->character));
+      mudlog(NRM, MAX(LVL_GOD, GET_INVIS_LEV(d->character)), TRUE, "%s (lev %d) has self-deleted.",
+       GET_NAME(d->character), GET_LEVEL(d->character));
       STATE(d) = CON_CLOSE;
       return;
     } else {
@@ -1851,135 +1798,3 @@ void nanny(struct descriptor_data *d, char *arg)
     break;
   }
 }
-
-// from prool:
-
-ACMD (do_az)
-{
-send_to_char(ch, "do_az: вы вконец устали!!!111\r\n");
-GET_MOVE(ch)=1;
-}
-
-ACMD (do_buki)
-{
-send_to_char(ch, "do_buki()\r\n");
-}
-
-ACMD (do_vedi)
-{
-send_to_char(ch, "do_vedi()\r\n");
-}
-
-ACMD (do_dukhmada)
-{
-    struct obj_data *obj;
-    obj_rnum r_num;
-
-    if ((r_num = real_object(1008/* fastfood */)) == NOTHING) {
-      send_to_char(ch, "There is no object with that number.\r\n");
-      return;
-    }
-      obj = read_object(r_num, REAL);
-        obj_to_char(obj, ch);
-      act("$n makes a strange magical gesture.", TRUE, ch, 0, 0, TO_ROOM);
-      act("$n has created $p!", FALSE, ch, obj, 0, TO_ROOM);
-      act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
-      load_otrigger(obj);
-//
-    if ((r_num = real_object(1007/* bottle */)) == NOTHING) {
-      send_to_char(ch, "There is no object with that number.\r\n");
-      return;
-    }
-      obj = read_object(r_num, REAL);
-        obj_to_char(obj, ch);
-      act("$n makes a strange magical gesture.", TRUE, ch, 0, 0, TO_ROOM);
-      act("$n has created $p!", FALSE, ch, obj, 0, TO_ROOM);
-      act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
-      load_otrigger(obj);
-//
-}
-
-ACMD (do_scoop) // горные работы
-{
-    struct obj_data *obj;
-    obj_rnum r_num;
-    int i, n;
-
-switch ( SECT(IN_ROOM(ch)))
-	{
-	case  SECT_FIELD: break;
-	case  SECT_FOREST: break;
-	case  SECT_HILLS: break;
-	case  SECT_MOUNTAIN: break;
-	default:
-      		send_to_char(ch, "Here you can not dig!\r\n");
-		return;
-	}
-
-    switch (rand_number(1,10))
-	{
-	case 1: n=23612; break; // a lump of ore
-	default: n=23622; // rock
-	}
-
-    if (GET_MOVE(ch)<1) {// нету сил
-      send_to_char(ch, "You are too exhausted to diggin.\r\n");
-      return;
-    }
-
-    GET_MOVE(ch) = GET_MOVE(ch) - 1;
-
-    i=rand_number(1,10);
-
-    if (i<9) {
-      act("$n digs the ground.", TRUE, ch, 0, 0, TO_ROOM);
-      act("$n dug up nothing!", FALSE, ch, 0, 0, TO_ROOM);
-      act("You dug up nothing!", FALSE, ch, 0, 0, TO_CHAR);
-      return;
-    }
-
-    if ((r_num = real_object(n)) == NOTHING) {
-      send_to_char(ch, "You dig up NOTHING!!!111\r\n");
-      return;
-    }
-      obj = read_object(r_num, REAL);
-        obj_to_char(obj, ch);
-      act("$n digs the ground.", TRUE, ch, 0, 0, TO_ROOM);
-      act("$n dug up $p!", FALSE, ch, obj, 0, TO_ROOM);
-      act("You dug up $p.", FALSE, ch, obj, 0, TO_CHAR);
-      load_otrigger(obj);
-}
-
-ACMD (do_prool)
-{char proolbuf[200];
-int i;
-
-i=atoi(argument);
-//printf("do_prool: argument='%s' i=%i\n", argument,i);
-
-if (i) {
-	snprintf(proolbuf,200,"prool param. set to %i\r\n",i);
-	ch->player_specials->prool=i;
-	}
-
-send_to_char(ch, "\r\nSee `help prool`\r\n\r\n");
-
-if (PRF_FLAGGED(ch, PRF_SUMMONABLE))
-	{
-    	send_to_char(ch, "You are summonable by other players\r\nCodetable koi8-r\r\n");
-	}
-else
-	{
-    	send_to_char(ch, "You are no summonable by other players\r\nCodetable UTF-8\r\n");
-	}
-
-// ch->player_specials->poofin
-snprintf(proolbuf,200,"prool parameter = %i\r\n", ch->player_specials->prool);
-send_to_char(ch,proolbuf);
-
-snprintf(proolbuf,200,"player name '%s'\r\n", GET_NAME(ch));
-send_to_char(ch,proolbuf);
-}
-//end from prool
-
-// END OF FILE

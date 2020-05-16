@@ -23,15 +23,10 @@
 #include "interpreter.h"
 #include "class.h"
 
-// prool's functions
-
-void prool_log(char *);
-void prool_log_(char *);
 
 /** Aportable random number function.
  * @param from The lower bounds of the random number.
- * @param to The upper bounds of the random number.
- * @retval int The resulting randomly generated number. */
+ * @param to The upper bounds of the random number. */
 int rand_number(int from, int to)
 {
   /* error checking in case people call this incorrectly */
@@ -54,8 +49,7 @@ int rand_number(int from, int to)
 /** Simulates a single dice roll from one to many of a certain sized die.
  * @param num The number of dice to roll.
  * @param size The number of sides each die has, and hence the number range
- * of the die.
- * @retval int The sum of all the dice rolled. A random number. */
+ * of the die. */
 int dice(int num, int size)
 {
   int sum = 0;
@@ -71,8 +65,7 @@ int dice(int num, int size)
 
 /** Return the smaller number. Original note: Be wary of sign issues with this.
  * @param a The first number.
- * @param b The second number.
- * @retval int The smaller of the two, a or b. */
+ * @param b The second number. */
 int MIN(int a, int b)
 {
   return (a < b ? a : b);
@@ -80,16 +73,14 @@ int MIN(int a, int b)
 
 /** Return the larger number. Original note: Be wary of sign issues with this.
  * @param a The first number.
- * @param b The second number.
- * @retval int The larger of the two, a or b. */
+ * @param b The second number. */
 int MAX(int a, int b)
 {
   return (a > b ? a : b);
 }
 
 /** Used to capitalize a string. Will not change any mud specific color codes.
- * @param txt The string to capitalize.
- * @retval char* Pointer to the capitalized string. */
+ * @param txt The string to capitalize. */
 char *CAP(char *txt)
 {
   char *p = txt;
@@ -136,9 +127,9 @@ char *strdup(const char *source)
 }
 #endif
 
-/** Strips "\r\n" from just the end of a string. Will not remove internal
- * "\r\n" values to the string.
- * @post Replaces any "\r\n" values at the end of the string with null.
+/** Strips "\\r\\n" from just the end of a string. Will not remove internal
+ * "\\r\\n" values to the string.
+ * @post Replaces any "\\r\\n" values at the end of the string with null.
  * @param txt The writable string to prune. */
 void prune_crlf(char *txt)
 {
@@ -157,7 +148,7 @@ int str_cmp(const char *arg1, const char *arg2)
   int chk, i;
 
   if (arg1 == NULL || arg2 == NULL) {
-    log("SYSERR: str_cmp() passed a NULL pointer, %p or %p.", arg1, arg2);
+    log("SYSERR: str_cmp() passed a NULL pointer, %p or %p.", (void *)arg1, (void *)arg2);
     return (0);
   }
 
@@ -178,7 +169,7 @@ int strn_cmp(const char *arg1, const char *arg2, int n)
   int chk, i;
 
   if (arg1 == NULL || arg2 == NULL) {
-    log("SYSERR: strn_cmp() passed a NULL pointer, %p or %p.", arg1, arg2);
+    log("SYSERR: strn_cmp() passed a NULL pointer, %p or %p.", (void *)arg1, (void *)arg2);
     return (0);
   }
 
@@ -201,8 +192,8 @@ void basic_mud_vlog(const char *format, va_list args)
 {
   time_t ct = time(0);
   char timestr[21];
-  int i; // prool
-
+  int i;
+  
   if (logfile == NULL) {
     puts("SYSERR: Using log() before stream was initialized!");
     return;
@@ -211,7 +202,7 @@ void basic_mud_vlog(const char *format, va_list args)
   if (format == NULL)
     format = "SYSERR: log() received a NULL format.";
 
-  for (i=0;i<21;i++) timestr[i]=0; // prool
+  for (i=0;i<21;i++) timestr[i]=0;
   strftime(timestr, sizeof(timestr), "%b %d %H:%M:%S %Y", localtime(&ct));
 
   fprintf(logfile, "%-20.20s :: ", timestr);
@@ -239,9 +230,7 @@ void basic_mud_log(const char *format, ...)
 /** Essentially the touch command. Create an empty file or update the modified
  * time of a file.
  * @param path The filepath to "touch." This filepath is relative to the /lib
- * directory relative to the root of the mud distribution.
- * @retval int 0 on a success, -1 on a failure; standard system call exit
- * values. */
+ * directory relative to the root of the mud distribution. */
 int touch(const char *path)
 {
   FILE *fl;
@@ -308,12 +297,12 @@ void mudlog(int type, int level, int file, const char *str, ...)
 /** Take a bitvector and return a human readable
  * description of which bits are set in it.
  * @pre The final element in the names array must contain a one character
- * string consisting of a single newline character "\n". Caller of function is
+ * string consisting of a single newline character "\\n". Caller of function is
  * responsible for creating the memory buffer for the result string.
  * @param[in] bitvector The bitvector to test for set bits.
  * @param[in] names An array of human readable strings describing each possible
  * bit. The final element in this array must be a string made of a single
- * newline character (eg "\n").
+ * newline character (eg "\\n").
  * If you don't have a 'const' array for the names param, cast it as such.
  * @param[out] result Holds the names of the set bits in bitvector. The bit
  * names will be delimited by a single space.
@@ -321,8 +310,7 @@ void mudlog(int type, int level, int file, const char *str, ...)
  * Will be set to "NOBITS" if no bits are set in bitvector (ie bitvector = 0).
  * @param[in] reslen The length of the available memory in the result buffer.
  * Ideally, results will be large enough to hold the description of every bit
- * that could possibly be set in bitvector.
- * @retval size_t The length of the string copied into result. */
+ * that could possibly be set in bitvector. */
 size_t sprintbit(bitvector_t bitvector, const char *names[], char *result, size_t reslen)
 {
   size_t len = 0;
@@ -351,18 +339,17 @@ size_t sprintbit(bitvector_t bitvector, const char *names[], char *result, size_
 
 /** Return the human readable name of a defined type.
  * @pre The final element in the names array must contain a one character
- * string consisting of a single newline character "\n". Caller of function is
+ * string consisting of a single newline character "\\n". Caller of function is
  * responsible for creating the memory buffer for the result string.
  * @param[in] type The type number to be translated.
  * @param[in] names An array of human readable strings describing each possible
  * bit. The final element in this array must be a string made of a single
- * newline character (eg "\n").
+ * newline character (eg "\\n").
  * @param[out] result Holds the translated name of the type.
  * Caller of sprintbit is responsible for creating the buffer for result.
  * Will be set to "UNDEFINED" if the type is greater than the number of names
  * available.
- * @param[in] reslen The length of the available memory in the result buffer.
- * @retval size_t The length of the string copied into result. */
+ * @param[in] reslen The length of the available memory in the result buffer. */
 size_t sprinttype(int type, const char *names[], char *result, size_t reslen)
 {
   int nr = 0;
@@ -378,14 +365,14 @@ size_t sprinttype(int type, const char *names[], char *result, size_t reslen)
 /** Take a bitarray and return a human readable description of which bits are
  * set in it.
  * @pre The final element in the names array must contain a one character
- * string consisting of a single newline character "\n". Caller of function is
+ * string consisting of a single newline character "\\n". Caller of function is
  * responsible for creating the memory buffer for the result string large enough
  * to hold all possible bit translations. There is no error checking for
  * possible array overflow for result.
  * @param[in] bitvector The bitarray in which to test for set bits.
  * @param[in] names An array of human readable strings describing each possible
  * bit. The final element in this array must be a string made of a single
- * newline character (eg "\n").
+ * newline character (eg "\\n").
  * If you don't have a 'const' array for the names param, cast it as such.
  * @param[in] maxar The number of 'bytes' in the bitarray. This number will
  * usually be pre-defined for the particular bitarray you are using.
@@ -433,10 +420,7 @@ void sprintbitarray(int bitvector[], const char *names[], int maxar, char *resul
  * @todo Recommend making this function foresightedly useful by calculating
  * real months and years, too.
  * @param t2 The later time.
- * @param t1 The earlier time.
- * @retval time_info_data The real hours and days passed between t2 and t1. Only
- * the hours and days are returned, months and years are ignored and returned
- * as -1 values. */
+ * @param t1 The earlier time. */
 struct time_info_data *real_time_passed(time_t t2, time_t t1)
 {
   long secs;
@@ -458,10 +442,7 @@ struct time_info_data *real_time_passed(time_t t2, time_t t1)
 
 /** Calculate the MUD time passed between two time invervals.
  * @param t2 The later time.
- * @param t1 The earlier time.
- * @retval time_info_data A pointer to the mud hours, days, months and years
- * that have passed between the two time intervals. DO NOT FREE the structure
- * pointed to by the return value. */
+ * @param t1 The earlier time. */
 struct time_info_data *mud_time_passed(time_t t2, time_t t1)
 {
   long secs;
@@ -484,9 +465,7 @@ struct time_info_data *mud_time_passed(time_t t2, time_t t1)
 }
 
 /** Translate the current mud time to real seconds (in type time_t).
- * @param now The current mud time to translate into a real time unit.
- * @retval time_t The real time that would have had to have passed
- * to represent the mud time represented by the now parameter. */
+ * @param now The current mud time to translate into a real time unit. */
 time_t mud_time_to_secs(struct time_info_data *now)
 {
   time_t when = 0;
@@ -501,9 +480,7 @@ time_t mud_time_to_secs(struct time_info_data *now)
 /** Calculate a player's MUD age.
  * @todo The minimum starting age of 17 is hardcoded in this function. Recommend
  * changing the minimum age to a property (variable) external to this function.
- * @param ch A valid player character.
- * @retval time_info_data A pointer to the mud age in years of the player
- * character. DO NOT FREE the structure pointed to by the return value. */
+ * @param ch A valid player character. */
 struct time_info_data *age(struct char_data *ch)
 {
   static struct time_info_data player_age;
@@ -519,9 +496,7 @@ struct time_info_data *age(struct char_data *ch)
  * essence, this prevents someone from following a character in a group that
  * is already being lead by the character.
  * @param ch The character trying to follow.
- * @param victim The character being followed.
- * @retval bool TRUE if ch is already leading someone in victims group, FALSE
- * if it is okay for ch to follow victim. */
+ * @param victim The character being followed. */
 bool circle_follow(struct char_data *ch, struct char_data *victim)
 {
   struct char_data *k;
@@ -562,28 +537,20 @@ void stop_follower(struct char_data *ch)
   } else {
     act("You stop following $N.", FALSE, ch, 0, ch->master, TO_CHAR);
     act("$n stops following $N.", TRUE, ch, 0, ch->master, TO_NOTVICT);
-    act("$n stops following you.", TRUE, ch, 0, ch->master, TO_VICT);
+    if (CAN_SEE(ch->master, ch))
+      act("$n stops following you.", TRUE, ch, 0, ch->master, TO_VICT);
   }
 
   if (ch->master->followers->follower == ch) {	/* Head of follower-list? */
-    prool_log("Head of follower-list");
     k = ch->master->followers;
     ch->master->followers = k->next;
     free(k);
   } else {			/* locate follower who is not head of list */
-  prool_log("locate follower who is not head of list");
-  printf("prool: circle_shutdown = %i\r\n", circle_shutdown);
-  if (circle_shutdown==1) return;
-// crash here! in for. gdb rulez! prool
-    if (ch==0) printf("prooldebug: ERROR #1\r\n");
-    else if (ch->master==0) printf("prooldebug: ERROR #2\r\n");
-    else
-    { for (k = ch->master->followers; k->next->follower != ch; k = k->next);
+    for (k = ch->master->followers; k->next->follower != ch; k = k->next);
 
     j = k->next;
     k->next = j->next;
     free(j);
-    }
   }
 
   ch->master = NULL;
@@ -593,7 +560,6 @@ void stop_follower(struct char_data *ch)
 /** Finds the number of follows that are following, and charmed by, the
  * character (PC or NPC).
  * @param ch The character to check for charmed followers.
- * @retval int The number of followers that are also charmed by the character.
  */
 int num_followers_charmed(struct char_data *ch)
 {
@@ -664,8 +630,7 @@ void add_follower(struct char_data *ch, struct char_data *leader)
  * returned in buf.
  * @param[in] fl The file to be read from.
  * @param[out] buf The next non-blank line read from the file. Buffer given must
- * be at least READ_SIZE (256) characters large.
- * @retval int The number of lines advanced in the file. */
+ * be at least READ_SIZE (256) characters large. */
 int get_line(FILE *fl, char *buf)
 {
   char temp[READ_SIZE];
@@ -700,8 +665,7 @@ int get_line(FILE *fl, char *buf)
  * @param[in] mode What type of files can be created. Currently, recognized
  * modes are CRASH_FILE, ETEXT_FILE, SCRIPT_VARS_FILE and PLR_FILE.
  * @param[in] orig_name The player name to create the filepath (of type mode)
- * for.
- * @retval int 0 if filename cannot be created, 1 if it can. */
+ * for. */
 int get_filename(char *filename, size_t fbufsize, int mode, const char *orig_name)
 {
   const char *prefix, *middle, *suffix;
@@ -709,7 +673,7 @@ int get_filename(char *filename, size_t fbufsize, int mode, const char *orig_nam
 
   if (orig_name == NULL || *orig_name == '\0' || filename == NULL) {
     log("SYSERR: NULL pointer or empty string passed to get_filename(), %p or %p.",
-		orig_name, filename);
+		(const void *)orig_name, (void *)filename);
     return (0);
   }
 
@@ -811,8 +775,7 @@ void core_dump_real(const char *who, int line)
 
 /** Count the number bytes taken up by color codes in a string that will be
  * empty space once the color codes are converted and made non-printable.
- * @param string The string in which to check for color codes.
- * @retval int the number of color codes found. */
+ * @param string The string in which to check for color codes. */
 int count_color_chars(char *string)
 {
   int i, len;
@@ -870,8 +833,7 @@ int count_non_protocol_chars(char * str)
  * Inside and City rooms are always lit. Outside rooms are dark at sunset and
  * night.
  * @todo Make the return value a bool.
- * @param room The real room to test for.
- * @retval int FALSE if the room is lit, TRUE if the room is dark. */
+ * @param room The real room to test for. */
 int room_is_dark(room_rnum room)
 {
   if (!VALID_ROOM_RNUM(room)) {
@@ -901,8 +863,7 @@ int room_is_dark(room_rnum room)
  * down the possible choices. For more information about Levenshtein distance,
  * recommend doing an internet or wikipedia search.
  * @param s1 The input string.
- * @param s2 The string to be compared to.
- * @retval int The Levenshtein distance between s1 and s2. */
+ * @param s2 The string to be compared to. */
 int levenshtein_distance(const char *s1, const char *s2)
 {
   int **d, i, j;
@@ -1002,6 +963,7 @@ void column_list(struct char_data *ch, int num_cols, const char **list, int list
    int num_per_col, col_width, r, c, i, offset = 0;
    char buf[MAX_STRING_LENGTH];
 
+   *buf='\0';
    /* Work out the longest list item */
    for (i=0; i<list_length; i++)
      if (max_len < strlen(list[i]))
@@ -1014,11 +976,6 @@ void column_list(struct char_data *ch, int num_cols, const char **list, int list
 
    /* Ensure that the number of columns is in the range 1-10 */
    num_cols = MIN(MAX(num_cols,1), 10);
-
-   /* Work out the longest list item */
-   for (i=0; i<list_length; i++)
-     if (max_len < strlen(list[i]))
-       max_len = strlen(list[i]);
 
    /* Calculate the width of each column */
    if (IS_NPC(ch))   col_width = 80 / num_cols;
@@ -1064,8 +1021,6 @@ void column_list(struct char_data *ch, int num_cols, const char **list, int list
  * @param flag_list An array of flag name strings. The final element must
  * be a string made up of a single newline.
  * @param flag_name The name to search in flag_list.
- * @retval int Returns the element number in flag_list of flag_name or
- * NOFLAG (-1) if no match.
  */
 int get_flag_by_name(const char *flag_list[], char *flag_name)
 {
@@ -1093,10 +1048,6 @@ int get_flag_by_name(const char *flag_list[], char *flag_name)
  * @param[in] bufsize The total size of the buffer.
  * @param[in] lines_to_read The number of lines to be read from the front of
  * the file.
- * @retval int The number of lines actually read from the file. Can be used
- * the compare with the number of lines requested to be read to determine if the
- * entire file was read. If lines_to_read is <= 0, no processing occurs
- * and lines_to_read is returned.
  */
 int file_head( FILE *file, char *buf, size_t bufsize, int lines_to_read )
 {
@@ -1174,10 +1125,6 @@ int file_head( FILE *file, char *buf, size_t bufsize, int lines_to_read )
  * @param[in] bufsize The total size of the buffer.
  * @param[in] lines_to_read The number of lines to be read from the back of
  * the file.
- * @retval int The number of lines actually read from the file. Can be used
- * the compare with the number of lines requested to be read to determine if the
- * entire file was read. If lines_to_read is <= 0, no processing occurs
- * and lines_to_read is returned.
  */
 int file_tail( FILE *file, char *buf, size_t bufsize, int lines_to_read )
 {
@@ -1259,8 +1206,6 @@ int file_tail( FILE *file, char *buf, size_t bufsize, int lines_to_read )
  * @pre file parameter must already be opened.
  * @post file will be rewound.
  * @param file The file to determine the size of.
- * @retval size_t The byte size of the file (we assume no errors will be
- * encountered in this function).
  */
 size_t file_sizeof( FILE *file )
 {
@@ -1284,14 +1229,12 @@ size_t file_sizeof( FILE *file )
   return numbytes;
 }
 
-/** Returns the number of newlines '\n' in a file, which we equate to number of
+/** Returns the number of newlines "\\n" in a file, which we equate to number of
  * lines. We assume the int type more than adequate to count the number of lines
  * and do not make checks for overrunning INT_MAX.
  * @pre file parameter must already be opened.
  * @post file will be rewound.
  * @param file The file to determine the size of.
- * @retval size_t The byte size of the file (we assume no errors will be
- * encountered in this function).
  */
 int file_numlines( FILE *file )
 {
@@ -1320,7 +1263,6 @@ int file_numlines( FILE *file )
  * @pre Assumes that NOWHERE, NOTHING, NOBODY, NOFLAG, etc are all equal.
  * @param str_to_conv A string of characters to attempt to convert to an
  * IDXTYPE number.
- * @retval IDXTYPE A valid index number, or NOWHERE if not valid.
  */
 IDXTYPE atoidx( const char *str_to_conv )
 {
@@ -1471,7 +1413,6 @@ char *strfrmt(char *str, int w, int h, int justify, int hpad, int vpad)
    @param str1 The string to be displayed on the left.
    @param str2 The string to be displayed on the right.
    @param joiner ???.
-   @retval char * Pointer to the output to be displayed?
 */
 char *strpaste(char *str1, char *str2, char *joiner)
 {
@@ -1548,59 +1489,3 @@ char * convert_from_tabs(char * string)
   parse_tab(buf);
   return(buf);
 }
-
-// prool's subprograms
-
-char *ptime(void) // Return value: ref to ASCII char string with current time. Возвращаемое значение: ссылка на текстовую строку с текущим временем
-	{
-	char *tmstr;
-	time_t mytime;
-
-	mytime = time(0);
-
-	tmstr = (char *) asctime(localtime(&mytime));
-	*(tmstr + strlen(tmstr) - 1) = '\0';
-
-	return tmstr+4;
-	}
-
-void prool_log(char *str)
-{
-FILE *fp;
-fp=fopen("tbamud-prool.log", "a");
-printf("%s %s\n", ptime(), str);
-if (fp==0) return;
-fprintf(fp,"%s %s\n",ptime(),str);
-fclose(fp);
-}
-
-void prool_log_(char *str)
-{
-FILE *fp;
-fp=fopen("tbamud-prool.log", "a");
-//printf("%s %s\n", ptime(), str);
-if (fp==0) return;
-fprintf(fp,"%s %s\n",ptime(),str);
-fclose(fp);
-}
-
-void system_(char *cmd) // prool: from VMUD source
-{
-if (system(cmd)==-1)
-	{
-	printf("system_(): error, maybe system() fork() error, RAM overflow\n");
-	}
-}
-
-void send_email2 (char *from, char *to, char *subj, char *text) // prool: from VMUD source
-{char buf [80*25];
-
-return; // send_email2 temporaryli disabled
-
-sprintf(buf,"echo \"Subject: %s\r\nContent-Type: text/plain; charset=koi8-r\r\n\r\n%s\"|/usr/sbin/sendmail -F\"%s\" %s\r\n",
-subj,text,from,to);
-system_(buf);
-}
-
-// end of prool's subprograms
-// END OF FILE

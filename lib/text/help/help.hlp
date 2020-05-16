@@ -34,7 +34,7 @@ trigger you must define actor.
 %damage% %actor% 20           - cause 20 points damage
 %damage% %actor% %random.20%  - cause 1-20 points damage randomly
 
-eval stunned %actor.hitp%     - evaluate all hitpoints and then damage
+set stunned %actor.hitp%      - evaluate all hitpoints and then damage
 %damage% %actor% %stunned%    - leaving the player stunned, but will recover 
 
 eval random_up_to_stunned %%random.%stunned%%%
@@ -143,6 +143,22 @@ Mob Example: @RTSTAT 81@n
 
 See also: POSITIONS, CHAR-VAR
 #31
+%LOG% WLOG MLOG OLOG
+
+%log% <message>
+
+This command sends a message to the syslog so all immmortals can see it. It can
+ be useful for debugging, or for tracking the frequency of things that shouldn't occur
+very often.
+
+%log% %actor.name%, a level %actor.level% %actor.class% just typed %cmd% %arg%
+
+will generate a message that looks like:
+
+[ Room 57700 :: Fizban, a level 34 Magic-User just typed log example ]
+
+The part before the :: shows what the script that logged the message was attached to.
+#0
 %MOVE% MOVE-OBJECT MOVE-ALL
 
 In an object trigger, moves the object to which the trig is attached to the 
@@ -841,7 +857,7 @@ AUTOQUESTS QUESTS QUESTMASTERS QUESTPOINTS QUEST-POINTS QUEST-MOBS QUESTMOBS
    An autoquest is a quest that can be automatically started and completed by 
 players on the MUD without the intervention of an immortal.  Players simply 
 visit a questmaster where they join an available quest, and get rewarded on 
-it�s completion.
+its completion.
 
 See Also: QEDIT, QUEST-FLAG
 #31
@@ -859,7 +875,7 @@ AUTOSACRIFICE SACRIFICE
 Usage: toggle autosac
 
    Enables you to automatically sacrifice any mob you kill. If you do not have
-autoloot and autoloot enabled the objects and gold will also be sacrificed.
+autoloot enabled the objects and gold will also be sacrificed.
 
 See Also: TOGGLE
 #0
@@ -1661,6 +1677,8 @@ varexists()     - Returns 1 if global variable in subfield exists, 0 if not.
                   Used with remote vars on players. @RHELP VAREXIST@n
 vnum()          - The actor's vnum. Equality can now be checked with 
                   if %self.vnum(#)% not if %self.vnum% == #  
+wait()          - Adds a # second wait to the actor to allow trigger firing.
+                  nop %actor.wait(#)%
 weight          - The actor's weight. 
 
 Example: @RTSTAT 27@n
@@ -1722,16 +1740,22 @@ reduced by one.
 
 See also: MAGIC-MISSILE
 #0
-CIRCLEMUD CREDITS
+CHMOD
 
-                        t  b  a  M  U  D     3  .  5  1
+4 stands for "read",
+2 stands for "write",
+1 stands for "execute", and
+0 stands for "no permission."
+So 7 is the combination of permissions 4+2+1 (read, write, and execute), 5 is 4+0+1 (read, no write, and execute), and 4 is 4+0+0 (read, no write, and no execute).
+#31
+CIRCLEMUD CREDITS
 
 tbaMUD (formerly known as CircleMUD) was developed from DikuMUD (Gamma 0.0) by 
 Jeremy "Ras" Elson at Johns Hopkins University's Department of Computer Science.
-All code unique to tbaMUD is protected under a copyright by the Trustees of 
+All code unique to CircleMUD is protected under a copyright by the Trustees of 
 the Johns Hopkins University.
 
-Many, many people contributed to tbaMUD in one way or another throughout
+Many, many people contributed to CircleMUD in one way or another throughout
 the course of its development.  Although it is impossible for me to remember
 them all, I'd like to extend special thanks to certain people:
 
@@ -1756,14 +1780,17 @@ them all, I'd like to extend special thanks to certain people:
 ...plus everyone else in the Circle community who has submitted material!
 Thanks everyone!
 
-  Bugs and Help:  tbamud.com 9091
-            URL:  http://tbaMUD.com/
-
 --Jeremy Elson
 
-tbaMUD (formerly known as CircleMUD) is currently being developed by The 
-Builder Academy. All bugs and requests for help should be directed to: 
-tbamud.com 9091
+tbaMUD is currently being developed by The Builder Academy. All bugs and 
+requests for help should be directed to: 
+
+   Builder Port:  tbamud.com 9091
+    Player Port:  tbamud.com 4000
+        Website:  http://tbaMUD.com/
+
+Thank you to the entire MUDding community for your continued support.
+tbaMUD is currently being developed by: Welcor, Wyld, and Opie.
 
 --Rumble
 #0
@@ -1850,6 +1877,11 @@ ANSI colors:
 @*m - @mmagenta@n    @*M - @Mbright magenta@n   @*p - @ppink@n       @*P - @Pbright pink@n
 @*y - @yyellow@n     @*Y - @Ybright yellow@n    @*o - @oorange@n     @*O - @Obright orange@n
 @*w - @wwhite@n      @*W - @Wbright white@n     @*[F###] - @RSHOW COLOUR@n to list all codes.
+
+It should be noted that in editors typing /t toggles whether color codes are shown
+or are interpreted as color codes. This can be useful for copying and pasting
+strings that contain color without having to re-insert all the color codes
+manually.
 
 See also: @*, OLC-COLOR, MXP, ANSI, PROMPT, TOGGLE, SHOW-COLOUR
 #1
@@ -2432,26 +2464,23 @@ unabridged version that requires membership. They also offer a thesaurus at:
 @Chttp://m-w.com/@n
 
 #31
-DIG
+DIG UNDIG RDIG RELINK RLINKS 
 
-Builders working on their trial vnum do not need to learn this command, yet.
+Builders working on their trial vnum do not need to learn this command, yet.   
 Usage: dig <direction> <target room>
    This command creates a two-way exit from the room you're currently in to the
-room specified. The direction can be any of north, east, south, west, up and
-down. If the target room does not exist it will be created. If either exit
+room specified. The direction can be any of north, east, south, west, up and 
+down. If the target room does not exist it will be created. If either exit 
 already exists, you will receive an error. To purge an exit use: dig <dir> -1.
-Directions can be abbreviated.
+Directions can be abbreviated. 
 
-Examples:
+Examples: 
 dig north 1202
    Will make an exit to the north from here to 1202, and an exit from 1202 south
-back here.
+back here.  
 
 dig north -1
    Will remove the exit you just made.
-
-dig north *
-   Create new room with first available number. And make exit to this.
 
 NOTE: Dig does not autosave on exit. you must type SAVEALL. This way if you 
       mess up and want the links deleted we can just reboot and wipe them.
@@ -2668,23 +2697,23 @@ EMAILS ICQ AIM E-MAILS CONTACTS MSN AOL
 
 Name     Email
 
-Welcor   welcor@*tbamud.com
-Rumble   rumble@*tbamud.com
-Opie     opie@*tbamud.com
-Wyld     wyld@*tbamud.com
-Vatiken  vatiken@*tbamud.com
-Shamra   shamra@*tbamud.com
-Fizban   fizban@*tbamud.com
-Amber    amber@*tbamud.com
-Detta    detta@*tbamud.com
-Elaseth  elaseth@*tbamud.com
-Elorien  elorien@*tbamud.com
-Ferret   ferret@*tbamud.com
-Fyre     fyre@*tbamud.com
-Heiach   heiach@*tbamud.com
-Random   random@*tbamud.com
-Relsqui  relsqui@*tbamud.com
-Rhade    rhade@*tbamud.com
+Welcor     welcor@*tbamud.com
+Rumble     rumble@*tbamud.com
+Opie       opie@*tbamud.com
+Wyld       wyld@*tbamud.com
+Vatiken    vatiken@*tbamud.com
+Shamra     shamra@*tbamud.com
+Fizban     fizban@*tbamud.com
+Amber      amber@*tbamud.com
+Detta      detta@*tbamud.com
+Elaseth    elaseth@*tbamud.com
+Elorien    elorien@*tbamud.com
+Ferret     ferret@*tbamud.com
+Fyre       fyre@*tbamud.com
+Heiach     heiach@*tbamud.com
+Random     random@*tbamud.com
+Relsqui    relsqui@*tbamud.com
+Rhade      rhade@*tbamud.com
 #0
 EMOTES : EMOTIONS
 
@@ -2840,6 +2869,11 @@ the initial amount.
 a single location. HELP ZEDIT-EQUIP for all the possible object equipping 
 locations. All you have to do to fix this is pick a different equip location
 that is not used. 
+
+SYSERR: bind: adress is already in use.
+
+   This means the port you are running the MUD on is already in use. The game
+is probably already running and using that port. The default port is 4000.
 
 See also: TRIG-ERRORS, ZEDIT-MISTAKES, SEDIT-MISTAKES
 #31
@@ -3779,100 +3813,6 @@ Heiach has been a big help with training new builders and has become very adept
 with trigedit. His example zone 359 is very impressive. He is always willing to
 help, especially with trigedit.
 
-#0
-HELP TBA-ADMIN
-
-Help and World files are the "master" versions. Before a release I copy the help file and World files to /tbamud
-Only difference from stock is do_cheat, help files viewable by any level, do_advance is LVL_GOD, and 600+ zones.
-tbamud.com is the latest Joomla version with Kunena as our forums. Download section is Google Drive.
-Builder Applications can be viewed here: goo.gl/0FBsys
-Backups are done monthly of /tba and using the Akeeba component in Joomla, I keep an archive. Github is our version control system but I like backups of backups. Please do reasonable backups of your own.
-
-To setup a trial vnum (in this case test for 61165:
-advance test 31
-set test nohassle off
-set test olc 611
-set test title has trial vnum 61165
-set test loadroom 3
-set test gold 1000000
-restore test
-redit 61165
-1
-test's Trial Vnum
-q
-y
-toggle nohassle off
-load obj 1332
-set self level 32
-tbalim test 61165
-return
-toggle nohassle on
-
-To setup test with zone 348
-return
-saveall
-set test olc 348
-set file test olc 348
-set test title has zone 348
-set file test title has zone 348
-set test loadroom 348
-set file test loadroom 348
-set test gold 1000000
-wiznet Okay test, you have zone 348 vnum's 34800 to 34899. Help buildwalk and help dig to learn how to create and link your rooms. If you have any questions just ask.
-toggle nohassle off
-load obj 1332
-set self level 32
-tbalim test purge
-return
-restore test
-toggle nohassle on
-redit 34800
-1
-test's Zone Description Room
-q
-y
-zedit 34800
-1
-test
-z
-Name Me - test
-q
-y
-redit 34800
-2
-return
-saveall
-set test olc 348
-set test title has zone 348
-set test loadroom 348
-set test gold 1000000
-wiznet Okay test, you have zone 348 vnum's 34800 to 34899. Help buildwalk and help dig to learn how 
-to create and link your rooms. If you have any questions just ask.
-toggle nohassle off
-load obj 1332
-set self level 32
-tbalim test purge
-return
-restore test
-toggle nohassle on
-redit 34800
-1
-test's Zone Description Room
-q
-y
-zedit 34800
-1
-test
-z
-Name Me - test
-q
-y
-redit 34800
-2
-<paste zone proposal here>
-q
-y
-See Also: TBA-STAFF, TBA-ZONES
 #0
 HELPCHECK
 
@@ -6376,8 +6316,12 @@ Usage: olist <range of vnums or zone number>
 
 Olist gives you a list of the objects numbered within the parameters.
 
-olist 12          - lists all objects defined in zone 12
-olist 3001 3022   - lists all existing objects from vnum 3001 to 3022
+olist 12           - lists all objects defined in zone 12
+olist 3001 3022    - lists all existing objects from vnum 3001 to 3022
+olist affect <num> - Displays top 100 objects, in order, with the selected affect.
+                     Type olist affect to see all available fields.
+olist type <num>   - Displays objects of the selected type.
+                     Type olist type to see all available fields.
 
 See also: OEDIT, OLC
 #31
@@ -7161,7 +7105,7 @@ Level 32 (God) An experienced builder that has proven their knowledge and is
                willing to teach others. Level 2 and above is considered staff.
 Level 33 (Greater God) An experienced builder that has contributed 
                        significantly to TBA.
-Level 34 (Implementor) Welcor and I (Rumble). Welcor hosts and I administrate.
+Level 34 (Implementor) Current developers: Welcor, Wyld, and Opie.
 
    Do not bother asking to be advanced, and if that is why you are here, you
 are wasting your time. Note, this does not mean you are not a quality builder,
@@ -7173,6 +7117,7 @@ necessary skills to do so, you will be advanced and given further privileges
 to help teach others. Generally, if you have to ask for a promotion you will be
 less likely to receive it. Performance is everything here.
 
+q
 #0
 PROPOSALS GUIDELINES ZONE-PROPOSALS PROPOSITIONS PROPOSE REQUESTS CRITERIA
 
@@ -7879,95 +7824,9 @@ The following terrains may be selected (only one):
 
 #31
 RELEASES
- 
-If you have any additions, corrections, ideas, or bug reports please stop by the
-Builder Academy at telnet://tbamud.com:9091 or email rumblebamud.com -- Rumble
- 
-CircleMUD Release History 
-Originally by Jeremy Elson 
- 
-Abstract 
- 
-This document lists the release history of CircleMUD and at the end is the post
-to rec.games.mud.diku which originally anounced CircleMUD as a publically 
-available MUD source code. 
- 
-Release history:
-Version 3.63 release: April, 2012
-Version 3.62 release: September, 2010
-Version 3.61 release: January, 2010
-Version 3.60 release: September, 2009
-Version 3.59 release: April, 2009
-Version 3.58 release: January, 2009
-Version 3.57 release: August, 2008
-Version 3.56 release: April, 2008
-Version 3.55 release: January, 2008
-Version 3.54 release: December, 2007
-Version 3.53 release: July, 2007
-Version 3.52 release: April, 2007
-Version 3.51 release: February, 2007
-Version 3.5 release: December, 2006
-Version 3.1  (yes, no beta pl): November 18, 2002
-Version 3.00 beta pl22 release: October 4, 2002
-Version 3.00 beta pl21 release: April 15, 2002
-Version 3.00 beta pl20 release: January 15, 2002
-Version 3.00 beta pl19 release: August 14, 2001
-Version 3.00 beta pl18 release: March 18, 2001
-Version 3.00 beta pl17 release: January 23, 2000
-Version 3.00 beta pl16 release: August 30, 1999
-Version 3.00 beta pl15 release: March 16, 1999
-Version 3.00 beta pl14 release: July 3, 1998
-Version 3.00 beta pl13a release: June 4, 1998
-Version 3.00 beta pl13 release: June 1, 1998
-Version 3.00 beta pl12 release: October 29, 1997
-Version 3.00 beta pl11 release: April 14, 1996
-Version 3.00 beta pl10 release: March 11, 1996
-Version 3.00 beta pl9 release: February 6, 1996
-Version 3.00 beta pl8 release: May 23, 1995
-Version 3.00 beta pl7 release: March 9, 1995
-Version 3.00 beta pl6 release: March 6, 1995
-Version 3.00 beta pl5 release: February 23, 1995
-Version 3.00 beta pl4 release: September 28, 1994
-Version 3.00 beta pl1-3, internal releases for beta-testers.
-Version 3.00 alpha: Ran on net for testing.  Code not released.
-Version 2.20 release: November 17, 1993
-Version 2.11 release: September 19, 1993
-Version 2.10 release: September 1, 1993
-Version 2.02 release: Late August 1993
-Version 2.01 release: Early August 1993
-Version 2.00 release: July 16, 1993 (Initial public release)
- 
-The CircleMUD ?press release? is included below, in case you haven?t seen it 
-and want to.
- 
-Wake the kids and find the dog, because it?s the FTP release of 
- 
-CIRCLEMUD 2.0 
- 
-That?s right --CircleMUD 2.0 is done and is now available for anonymous FTP 
-at ftp.cs.jhu.edu! 
- 
-CircleMUD is highly developed from the programming side, but highly UNdeveloped 
-on the game-playing side. So, if you?re looking for a huge MUD with billions 
-of spells, skills, classes, races, and areas, Circle will probably disappoint 
-you severely. Circle still has only the 4 original Diku classes, the original 
-spells, the original skills, and about a dozen areas. 
- 
-On the other hand, if you?re looking for a highly stable, well-developed, 
-well-organized "blank slate" MUD on which you can put your OWN ideas for 
-spells, skills, classes, and areas, then Circle might be just what you?re 
-looking for. 
- 
-"Multi-user WHAT?" --My Mom 
-Give it a try --what do you have to lose other than your GPA/job, friends, 
-and life? 
- 
-Good luck, and happy Mudding, 
- 
-Jeremy Elson aka Ras 
- 
-Circle and tbaMUD?s complete source code and areas are available at
-http://www.tbamud.com.
+
+The complete release history of tbaMUD is available at:
+https://github.com/tbamud/tbamud/blob/master/doc/releases.txt
 #0
 RELOAD
 
@@ -8644,8 +8503,7 @@ See also: HIDE
 #0
 SERVERS FREE-SERVERS HOSTINGS FREE-HOSTS
 
-http://amber.org.uk
-www.frostmud.com
+https://www.funcity.org/ - hosted by Jason "Opie" Babo
 
 If you have any additions or deletions please mudmail rumble.
 
@@ -9953,6 +9811,143 @@ be an object a mobile or a player. Usually used in conjunction with another
 command.
 
 #31
+TBA TBAMUD PROJECT BACKGROUND STORY HISTORY INTRODUCTION ACADEMY COMMUNITY OVERVIEW VISION TBA-VISION
+
+TBA stands for The Builder Academy. 
+@RGOTO 3@n to enter the Builder Academy tutorial.
+
+The Builder Academy (TBA) was created in October of 2000 on the MUD Cruel World. It began
+with a combination of my own MUDding experience and the work of numerous others from the
+MUDding community and evolved into an extensive tutorial zone, help files, and examples.
+
+
+TBA now has two main missions. It originally was meant to be a training MUD open to anyone
+willing to learn or teach how to create your own text-based World. 1,000's of builder's have
+gone through our training and many MUDs require new builders to complete training at TBA before
+they can apply to their MUD. TBA's other mission is the development of the codebase formerly
+known as CircleMUD. Due to CircleMUD's stagnation TBA staff decided to release our codebase under
+the name tbaMUD and we have been updating it tirelessly for over 10 years.
+
+TBA is a low stress, no deadline, training environment where anyone with motivation can work at
+their own pace to learn as much or as little as they wish. Numerous people are available to answer
+questions and give advice.
+
+1000's of builders served and counting.
+
+The most challenging aspect of running a MUD is finding good builders. You will hear this from the
+admin of every MUD that has ever been. In the past it has always been up to each individual MUD to
+find and usually train their own builders. This works, but I think the MUDding community can come up
+with something better. That is why we created The Builder's Academy. No pressure, no deadline, just
+come and learn or help teach. Give something back to the community we have all taken so much from.
+TBA is a MUDding community resource, please submit any lessons learned or building tips and tricks
+so we can improve our codebase and training.
+
+TBA can also be used by other MUDs as a builder's port. Just send us your newbie builders. We will
+teach them and then you can have them back with the zones they built.
+
+We are always open to anyone willing to learn or help teach so we can continue to improve the tbaMUD
+codebase.
+
+- Rumble
+The Builder Academy
+tbamud.com 9091
+
+See also: NEWBIE
+#0
+TBA-ADMIN
+
+Help and World files are the "master" versions. Before a release I copy the help file and World files to /tbamud
+Only difference from stock is do_cheat, help files viewable by any level, do_advance is LVL_GOD, and 600+ zones.
+tbamud.com is the latest Joomla version with Kunena as our forums. Download section is Google Drive.
+Builder Applications can be viewed here: goo.gl/0FBsys
+Backups are done monthly of /tba and using the Akeeba component in Joomla, I keep an archive. Github is our version control system but I like backups of backups. Please do reasonable backups of your own.
+
+To setup a trial vnum (in this case test for 61165:
+advance test 31
+set test nohassle off
+set test olc 611
+set test title has trial vnum 61165
+set test loadroom 3
+set test gold 1000000
+restore test
+redit 61165
+1
+test's Trial Vnum
+q
+y
+toggle nohassle off
+load obj 1332
+set self level 32
+tbalim test 61165
+return
+toggle nohassle on
+
+To setup test with zone 348
+return
+saveall
+set test olc 348
+set file test olc 348
+set test title has zone 348
+set file test title has zone 348
+set test loadroom 348
+set file test loadroom 348
+set test gold 1000000
+wiznet Okay test, you have zone 348 vnum's 34800 to 34899. Help buildwalk and help dig to learn how to create and link your rooms. If you have any questions just ask.
+toggle nohassle off
+load obj 1332
+set self level 32
+tbalim test purge
+return
+restore test
+toggle nohassle on
+redit 34800
+1
+test's Zone Description Room
+q
+y
+zedit 34800
+1
+test
+z
+Name Me - test
+q
+y
+redit 34800
+2
+return
+saveall
+set test olc 348
+set test title has zone 348
+set test loadroom 348
+set test gold 1000000
+wiznet Okay test, you have zone 348 vnum's 34800 to 34899. Help buildwalk and help dig to learn how 
+to create and link your rooms. If you have any questions just ask.
+toggle nohassle off
+load obj 1332
+set self level 32
+tbalim test purge
+return
+restore test
+toggle nohassle on
+redit 34800
+1
+test's Zone Description Room
+q
+y
+zedit 34800
+1
+test
+z
+Name Me - test
+q
+y
+redit 34800
+2
+<paste zone proposal here>
+q
+y
+See Also: TBA-STAFF, TBA-ZONES
+#32
 TBA-ADVERTISING
 
 Mud Created: 2000 
@@ -10022,49 +10017,6 @@ TBAMAPS TBA-MAPS
 
 See also: CARTOGRAPHY, ASCII
 #31
-TBAMUD PROJECT BACKGROUND STORY HISTORY INTRODUCTION ACADEMY COMMUNITY OVERVIEW VISION TBA-VISION
-
-TBA stands for The Builder Academy. 
-@RGOTO 3@n to enter the Builder Academy tutorial.
-
-The Builder Academy (TBA) was created in October of 2000 on the MUD Cruel World. It began
-with a combination of my own MUDding experience and the work of numerous others from the
-MUDding community and evolved into an extensive tutorial zone, help files, and examples.
-
-
-TBA now has two main missions. It originally was meant to be a training MUD open to anyone
-willing to learn or teach how to create your own text-based World. 1,000's of builder's have
-gone through our training and many MUDs require new builders to complete training at TBA before
-they can apply to their MUD. TBA's other mission is the development of the codebase formerly
-known as CircleMUD. Due to CircleMUD's stagnation TBA staff decided to release our codebase under
-the name tbaMUD and we have been updating it tirelessly for over 10 years.
-
-TBA is a low stress, no deadline, training environment where anyone with motivation can work at
-their own pace to learn as much or as little as they wish. Numerous people are available to answer
-questions and give advice.
-
-1000's of builders served and counting.
-
-The most challenging aspect of running a MUD is finding good builders. You will hear this from the
-admin of every MUD that has ever been. In the past it has always been up to each individual MUD to
-find and usually train their own builders. This works, but I think the MUDding community can come up
-with something better. That is why we created The Builder's Academy. No pressure, no deadline, just
-come and learn or help teach. Give something back to the community we have all taken so much from.
-TBA is a MUDding community resource, please submit any lessons learned or building tips and tricks
-so we can improve our codebase and training.
-
-TBA can also be used by other MUDs as a builder's port. Just send us your newbie builders. We will
-teach them and then you can have them back with the zones they built.
-
-We are always open to anyone willing to learn or help teach so we can continue to improve the tbaMUD
-codebase.
-
-- Rumble
-The Builder Academy
-tbamud.com 9091
-
-See also: NEWBIE
-#0
 TEDITOR
 
 Usage: tedit [file]
@@ -10969,7 +10921,7 @@ Variables:
 %amount% - number of coins given.
 %self%   - the mobile.
 
-Example: @RTSTAT 130, 72, 8308, 23612, 19580@n
+Example: @RTSTAT 130, 72, 8308, 23612@n
 
 See also: MHUNT
 #31
@@ -10993,7 +10945,7 @@ Example: @RTSTAT 76@n
 TRIGEDIT-MOB-COMMAND TRIG-MOB-COMMAND
 
 Activates when commands are performed in the same room as the mobile.
-Does not work for God and above.
+Does not work for Greater God and above.
 
 Numeric Arg : not used.
 Argument    : text which must be part of the command typed to filter out 
@@ -11461,7 +11413,7 @@ Example: @RTSTAT 90@n
 TRIGEDIT-OBJ-COMMANDS TRIGEDIT-OBJECT-COMMAND TRIG-OBJ-COMMAND TRIG-OBJ-COMMANDS
 
 Activates when a command is performed near this object.
-Command triggers do not work for God and above.
+Command triggers do not work for Greater God and above.
 
 Numeric Arg : a bitfield to indicate where the object must be in order to cause 
               the trigger to activate. 
@@ -11679,7 +11631,7 @@ Example: @RTSTAT 57@n
 TRIGEDIT-ROOM-COMMANDS TRIG-ROOM-COMMANDS CLIMBING 
 
 Activates when commands are performed in the room.
-Does not work for God and above.
+Does not work for Greater God and above.
 
 Numeric Arg : not used.
 Argument    : text which must be part of the command typed to filter out 
@@ -12082,6 +12034,7 @@ mudcommand - Returns the mud command the string is shorthand for. Used to make
 charat     - set new variable %text/var.charat(index)% i.e. set phrase testing, 
              set var1 %phrase.charat(2)% now %var1% == e
 
+toupper    - Returns the string with the first letter of it capitalized.
 Example: @RTSTAT 30@n
 #31
 TRIGGER-EDITORS
@@ -12743,7 +12696,7 @@ Examples:
 >; @              - shows all gods that are on and visible to you.
                   - also shows if the gods who are visible to you are writing.
 >;#<level> <text> - sends text to everyone <level> and above.
-                  - ;#2 only God and above will see this.
+                  - ;#32 only God and above will see this.
 
 See also: NOWIZ
 #31
@@ -13560,75 +13513,4 @@ zlock - Locks one or all zones. Type zlock for usage.
 zunlock - Locks one or all zones. Type zunlock for usage. 
 
 #31
-CHMOD
-
-4 stands for "read",
-2 stands for "write",
-1 stands for "execute", and
-0 stands for "no permission."
-So 7 is the combination of permissions 4+2+1 (read, write, and execute), 5 is 4+0+1 (read, no write, and execute), and 4 is 4+0+0 (read, no write, and no execute).
-#31
-PROOLCYR
-
-Prool's help. Помощь от Пруля
-
-Prool cyrillic commands. Кириллические команды Пруля
-
-Default codetable UTF-8. Second codetable koi8-r.
-Command for switch codetable:
-
-toggle summon
-
-sic! так надо
-
-Тестовые команды-заглушки: аз, буки, веди
-
-Кириллические команды (настоящие):
-
-счет или сч - score
-духмада - выдача воды и еды
-
-Русификация только начата и больше русских команд пока нет.
-
-Вчи англійську мову, москалику!
-#0
-PROOL
-Prool's help
-
-prool command:
-
-prool [parameter] - test command for Prool
-
-help proolcyr - cyrillic (russian) help for russian-spoke players
-help proolimm - prool's help for immortals
-
-If you need food and water, use the command
-dukhmada
-
-For main help use
-HELP
-#0
-DUKHMADA
-The command issues water and food
-#0
-SCOOP
-Dig the ground. You can find stones, ore, etc.
-#0
-PROOLIMM
-Prool's help for immortals (builders, game masters, programmers)
-
-Hi, Prool!
-
-Immortal board here in room 1203.
-
-Players start room is 1000.
-
-O - is latin O letter
-0 - is zero digit (zero = nihil)
-О - is cyrillic "O" letter
-
-I like moloko. Without "plus" or "nozh".
-
-With best regards, Prool
-#0
 $~

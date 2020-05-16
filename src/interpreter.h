@@ -120,20 +120,9 @@ struct alias_data {
 
 /* Necessary for CMD_IS macro.  Borland needs the structure defined first
  * so it has been moved down here. */
-/* Global buffering system */
-#ifndef __INTERPRETER_C__
 
 extern int *cmd_sort_info;
 extern struct command_info *complete_cmd_info;
 extern const struct command_info cmd_info[];
-
-#endif /* __INTERPRETER_C__ */
-
-// from prool
-ACMD (do_prool);
-ACMD (do_az);
-ACMD (do_buki);
-ACMD (do_vedi);
-// end prool
 
 #endif /* _INTERPRETER_H_ */
