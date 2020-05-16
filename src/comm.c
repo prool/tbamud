@@ -94,9 +94,10 @@ extern time_t newsmod;
 
 /* prool's functions */
 void send_email2 (char *from, char *to, char *subj, char *text);
-
 void prool_log(char *);
 void prool_log_(char *);
+void koi_to_utf8(char *str_i, char *str_o);
+void utf8_to_koi(char *str_i, char *str_o);
 
 /* locally defined globals, used externally */
 struct descriptor_data *descriptor_list = NULL;   /* master desc list */
@@ -213,10 +214,10 @@ int main(int argc, char **argv)
   char prool_buf[200];
 
 snprintf(prool_buf,200,
-"========================== GloryMUD started =======================\r\nby Prool, proolix@gmail.com, glorymud.kharkov.org");
+"========================== MUD started =======================\r\nby Prool, proolix@gmail.com, glorymud.kharkov.org");
 prool_log(prool_buf);
 
-//send_email2 ("GloryMUD", "proolix@gmail.com", "Glory MUD started!", "Subj\r\n-- \r\n");
+//send_email2 ("MUD", "proolix@gmail.com", "MUD started!", "Subj\r\n-- \r\n");
 
 #ifdef MEMORY_DEBUG
   zmalloc_init();
@@ -781,7 +782,7 @@ void game_loop(socket_t local_mother_desc)
 
     /* Sleep if we don't have any connections */
     if (descriptor_list == NULL) {
-      log("GLORYMUD: No connections.  Going to sleep.");
+      log("No connections.  Going to sleep.");
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
       if (select(local_mother_desc + 1, &input_set, (fd_set *) 0, (fd_set *) 0, NULL) < 0) {
@@ -1100,7 +1101,7 @@ static void record_usage(void)
       sockets_playing++;
   }
 
-  log("GLORYMUD: nusage: %-3d sockets connected, %-3d sockets playing",
+  log("nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
 
   //prool_www();
@@ -2958,6 +2959,15 @@ static void msdp_update( void )
 }
 
 // from prool:
+
+void prool_log(char *str) // prool: заглушка
+{
+}
+
+void prool_log_(char *str) // prool: заглушка
+{
+}
+
 #ifndef ANDROID
 void koi_to_utf8(char *str_i, char *str_o)
 {

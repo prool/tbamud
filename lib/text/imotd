@@ -1,6 +1,6 @@
 (lib/text/imotd)
 
-Welcome to GloryMUD!
+Welcome to tbaMUD!
 
 This is the immortal MOTD -- the file that immortals will see when they
 log in to the game.  You should change it to something more interesting
@@ -14,5 +14,3 @@ The Builder Academy at: tbamud.com 9091 or @Chttp://tbamud.com@n.
 Russification (cyrillization) by Prool, proolix AT gmail.com
 
 http://mud.kharkov.org https://github.com/prool/tbamud
-
-Use `prool` command for Prool help

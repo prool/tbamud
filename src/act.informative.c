@@ -1540,7 +1540,7 @@ ACMD(do_gen_ps)
     send_to_char(ch, "\033[H\033[J");
     break;
   case SCMD_VERSION:
-    send_to_char(ch, "%s -> GloryMUD by Prool\r\n", tbamud_version);
+    send_to_char(ch, "%s, modif. by Prool\r\n", tbamud_version);
     break;
   case SCMD_WHOAMI:
     send_to_char(ch, "%s\r\n", GET_NAME(ch));
