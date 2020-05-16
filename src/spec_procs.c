@@ -60,7 +60,7 @@ void sort_spells(void)
 static const char *how_good(int percent)
 {
   if (percent < 0)
-    return " error)";
+    return " (error)";
   if (percent == 0)
     return " (not learned)";
   if (percent <= 10)
@@ -81,7 +81,7 @@ static const char *how_good(int percent)
   return " (superb)";
 }
 
-const char *prac_types[] = {
+static const char *prac_types[] = {
   "spell",
   "skill"
 };

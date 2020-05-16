@@ -64,7 +64,6 @@ void free_recent_players(void);
 ACMD(do_commands);
 #define SCMD_COMMANDS 0
 #define SCMD_SOCIALS  1
-#define SCMD_WIZHELP  2
 /* do_gen_ps */
 ACMD(do_gen_ps);
 #define SCMD_INFO      0
@@ -162,11 +161,10 @@ ACMD(do_rest);
 ACMD(do_sit);
 ACMD(do_sleep);
 ACMD(do_stand);
+ACMD(do_unfollow);
 ACMD(do_wake);
 /* Global variables from act.movement.c */
-#ifndef __ACT_MOVEMENT_C__
 extern const char *cmd_door[];
-#endif /* __ACT_MOVEMENT_C__ */
 
 
 /*****************************************************************************
@@ -186,6 +184,7 @@ ACMD(do_kill);
 ACMD(do_order);
 ACMD(do_rescue);
 ACMD(do_whirlwind);
+ACMD(do_bandage);
 
 /*****************************************************************************
  * Begin Functions and defines for act.other.c
@@ -221,11 +220,12 @@ ACMD(do_gen_tog);
 #define SCMD_AUTOMAP     25
 #define SCMD_AUTOKEY     26
 #define SCMD_AUTODOOR    27
-#define SCMD_COLOR       28
+#define SCMD_ZONERESETS  28
 #define SCMD_SYSLOG      29
 #define SCMD_WIMPY       30
 #define SCMD_PAGELENGTH  31
 #define SCMD_SCREENWIDTH 32
+#define SCMD_COLOR       33
 
 /* do_quit */
 ACMD(do_quit);
@@ -340,6 +340,7 @@ ACMD(do_teleport);
 ACMD(do_trans);
 ACMD(do_vnum);
 ACMD(do_vstat);
+ACMD(do_wizhelp);
 ACMD(do_wizlock);
 ACMD(do_wiznet);
 ACMD(do_wizupdate);

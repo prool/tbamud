@@ -103,7 +103,8 @@ ACMD(do_oasis_hedit)
   STATE(d) = CON_HEDIT;
   act("$n starts using OLC.", TRUE, d->character, 0, 0, TO_ROOM);
   SET_BIT_AR(PLR_FLAGS(ch), PLR_WRITING);
-  mudlog(CMP, LVL_IMMORT, TRUE, "OLC: %s starts editing help files.", GET_NAME(d->character));
+  mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), 
+    TRUE, "OLC: %s starts editing help files.", GET_NAME(d->character));
 }
 
 static void hedit_setup_new(struct descriptor_data *d)
@@ -384,7 +385,7 @@ ACMD(do_helpcheck)
     }
   }
   if (count % 3 && len < sizeof(buf))
-    nlen = snprintf(buf + len, sizeof(buf) - len, "\r\n");
+    snprintf(buf + len, sizeof(buf) - len, "\r\n");
 
   if (ch->desc) {
 	if (len == 0)
@@ -430,12 +431,12 @@ ACMD(do_hindex)
   if (!count)
     len += snprintf(buf + len, sizeof(buf) - len, "  None.\r\n");
   if (!count2)
-    len2 += snprintf(buf2 + len2, sizeof(buf2) - len2, "  None.\r\n");
+    snprintf(buf2 + len2, sizeof(buf2) - len2, "  None.\r\n");
 
   // Join the two strings
   len += snprintf(buf + len, sizeof(buf) - len, "%s", buf2);
 
-  len += snprintf(buf + len, sizeof(buf) - len, "\t1Applicable Index Entries: \t3%d\r\n"
+  snprintf(buf + len, sizeof(buf) - len, "\t1Applicable Index Entries: \t3%d\r\n"
                                                  "\t1Total Index Entries: \t3%d\tn\r\n", count + count2, top_of_helpt);
 
   page_string(ch->desc, buf, TRUE);

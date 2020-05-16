@@ -109,7 +109,9 @@
 #define SKILL_RESCUE                137 /* Reserved Skill[] DO NOT CHANGE */
 #define SKILL_SNEAK                 138 /* Reserved Skill[] DO NOT CHANGE */
 #define SKILL_STEAL                 139 /* Reserved Skill[] DO NOT CHANGE */
-#define SKILL_TRACK		              140 /* Reserved Skill[] DO NOT CHANGE */
+#define SKILL_TRACK                 140 /* Reserved Skill[] DO NOT CHANGE */
+#define SKILL_BANDAGE               141 /* Reserved Skill[] DO NOT CHANGE */
+
 /* New skills may be added here up to MAX_SKILLS (200) */
 
 /* NON-PLAYER AND OBJECT SPELLS AND SKILLS: The practice levels for the spells
@@ -282,13 +284,9 @@ ACMD(do_cast);
 void unused_spell(int spl);
 void mag_assign_spells(void);
 
-/* Global variables exported */
-#ifndef __SPELL_PARSER_C__
-
+/* Global variables */
 extern struct spell_info_type spell_info[];
 extern char cast_arg2[];
 extern const char *unused_spellname;
-
-#endif /* __SPELL_PARSER_C__ */
 
 #endif /* _SPELLS_H_ */

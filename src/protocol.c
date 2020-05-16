@@ -40,7 +40,7 @@ static void Write( descriptor_t *apDescriptor, const char *apData )
 {
    if ( apDescriptor != NULL)
    {
-      if ( apDescriptor->pProtocol->WriteOOB > 0)
+      if ( apDescriptor->pProtocol->WriteOOB > 0 || *(apDescriptor->output) == '\0' )
       {
          apDescriptor->pProtocol->WriteOOB = 2;
       }
@@ -113,7 +113,6 @@ static const char s_Gauge5[]  = "\005\002Opponent\002darkred\002OPPONENT_HEALTH\
 #define NUMBER_READ_ONLY           false, false, false, false, -1, -1,  0, NULL
 #define NUMBER_READ_ONLY_SET_TO(x) false, false, false, false, -1, -1,  x, NULL
 #define STRING_READ_ONLY           true,  false, false, false, -1, -1,  0, NULL
-#define NUMBER_IN_THE_RANGE(x,y)   false, true,  false, false,  x,  y,  0, NULL
 #define BOOLEAN_SET_TO(x)          false, true,  false, false,  0,  1,  x, NULL
 #define STRING_WITH_LENGTH_OF(x,y) true,  true,  false, false,  x,  y,  0, NULL
 #define STRING_WRITE_ONCE(x,y)     true,  true,  true,  false, -1, -1,  0, NULL
@@ -1531,7 +1530,6 @@ static void Negotiate( descriptor_t *apDescriptor )
 
 static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProtocol )
 {
-   bool_t bResult = true;
    protocol_t *pProtocol = apDescriptor->pProtocol;
 
    switch ( aProtocol )
@@ -1560,8 +1558,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
                Negotiate(apDescriptor);
             }
          }
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_NAWS:
@@ -1569,8 +1565,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
             pProtocol->bNAWS = true;
          else if ( aCmd == (char)WONT )
             pProtocol->bNAWS = false;
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_CHARSET:
@@ -1582,8 +1576,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
          }
          else if ( aCmd == (char)WONT )
             pProtocol->bCHARSET = false;
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_MSDP:
@@ -1596,8 +1588,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
          }
          else if ( aCmd == (char)DONT )
             pProtocol->bMSDP = false;
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_MSSP:
@@ -1605,8 +1595,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
             SendMSSP( apDescriptor );
          else if ( aCmd == (char)DONT )
             ; /* Do nothing. */
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_MCCP:
@@ -1620,8 +1608,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
             pProtocol->bMCCP = false;
             CompressEnd( apDescriptor );
          }
-         else // Anything else is invalid.
-            bResult = false;
          break;
 
       case (char)TELOPT_MSP:
@@ -1629,8 +1615,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
             pProtocol->bMSP = true;
          else if ( aCmd == (char)DONT )
             pProtocol->bMSP = false;
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_MXP:
@@ -1666,8 +1650,6 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
          }
          else if ( aCmd == (char)DONT )
             pProtocol->bMXP = false;
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       case (char)TELOPT_ATCP:
@@ -1693,12 +1675,10 @@ static void PerformHandshake( descriptor_t *apDescriptor, char aCmd, char aProto
          }
          else if ( aCmd == (char)WONT )
             pProtocol->bATCP = false;
-         else /* Anything else is invalid. */
-            bResult = false;
          break;
 
       default:
-         bResult = false;
+         break;
    }
 }
 
@@ -2499,15 +2479,19 @@ static bool_t IsValidColour( const char *apArgument )
 
 static bool_t MatchString( const char *apFirst, const char *apSecond )
 {
-   while ( *apFirst && tolower(*apFirst) == tolower(*apSecond) )
-      ++apFirst, ++apSecond;
+   while ( *apFirst && tolower(*apFirst) == tolower(*apSecond) ) {
+      ++apFirst;
+      ++apSecond;
+   }
    return ( !*apFirst && !*apSecond );
 }
 
 static bool_t PrefixString( const char *apPart, const char *apWhole )
 {
-   while ( *apPart && tolower(*apPart) == tolower(*apWhole) )
-      ++apPart, ++apWhole;
+   while ( *apPart && tolower(*apPart) == tolower(*apWhole) ) {
+      ++apPart;
+      ++apWhole;
+   }
    return ( !*apPart );
 }
 

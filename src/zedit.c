@@ -183,7 +183,7 @@ ACMD(do_oasis_zedit)
   act("$n starts using OLC.", TRUE, d->character, 0, 0, TO_ROOM);
   SET_BIT_AR(PLR_FLAGS(ch), PLR_WRITING);
 
-  mudlog(CMP, LVL_IMMORT, TRUE, "OLC: %s starts editing zone %d allowed zone %d",
+  mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE, "OLC: %s starts editing zone %d allowed zone %d",
     GET_NAME(ch), zone_table[OLC_ZNUM(d)].number, GET_OLC_ZONE(ch));
 }
 
@@ -371,7 +371,7 @@ static int start_change_command(struct descriptor_data *d, int pos)
 }
 
 /*------------------------------------------------------------------*/
-void zedit_disp_flag_menu(struct descriptor_data *d)
+static void zedit_disp_flag_menu(struct descriptor_data *d)
 {
   char bits[MAX_STRING_LENGTH];
 
@@ -385,7 +385,7 @@ void zedit_disp_flag_menu(struct descriptor_data *d)
 }
 
 /*------------------------------------------------------------------*/
-bool zedit_get_levels(struct descriptor_data *d, char *buf)
+static bool zedit_get_levels(struct descriptor_data *d, char *buf)
 {
   /* Create a string for the recommended levels for this zone. */
   if ((OLC_ZONE(d)->min_level == -1) && (OLC_ZONE(d)->max_level == -1)) {
@@ -688,7 +688,7 @@ static void zedit_disp_arg3(struct descriptor_data *d)
 /*
  * Print the recommended levels menu and setup response catch.
  */
-void zedit_disp_levels(struct descriptor_data *d)
+static void zedit_disp_levels(struct descriptor_data *d)
 {
   char lev_string[50];
   bool levels_set = FALSE;

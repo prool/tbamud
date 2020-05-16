@@ -53,7 +53,6 @@ ACMD(do_oasis_oedit)
 {
   int number = NOWHERE, save = 0, real_num;
   struct descriptor_data *d;
-  char *buf3;
   char buf1[MAX_STRING_LENGTH];
   char buf2[MAX_STRING_LENGTH];
 
@@ -62,7 +61,7 @@ ACMD(do_oasis_oedit)
     return;
 
   /* Parse any arguments. */
-  buf3 = two_arguments(argument, buf1, buf2);
+  two_arguments(argument, buf1, buf2);
 
   /* If there aren't any arguments they can't modify anything. */
   if (!*buf1) {
@@ -178,7 +177,7 @@ ACMD(do_oasis_oedit)
   SET_BIT_AR(PLR_FLAGS(ch), PLR_WRITING);
 
   /* Log the OLC message. */
-  mudlog(CMP, LVL_IMMORT, TRUE, "OLC: %s starts editing zone %d allowed zone %d",
+  mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE, "OLC: %s starts editing zone %d allowed zone %d",
     GET_NAME(ch), zone_table[OLC_ZNUM(d)].number, GET_OLC_ZONE(ch));
 }
 
@@ -937,7 +936,7 @@ void oedit_parse(struct descriptor_data *d, char *arg)
   case OEDIT_PERM:
     if ((number = atoi(arg)) == 0)
       break;
-    if (number > 0 && number <= NUM_AFF_FLAGS) {
+    if (number > 0 && number < NUM_AFF_FLAGS) {
       /* Setting AFF_CHARM on objects like this is dangerous. */
       if (number != AFF_CHARM) {
         TOGGLE_BIT_AR(GET_OBJ_AFFECT(OLC_OBJ(d)), number);

@@ -43,7 +43,7 @@ IBT_DATA * last_idea  = NULL;
 IBT_DATA * first_typo = NULL;
 IBT_DATA * last_typo  = NULL;
 
-const char *ibt_types[]={
+static const char *ibt_types[]={
   "Bug",
   "Idea",
   "Typo",
@@ -120,7 +120,7 @@ static IBT_DATA *read_ibt( char *filename, FILE *fp )
    IBT_DATA *ibtData;
    char *word, *id_num=NULL, *dated=NULL;
    char buf[MAX_STRING_LENGTH];
-   bool fMatch, flgCheck;
+   bool fMatch;
    char letter;
 
    do
@@ -175,10 +175,6 @@ static IBT_DATA *read_ibt( char *filename, FILE *fp )
                 ibtData->notes = STRALLOC("");
               return ibtData;
             }
-            break;
-
-          case 'F':
-            KEY("Flags",    flgCheck,         fread_flags(fp, ibtData->flags, IBT_ARRAY_MAX));
             break;
 
           case 'I':
@@ -287,22 +283,19 @@ void load_ibt_file(int mode)
 
 void save_ibt_file(int mode)
 {
-   IBT_DATA *ibtData, *first_ibt, *last_ibt;
+   IBT_DATA *ibtData, *first_ibt;
    FILE *fp;
    char filename[256];
 
    switch(mode) {
      case SCMD_BUG : sprintf( filename, "%s",BUGS_FILE );
                      first_ibt = first_bug;
-                     last_ibt  = last_bug;
                      break;
      case SCMD_IDEA: sprintf( filename, "%s",IDEAS_FILE );
                      first_ibt = first_idea;
-                     last_ibt  = last_idea;
                      break;
      case SCMD_TYPO: sprintf( filename, "%s",TYPOS_FILE );
                      first_ibt = first_typo;
-                     last_ibt  = last_typo;
                      break;
      default       : log("SYSERR: Invalid mode (%d) in save_ibt_file", mode);
                      return;
@@ -374,7 +367,8 @@ static IBT_DATA *get_last_ibt(int mode)
   }
   return (last_ibt);
 }
-IBT_DATA *get_ibt_by_num(int mode, int target_num)
+
+static IBT_DATA *get_ibt_by_num(int mode, int target_num)
 {
   int no=0;
   IBT_DATA *target_ibt, *first_ibt;
@@ -391,7 +385,7 @@ IBT_DATA *get_ibt_by_num(int mode, int target_num)
 }
 
 /* Search the IBT list, and return true if ibt is found there */
-bool ibt_in_list(int mode, IBT_DATA *ibt)
+static bool ibt_in_list(int mode, IBT_DATA *ibt)
 {
   IBT_DATA *target_ibt, *first_ibt;
 
@@ -407,7 +401,7 @@ bool ibt_in_list(int mode, IBT_DATA *ibt)
 
 /* Free up an IBT struct, removing it from the list if necessary */
 /* returns TRUE on success                                       */
-bool free_ibt(int mode, IBT_DATA *ibtData)
+static bool free_ibt(int mode, IBT_DATA *ibtData)
 {
   if (ibtData == NULL) return FALSE;
 
@@ -454,18 +448,18 @@ ACMD(do_ibt)
 {
   char arg[MAX_STRING_LENGTH], arg2[MAX_STRING_LENGTH];
   char buf[MAX_STRING_LENGTH], *arg_text, imp[30], timestr[128];
-  int  i, num_res, num_unres, len = 0;
-  IBT_DATA *ibtData, *first_ibt, *last_ibt;
+  int i, num_res, num_unres;
+  size_t len = 0;
+  IBT_DATA *ibtData, *first_ibt;
   int ano=0;
 
   if (IS_NPC(ch))
     return;
 
   arg_text  = one_argument(argument, arg);
-  argument  = two_arguments(argument, arg, arg2);
+  two_arguments(argument, arg, arg2);
 
   first_ibt = get_first_ibt(subcmd);
-  last_ibt  = get_last_ibt(subcmd);
 
   if ((!*arg)){
     if (GET_LEVEL(ch) >= LVL_GRGOD){
@@ -631,9 +625,9 @@ ACMD(do_ibt)
       if (GET_LEVEL(ch) >= LVL_GRGOD) {
         len += snprintf(buf + len, sizeof(buf) - len, "%sYou may use %s remove, resolve or edit to change the list..%s\r\n", QCYN, CMD_NAME, QNRM);
       }
-      len += snprintf(buf + len, sizeof(buf) - len, "%sYou may use %s%s show <number>%s to see more indepth about the %s.%s\r\n", QCYN, QYEL, CMD_NAME, QCYN, CMD_NAME, QNRM);
+      snprintf(buf + len, sizeof(buf) - len, "%sYou may use %s%s show <number>%s to see more indepth about the %s.%s\r\n", QCYN, QYEL, CMD_NAME, QCYN, CMD_NAME, QNRM);
     } else {
-      len += snprintf(buf + len, sizeof(buf) - len, "No %ss have been reported!\r\n", CMD_NAME);
+      snprintf(buf + len, sizeof(buf) - len, "No %ss have been reported!\r\n", CMD_NAME);
     }
 
     page_string(ch->desc, buf, TRUE);
@@ -681,7 +675,8 @@ ACMD(do_ibt)
        case SCMD_TYPO: LINK( ibtData, first_typo, last_typo, next, prev );
                        break;
     }
-    mudlog(NRM,LVL_IMMORT, FALSE, "%s has posted %s %s!", GET_NAME(ch), TANA(CMD_NAME), CMD_NAME);
+    mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), 
+      FALSE, "%s has posted %s %s!", GET_NAME(ch), TANA(CMD_NAME), CMD_NAME);
     return;
   }
   else if (is_abbrev(arg,"resolve"))
@@ -772,14 +767,14 @@ ACMD(do_oasis_ibtedit)
 {
   int number = NOTHING;
   struct descriptor_data *d;
-  char buf1[MAX_STRING_LENGTH], buf2[MAX_STRING_LENGTH], *buf3;
+  char buf1[MAX_STRING_LENGTH], buf2[MAX_STRING_LENGTH];
 
   /* No editing as a mob or while being forced. */
   if (IS_NPC(ch) || !ch->desc || STATE(ch->desc) != CON_PLAYING)
     return;
 
   /* Parse any arguments */
-  buf3 = two_arguments(argument, buf1, buf2);
+  two_arguments(argument, buf1, buf2);
 
   if (!*buf1) {
     send_to_char(ch, "Specify a %s number to edit.\r\n", ibt_types[subcmd]);
@@ -837,7 +832,7 @@ ACMD(do_oasis_ibtedit)
   act("$n starts using OLC.", TRUE, d->character, 0, 0, TO_ROOM);
   SET_BIT_AR(PLR_FLAGS(ch), PLR_WRITING);
 
-  mudlog(CMP, LVL_IMMORT, TRUE,"OLC: %s starts editing %s %d",
+  mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,"OLC: %s starts editing %s %d",
     GET_NAME(ch), IBT_TYPE, OLC_NUM(d));
 }
 
@@ -1018,7 +1013,6 @@ void ibtedit_parse(struct descriptor_data *d, char *arg)
         write_to_output(d, "Do you wish to save your changes? : ");
         return;
       }
-      break;
 
     case IBTEDIT_MAIN_MENU:
       switch (*arg) {
@@ -1080,7 +1074,6 @@ void ibtedit_parse(struct descriptor_data *d, char *arg)
           ibtedit_disp_main_menu(d);
           return;
       }
-      break;
 
     case IBTEDIT_NAME:
       smash_tilde(arg);

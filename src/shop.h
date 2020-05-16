@@ -151,11 +151,8 @@ struct stack_data {
 #define MSG_CANT_KILL_KEEPER	"Get out of here before I call the guards!"
 
 /* Global variables */
-#ifndef __SHOP_C__
 
 extern const char *trade_letters[];
 extern const char *shop_bits[];
-
-#endif /* __SHOP_C__ */
 
 #endif /* _SHOP_H_ */

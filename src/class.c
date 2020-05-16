@@ -8,9 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-/** Help buffer the global variable definitions */
-#define __CLASS_C__
-
 /* This file attempts to concentrate most of the code which must be changed
  * in order for new classes to be added.  If you're adding a new class, you
  * should go through this entire file from beginning to end and add the
@@ -25,7 +22,7 @@
 #include "interpreter.h"
 #include "constants.h"
 #include "act.h"
-
+#include "class.h"
 
 /* Names first */
 const char *class_abbrevs[] = {
@@ -1633,6 +1630,7 @@ void init_spell_levels(void)
   /* WARRIORS */
   spell_level(SKILL_KICK, CLASS_WARRIOR, 1);
   spell_level(SKILL_RESCUE, CLASS_WARRIOR, 3);
+  spell_level(SKILL_BANDAGE, CLASS_WARRIOR, 7);
   spell_level(SKILL_TRACK, CLASS_WARRIOR, 9);
   spell_level(SKILL_BASH, CLASS_WARRIOR, 12);
   spell_level(SKILL_WHIRLWIND, CLASS_WARRIOR, 16);
@@ -1866,7 +1864,6 @@ const char *title_male(int chclass, int level)
       case LVL_GRGOD: return "the God of Magic";
       default: return "the Mage";
     }
-    break;
 
     case CLASS_CLERIC:
     switch (level) {
@@ -1896,7 +1893,6 @@ const char *title_male(int chclass, int level)
       case LVL_GRGOD: return "the God of Good and Evil";
       default: return "the Cleric";
     }
-    break;
 
     case CLASS_THIEF:
     switch (level) {
@@ -1926,7 +1922,6 @@ const char *title_male(int chclass, int level)
       case LVL_GRGOD: return "the God of Thieves and Tradesmen";
       default: return "the Thief";
     }
-    break;
 
     case CLASS_WARRIOR:
     switch(level) {
@@ -1956,7 +1951,6 @@ const char *title_male(int chclass, int level)
       case LVL_GRGOD: return "the God of War";
       default: return "the Warrior";
     }
-    break;
   }
 
   /* Default title for classes which do not have titles defined */
@@ -2010,7 +2004,6 @@ const char *title_female(int chclass, int level)
       case LVL_GRGOD: return "the Goddess of Magic";
       default: return "the Witch";
     }
-    break;
 
     case CLASS_CLERIC:
     switch (level) {
@@ -2040,7 +2033,6 @@ const char *title_female(int chclass, int level)
       case LVL_GRGOD: return "the Goddess of Good and Evil";
       default: return "the Cleric";
     }
-    break;
 
     case CLASS_THIEF:
     switch (level) {
@@ -2070,7 +2062,6 @@ const char *title_female(int chclass, int level)
       case LVL_GRGOD: return "the Goddess of Thieves and Tradesmen";
       default: return "the Thief";
     }
-    break;
 
     case CLASS_WARRIOR:
     switch(level) {
@@ -2100,7 +2091,6 @@ const char *title_female(int chclass, int level)
       case LVL_GRGOD: return "the Goddess of War";
       default: return "the Warrior";
     }
-    break;
   }
 
   /* Default title for classes which do not have titles defined */

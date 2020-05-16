@@ -8,8 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-#define __BAN_C__
-
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -171,9 +169,9 @@ ACMD(do_ban)
 
   CREATE(ban_node, struct ban_list_element, 1);
   strncpy(ban_node->site, site, BANNED_SITE_LENGTH);	/* strncpy: OK (b_n->site:BANNED_SITE_LENGTH+1) */
+  ban_node->site[BANNED_SITE_LENGTH] = '\0';
   for (nextchar = ban_node->site; *nextchar; nextchar++)
     *nextchar = LOWER(*nextchar);
-  ban_node->site[BANNED_SITE_LENGTH] = '\0';
   strncpy(ban_node->name, GET_NAME(ch), MAX_NAME_LENGTH);	/* strncpy: OK (b_n->size:MAX_NAME_LENGTH+1) */
   ban_node->name[MAX_NAME_LENGTH] = '\0';
   ban_node->date = time(0);

@@ -62,7 +62,7 @@ static void show_obj_to_char(struct obj_data *obj, struct char_data *ch, int mod
   struct char_data *temp;
 
   if (!obj || !ch) {
-    log("SYSERR: NULL pointer in show_obj_to_char(): obj=%p ch=%p", obj, ch);
+    log("SYSERR: NULL pointer in show_obj_to_char(): obj=%p ch=%p", (void *)obj, (void *)ch);
     /*  SYSERR_DESC: Somehow a NULL pointer was sent to show_obj_to_char() in
      *  either the 'obj' or the 'ch' variable.  The error will indicate which
      *  was NULL by listing both of the pointers passed to it.  This is often a
@@ -71,8 +71,7 @@ static void show_obj_to_char(struct obj_data *obj, struct char_data *ch, int mod
   }
 
   if ((mode == 0) && obj->description) {
-    if (!GET_OBJ_VAL(obj, 1) == 0 || OBJ_SAT_IN_BY(obj)) {
-      temp = OBJ_SAT_IN_BY(obj);
+    if (GET_OBJ_VAL(obj, 1) != 0 || OBJ_SAT_IN_BY(obj)) {
       for (temp = OBJ_SAT_IN_BY(obj); temp; temp = NEXT_SITTING(temp)) {
         if (temp == ch)
           found++;
@@ -704,6 +703,7 @@ ACMD(do_look)
 {
   int look_type;
   int found = 0;
+  char tempsave[MAX_INPUT_LENGTH];
 
   if (!ch->desc)
     return;
@@ -724,7 +724,7 @@ ACMD(do_look)
       if (!*arg)
 	send_to_char(ch, "Read what?\r\n");
       else
-	look_at_target(ch, arg);
+	look_at_target(ch, strcpy(tempsave, arg));
       return;
     }
     if (!*arg)			/* "look" alone, without an argument at all */
@@ -735,7 +735,7 @@ ACMD(do_look)
     else if ((look_type = search_block(arg, dirs, FALSE)) >= 0)
       look_in_direction(ch, look_type);
     else if (is_abbrev(arg, "at"))
-      look_at_target(ch, arg2);
+      look_at_target(ch, strcpy(tempsave, arg2));
     else if (is_abbrev(arg, "around")) {
       struct extra_descr_data *i;
 
@@ -749,7 +749,7 @@ ACMD(do_look)
       if (!found)
          send_to_char(ch, "You couldn't find anything noticeable.\r\n");
     } else
-      look_at_target(ch, arg);
+      look_at_target(ch, strcpy(tempsave, arg));
   }
 }
 
@@ -1049,7 +1049,6 @@ int search_help(const char *argument, int level)
 
       while (level < help_table[mid].min_level && mid < (bot + top) / 2)
         mid++;
-  
       if (strn_cmp(argument, help_table[mid].keywords, minlen) || level < help_table[mid].min_level)
         break;
         
@@ -1090,7 +1089,7 @@ ACMD(do_help)
 
   if ((mid = search_help(argument, GET_LEVEL(ch))) == NOWHERE) {
     send_to_char(ch, "There is no help on that word.\r\n");
-    mudlog(NRM, MAX(LVL_IMPL, GET_INVIS_LEV(ch)), TRUE,
+    mudlog(NRM, MIN(LVL_IMPL, GET_INVIS_LEV(ch)), TRUE,
       "%s tried to get help on %s", GET_NAME(ch), argument);
     for (i = 0; i < top_of_helpt; i++)  {
       if (help_table[i].min_level > GET_LEVEL(ch))
@@ -1292,8 +1291,8 @@ ACMD(do_who)
         else if (PLR_FLAGGED(tch, PLR_WRITING))
           send_to_char(ch, " (writing)");
 
-      if (d->original)
-        send_to_char(ch, " (out of body)");
+        if (d->original)
+          send_to_char(ch, " (out of body)");
 
         if (d->connected == CON_OEDIT)
           send_to_char(ch, " (Object Edit)");
@@ -1919,11 +1918,14 @@ ACMD(do_toggle)
     {"autodoor", PRF_AUTODOOR, 0,
     "You will now need to specify a door direction when opening, closing and unlocking.\r\n",
     "You will now find the next available door when opening, closing or unlocking.\r\n"},
-    {"color", 0, 0, "\n", "\n"},
+    {"zoneresets", PRF_ZONERESETS, LVL_IMPL,
+    "You will no longer see zone resets.\r\n",
+    "You will now see zone resets.\r\n"},
     {"syslog", 0, LVL_IMMORT, "\n", "\n"},
     {"wimpy", 0, 0, "\n", "\n"},
     {"pagelength", 0, 0, "\n", "\n"},
     {"screenwidth", 0, 0, "\n", "\n"},
+    {"color", 0, 0, "\n", "\n"},
     {"\n", 0, -1, "\n", "\n"} /* must be last */
   };
 
@@ -1957,7 +1959,7 @@ ACMD(do_toggle)
         "       NoHassle: %-3s    "
         "      Holylight: %-3s    "
         "      ShowVnums: %-3s\r\n"
-        "         Syslog: %-3s\r\n",
+        "         Syslog: %-3s%s    ",
 
         ONOFF(PRF_FLAGGED(ch, PRF_BUILDWALK)),
         ONOFF(PRF_FLAGGED(ch, PRF_NOWIZ)),
@@ -1965,7 +1967,13 @@ ACMD(do_toggle)
         ONOFF(PRF_FLAGGED(ch, PRF_NOHASSLE)),
         ONOFF(PRF_FLAGGED(ch, PRF_HOLYLIGHT)),
         ONOFF(PRF_FLAGGED(ch, PRF_SHOWVNUMS)),
-        types[(PRF_FLAGGED(ch, PRF_LOG1) ? 1 : 0) + (PRF_FLAGGED(ch, PRF_LOG2) ? 2 : 0)]);
+        types[(PRF_FLAGGED(ch, PRF_LOG1) ? 1 : 0) + (PRF_FLAGGED(ch, PRF_LOG2) ? 2 : 0)],
+        GET_LEVEL(ch) == LVL_IMPL ? "" : "\r\n");
+    }
+    if (GET_LEVEL(ch) >= LVL_IMPL) {
+      send_to_char(ch,
+        "     ZoneResets: %-3s\r\n",
+        ONOFF(PRF_FLAGGED(ch, PRF_ZONERESETS)));
     }
 
   send_to_char(ch,
@@ -2048,10 +2056,10 @@ ACMD(do_toggle)
     if (!strncmp(arg, tog_messages[toggle].command, len))
       break;
 
-    if (*tog_messages[toggle].command == '\n' || tog_messages[toggle].min_level > GET_LEVEL(ch)) {
-      send_to_char(ch, "You can't toggle that!\r\n");
-      return;
-    }
+  if (*tog_messages[toggle].command == '\n' || tog_messages[toggle].min_level > GET_LEVEL(ch)) {
+    send_to_char(ch, "You can't toggle that!\r\n");
+    return;
+  }
 
   switch (toggle) {
   case SCMD_COLOR:
@@ -2160,7 +2168,7 @@ ACMD(do_toggle)
       send_to_char(ch, "Okay, your page length is now set to %d lines.", GET_PAGE_LENGTH(ch));
     } else
       send_to_char(ch, "Please specify a number of lines (5 - 255).");
-      break;
+    break;
   case SCMD_SCREENWIDTH:
     if (!*arg2)
       send_to_char(ch, "Your current screen width is set to %d characters.", GET_SCREEN_WIDTH(ch));
@@ -2169,7 +2177,7 @@ ACMD(do_toggle)
       send_to_char(ch, "Okay, your screen width is now set to %d characters.", GET_SCREEN_WIDTH(ch));
     } else
       send_to_char(ch, "Please specify a number of characters (40 - 200).");
-      break;
+    break;
   case SCMD_AUTOMAP:
     if (can_see_map(ch)) {
       if (!*arg2) {
@@ -2186,7 +2194,7 @@ ACMD(do_toggle)
       }
     } else
       send_to_char(ch, "Sorry, automap is currently disabled.\r\n");
-      break;
+    break;
   default:
     if (!*arg2) {
       TOGGLE_BIT_AR(PRF_FLAGS(ch), tog_messages[toggle].toggle);
@@ -2197,7 +2205,7 @@ ACMD(do_toggle)
     } else if (!strcmp(arg2, "off")) {
       REMOVE_BIT_AR(PRF_FLAGS(ch), tog_messages[toggle].toggle);
     } else {
-        send_to_char(ch, "Value for %s must either be 'on' or 'off'.\r\n", tog_messages[toggle].command);
+      send_to_char(ch, "Value for %s must either be 'on' or 'off'.\r\n", tog_messages[toggle].command);
       return;
     }
   }
@@ -2210,35 +2218,17 @@ ACMD(do_toggle)
 ACMD(do_commands)
 {
   int no, i, cmd_num;
-  int wizhelp = 0, socials = 0;
-  struct char_data *vict;
-  char arg[MAX_INPUT_LENGTH];
-  char buf[MAX_STRING_LENGTH];
+  int socials = 0;
   const char *commands[1000];
   int overflow = sizeof(commands) / sizeof(commands[0]);
 
   if (!ch->desc)
     return;
 
-  one_argument(argument, arg);
-
-  if (*arg) {
-    if (!(vict = get_char_vis(ch, arg, NULL, FIND_CHAR_WORLD)) || IS_NPC(vict)) {
-      send_to_char(ch, "Who is that?\r\n");
-      return;
-    }
-  } else
-    vict = ch;
-
   if (subcmd == SCMD_SOCIALS)
     socials = 1;
-  else if (subcmd == SCMD_WIZHELP)
-    wizhelp = 1;
 
-  sprintf(buf, "The following %s%s are available to %s:\r\n",
-          wizhelp ? "privileged " : "",
-          socials ? "socials" : "commands",
-          vict == ch ? "you" : GET_NAME(vict));
+  send_to_char(ch, "The following %s are available to you:\r\n", socials ? "socials" : "commands");
 
   /* cmd_num starts at 1, not 0, to remove 'RESERVED' */
   for (no = 0, cmd_num = 1;
@@ -2247,16 +2237,14 @@ ACMD(do_commands)
 
     i = cmd_sort_info[cmd_num];
 
-    if (complete_cmd_info[i].minimum_level < 0 || GET_LEVEL(vict) < complete_cmd_info[i].minimum_level)
+    if (complete_cmd_info[i].minimum_level < 0 || GET_LEVEL(ch) < complete_cmd_info[i].minimum_level)
+
       continue;
 
-    if ((complete_cmd_info[i].minimum_level >= LVL_IMMORT) != wizhelp)
+    if (complete_cmd_info[i].minimum_level >= LVL_IMMORT)
       continue;
 
-    if (!wizhelp && socials != (complete_cmd_info[i].command_pointer == do_action))
-      continue;
-
-    if (wizhelp && complete_cmd_info[i].command_pointer == do_action)
+    if (socials != (complete_cmd_info[i].command_pointer == do_action))
       continue;
 
     if (--overflow < 0)
@@ -2448,7 +2436,7 @@ ACMD(do_whois)
     free_char (victim);
 }
 
-bool get_zone_levels(zone_rnum znum, char *buf)
+static bool get_zone_levels(zone_rnum znum, char *buf)
 {
   /* Create a string for the level restrictions for this zone. */
   if ((zone_table[znum].min_level == -1) && (zone_table[znum].max_level == -1)) {
@@ -2554,8 +2542,7 @@ ACMD(do_areas)
   len += tmp_len;
 
   if (overlap_shown) {
-    tmp_len = snprintf(buf+len, sizeof(buf)-len, "Areas shown in \trred\tn may have some creatures outside the specified range.\r\n");
-    len += tmp_len;
+    snprintf(buf+len, sizeof(buf)-len, "Areas shown in \trred\tn may have some creatures outside the specified range.\r\n");
   }
 
   if (zcount == 0)
@@ -2564,10 +2551,10 @@ ACMD(do_areas)
     page_string(ch->desc, buf, TRUE);
 }
 
-void list_scanned_chars(struct char_data * list, struct char_data * ch, int
+static void list_scanned_chars(struct char_data * list, struct char_data * ch, int
 distance, int door)
 {
-  char buf[MAX_STRING_LENGTH], buf2[MAX_STRING_LENGTH];
+  char buf[MAX_STRING_LENGTH], buf2[MAX_STRING_LENGTH - 1];
 
   const char *how_far[] = {
     "close by",
@@ -2602,16 +2589,16 @@ distance, int door)
     if (!CAN_SEE(ch, i))
       continue;
     if (!*buf)
-      sprintf(buf, "You see %s", GET_NAME(i));
+      snprintf(buf, sizeof(buf), "You see %s", GET_NAME(i));
     else
-      sprintf(buf, "%s%s", buf, GET_NAME(i));
+      strncat(buf, GET_NAME(i), sizeof(buf) - strlen(buf) - 1);
     if (--count > 1)
-      strcat(buf, ", ");
+      strncat(buf, ", ", sizeof(buf) - strlen(buf) - 1);
     else if (count == 1)
-      strcat(buf, " and ");
+      strncat(buf, " and ", sizeof(buf) - strlen(buf) - 1);
     else {
-      sprintf(buf2, " %s %s.\r\n", how_far[distance], dirs[door]);
-      strcat(buf, buf2);
+      snprintf(buf2, sizeof(buf2), " %s %s.\r\n", how_far[distance], dirs[door]);
+      strncat(buf, buf2, sizeof(buf) - strlen(buf) - 1);
     }
 
   }

@@ -522,7 +522,7 @@ void mag_affects(int level, struct char_data *ch, struct char_data *victim,
    * and waiting for it to fade, for example. */
   if (IS_NPC(victim) && !affected_by_spell(victim, spellnum)) {
     for (i = 0; i < MAX_SPELL_AFFECTS; i++) {
-      for (j=0; j<NUM_AFF_FLAGS; j++) {
+      for (j=1; j<NUM_AFF_FLAGS; j++) {
         if (IS_SET_AR(af[i].bitvector, j) && AFF_FLAGGED(victim, j)) {
           send_to_char(ch, "%s", CONFIG_NOEFFECT);
           return;
@@ -586,8 +586,11 @@ void mag_groups(int level, struct char_data *ch, int spellnum, int savetype)
   while ((tch = (struct char_data *) simple_list(GROUP(ch)->members)) != NULL) {
     if (IN_ROOM(tch) != IN_ROOM(ch))
       continue;
+    if (tch == ch)
+      continue;
     perform_mag_groups(level, ch, tch, spellnum, savetype);
   }
+  perform_mag_groups(level, ch, ch, spellnum, savetype);
 }
 
 
@@ -969,7 +972,7 @@ void mag_creations(int level, struct char_data *ch, int spellnum)
 void mag_rooms(int level, struct char_data *ch, int spellnum)
 {
   room_rnum rnum;
-  int duration;
+  int duration = 0;
   bool failure = FALSE;
   event_id IdNum = eNULL;
   const char *msg = NULL;

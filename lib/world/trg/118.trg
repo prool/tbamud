@@ -131,7 +131,7 @@ if %cmd.mudcommand% == close && eye /= %arg% && %arg%
 %echoaround% %actor% %actor.name% suddenly appears in a haze of mist.
 %send% %actor% You close the eye.
 wait 1 s
-%send% %actor% A hazy mist swirls up and around you, blurring your vision for a second before clearing away. 
+%send% %actor% A hazy mist swirls up and around you, blurring your vision for a second before clearing away.
 wait 1 s
 %force% %actor% look
 %purge% %self%
@@ -205,12 +205,12 @@ if %object.vnum% == 11807
     eval num %num% + 1
     if %actor.varexists(zn118_birddone)%
       eval num %num% + 1
-      if %actor.varexists(zn118_ridleydone)% 
+      if %actor.varexists(zn118_ridleydone)%
         eval num %num% + 1
         if %actor.varexists(zn118_knifedone)%
           eval num %num% + 1
           if %actor.varexists(zn118_tunneldone)%
-            eval num %num% + 1 
+            eval num %num% + 1
             if %actor.varexists(zn118_ruthdone)%
               eval num %num% + 1
               if %actor.varexists(zn118_thindone)%
@@ -340,7 +340,7 @@ break
 done
 ~
 #11814
-(02) colouring message~
+(02) coloring message~
 0 gh 100
 ~
 if %actor.is_pc%
@@ -485,7 +485,7 @@ if %object.vnum% == 11807
     wait 1 s
     say Yes, there is something I could write in that...
     wait 1 s
-    say but would you do me a favour first?
+    say but would you do me a favor first?
     wait 2 s
     say My father keeps a little bird locked away...
     wait 2 s
@@ -847,7 +847,7 @@ if %object.vnum% == 11807
     wait 3 s
     emote turns his attention back to the twirling journal.
     wait 2 s
-    say You do realise shadow-person... that this quest of yours will destroy me?
+    say You do realize shadow-person... that this quest of yours will destroy me?
     wait 3 s
     say Indeed, not just myself, but all who dwell here.
     wait 2 s
@@ -930,15 +930,23 @@ emote gasps for air.
 0 d 100
 *~
 if %actor.varexists(zn118_runningstart)%
-  %speech%
-  wait 1
-  if %self.room.vnum% == 11831
-    rdelete zn118_runningstart %actor.id%
-    set zn118_runningquest 1
-    remote zn118_runningquest %actor.id%
-    wait 1 s
-    tell %actor.name% Thank you for getting me out of there.
-    follow self
+  if %speech.contains(msend)% || %speech.contains(mecho)% || %speech.contains(mechoaround)% || %speech.contains(mdoor)% || %speech.contains(mforce)% || %speech.contains(mload)% || %speech.contains(mpurge)% || %speech.contains(mteleport)%
+    %force% %actor% gos I just attempted to cheat by abusing a script.
+  elseif %speech.contains(mdamage)% || %speech.contains(mzoneecho)% || %speech.contains(masound)% || %speech.contains(dg_affect)% || %speech.contains(dg_cast)% || %speech.contains(mat)% || %speech.contains(mtransform)% || %speech.contains(mhunt)%
+    %force% %actor% gos I just attempted to cheat by abusing a script.
+  elseif %speech.contains(mremember)% || %speech.contains(mforget)%  || %speech.contains(mgoto)% || %speech.contains(mkill)% || %speech.contains(mjunk)% || %speech.contains(mfollow)%
+    %force% %actor% gos I just attempted to cheat by abusing a script.
+  else
+    %speech%
+    wait 1
+    if %self.room.vnum% == 11831
+      rdelete zn118_runningstart %actor.id%
+      set zn118_runningquest 1
+      remote zn118_runningquest %actor.id%
+      wait 1 s
+      tell %actor.name% Thank you for getting me out of there.
+      follow self
+    end
   end
 end
 ~
@@ -1129,7 +1137,7 @@ if %arg.mudcommand% == north || %arg.mudcommand% == east || %arg.mudcommand% == 
     %force% %actor% take arrow quiver
   end
   *
-  * Checks for the first item in inventory that is one of the 
+  * Checks for the first item in inventory that is one of the
   * specified arrows and sets its vnum as the one to be used.
   *
   eval inv %actor.inventory%
@@ -1175,9 +1183,9 @@ if %arg.mudcommand% == north || %arg.mudcommand% == east || %arg.mudcommand% == 
   *
   set dice %random.3%
   eval finaldam ((%dice% * %dam%) + %bonus%)
-  %echo% Hits for total of %finaldam%.  
+  %echo% Hits for total of %finaldam%.
   *
-  * If the actor has an arrow in inventory, and there are 
+  * If the actor has an arrow in inventory, and there are
   * people in the room specified, one of three random things
   * happens - Actor shoots but misses, Actor shoots and damages,
   * Actor shoots, damages, but loses the arrow.
@@ -1521,21 +1529,21 @@ if %speech% == start
       eval z %1%
       eval 1 %3%
       eval 3 %z%
-      
+
     break
     case 2
       emote swaps the third cup with the second cup.
       eval z %2%
       eval 2 %3%
       eval 3 %z%
-      
+
     break
     case 3
       emote switches the second cup with the first cup.
       eval z %2%
       eval 2 %1%
       eval 1 %z%
-      
+
     break
     case 4
       emote slides the first cup to third place.
@@ -1543,21 +1551,21 @@ if %speech% == start
       eval 1 %2%
       eval 2 %3%
       eval 3 %z%
-      
+
     break
     case 5
       emote moves the second cup to the third position.
       eval z %2%
       eval 2 %3%
       eval 3 %z%
-      
+
     break
     case 6
       emote moves the second cup into first place.
       eval z %2%
       eval 2 %1%
       eval 1 %z%
-      
+
     break
     case 7
       emote moves the third cup into the first position.
@@ -1565,11 +1573,11 @@ if %speech% == start
       eval 3 %2%
       eval 2 %1%
       eval 1 %z%
-      
+
     break
     default
       %echo% Something is broken, please report.
-      
+
     break
   done
   eval tries %tries% - 1
@@ -1735,7 +1743,7 @@ if %cmd.mudcommand% == look || %cmd.mudcommand% == examine
       set align with a dark tinge of evil
     else
       set align with a purity of goodness
-    end 
+    end
     if %actor.class% == Cleric
       set class healer
     elseif %actor.class% == Warrior
@@ -2019,7 +2027,7 @@ elseif %object.vnum% == 11807
     wait 2 s
     nop %actor.exp(10000)%
     give journal %actor.name%
-    drop journal   
+    drop journal
     rdelete zn118_ruthwrite %actor.id%
     set zn118_ruthdone 1
     remote zn118_ruthdone %actor.id%
@@ -2104,13 +2112,13 @@ different corpses loaded~
 ~
 %teleport% %self% 11800
 if %self.vnum% == 11830
-  %at% 11895 xx118trig118xx wload obj 11856
+  %at% 11895 xx118trig118xx
 elseif %self.vnum% == 11831
-  %at% 11838 xx118trig118xx wload obj 11857
+  %at% 11838 xx118trig118xx
 elseif %self.vnum% == 11832
-  %at% 11849 xx118trig118xx wload obj 11858
+  %at% 11849 xx118trig118xx
 elseif %self.vnum% == 11839
-  %at% 11848 xx118trig118xx wload obj 11869
+  %at% 11848 xx118trig118xx
 end
 ~
 #11865
@@ -2128,7 +2136,15 @@ end
 room obeys mob trigger~
 2 c 100
 xx118trig118xx~
-%arg%
+if %actor.vnum% == 11830
+  %load% obj 11856
+elseif %actor.vnum% == 11831
+  %load% obj 11857
+elseif %actor.vnum% == 11832
+  %load% obj 11858
+elseif %actor.vnum% == 11839
+  %load% obj 11869
+end
 ~
 #11867
 (11) Ridley responds to asking~
@@ -2582,13 +2598,13 @@ elseif %object.vnum% == 11807
     wait 2 s
     nop %actor.exp(10000)%
     give journal %actor.name%
-    drop journal   
+    drop journal
     rdelete zn118_scarredwrite %actor.id%
     set zn118_scarreddone 1
     remote zn118_scarreddone %actor.id%
     wait 1 s
     %load% obj 11868
-    say Do me one more favour?
+    say Do me one more favor?
     wait 1 s
     give book %actor.name%
     drop book
@@ -2659,7 +2675,7 @@ if %self.name% /= %arg%
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .    
+  %send% %actor% .
   if %actor.varexists(zn118_ridleydone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  Riddles to speak what couldn't be said
     %send% %actor% .  uncover the truth within
@@ -2672,7 +2688,7 @@ if %self.name% /= %arg%
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .    
+  %send% %actor% .
   if %actor.varexists(zn118_tunneldone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  The mind offers the chance for desperate escapes,
     %send% %actor% .  any place other than here.
@@ -2685,59 +2701,59 @@ if %self.name% /= %arg%
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .    
+  %send% %actor% .
   if %actor.varexists(zn118_thindone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  Surrender means giving up all that you are,
     %send% %actor% .  forfeit if you cannot pay.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
-  end  
+  end
   if %actor.varexists(zn118_mutedone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  Silence is screaming its rage to the void,
     %send% %actor% .  run inside if you can't run away.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .    
+  %send% %actor% .
   if %actor.varexists(zn118_runningdone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  I showed you with actions,
     %send% %actor% .  and with words between words.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
-  end 
+  end
   if %actor.varexists(zn118_angrydone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  I lashed out and fought you,
     %send% %actor% .  as a creature that hurts.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .   
+  %send% %actor% .
   if %actor.varexists(zn118_blinddone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  How to show you a monster where you saw a man?
     %send% %actor% .  Tell you I hated the one that you loved?
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
-  end   
+  end
   if %actor.varexists(zn118_weepingdone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  How to deny whose eyes I see in the mirror?
     %send% %actor% .  Disown what I'm bound to with blood.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .    
+  %send% %actor% .
   if %actor.varexists(zn118_scarreddone)% || %actor.varexists(zn118_gravedone)% || %actor.varexists(zn118_gravequest)%
     %send% %actor% .  Ah time, the great healer, will pale the scars,
     %send% %actor% .  my book sealed and returned to its shelf.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
-  end 
+  end
 if %actor.varexists(zn118_gravedone)%
     %send% %actor% .  The ghosts shall be buried, I choose to forget,
     %send% %actor% .  and learn to forgive myself.
   else
     %send% %actor% .  - - - - - - - - - - - - - - - - - - - - - - -
   end
-  %send% %actor% .    
+  %send% %actor% .
 else
   return 0
 end

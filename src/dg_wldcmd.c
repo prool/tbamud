@@ -52,6 +52,7 @@ WCMD(do_wload);
 WCMD(do_wdamage);
 WCMD(do_wat);
 WCMD(do_wmove);
+WCMD(do_wlog);
 
 
 /* attaches room vnum to msg and sends it to script_log */
@@ -112,6 +113,16 @@ WCMD(do_wecho)
 
     else
         act_to_room(argument, room);
+}
+
+WCMD(do_wlog)
+{
+  skip_spaces(&argument);
+
+  if (!*argument)
+    return;
+
+  wld_log(room, argument);
 }
 
 WCMD(do_wsend)
@@ -457,7 +468,7 @@ WCMD(do_wload)
       char_to_room(mob, rnum);
       if (SCRIPT(room)) { /* It _should_ have, but it might be detached. */
         char buf[MAX_INPUT_LENGTH];
-        sprintf(buf, "%c%ld", UID_CHAR, GET_ID(mob));
+        sprintf(buf, "%c%ld", UID_CHAR, char_script_id(mob));
         add_var(&(SCRIPT(room)->global_vars), "lastloaded", buf, 0);
       }
       load_mtrigger(mob);
@@ -473,7 +484,7 @@ WCMD(do_wload)
         obj_to_room(object, real_room(room->number));
         if (SCRIPT(room)) { /* It _should_ have, but it might be detached. */
           char buf[MAX_INPUT_LENGTH];
-          sprintf(buf, "%c%ld", UID_CHAR, GET_ID(object));
+          sprintf(buf, "%c%ld", UID_CHAR, obj_script_id(object));
           add_var(&(SCRIPT(room)->global_vars), "lastloaded", buf, 0);
         }
         load_otrigger(object);
@@ -607,7 +618,7 @@ WCMD(do_wmove)
     }
 }
 
-const struct wld_command_info wld_cmd_info[] = {
+static const struct wld_command_info wld_cmd_info[] = {
     { "RESERVED", 0, 0 },/* this must be first -- for specprocs */
 
     { "wasound "    , do_wasound   , 0 },
@@ -624,6 +635,7 @@ const struct wld_command_info wld_cmd_info[] = {
     { "wdamage "    , do_wdamage,    0 },
     { "wat "        , do_wat,        0 },
     { "wmove "      , do_wmove     , 0 },
+    { "wlog"        , do_wlog      , 0 },
     { "\n", 0, 0 }        /* this must be last */
 };
 

@@ -8,8 +8,6 @@
 * Copyright (C) 1997 MS                                                  *
 *********************************************************************** */
 
-#define __QUEST_C__
-
 #include "conf.h"
 #include "sysdep.h"
 
@@ -206,7 +204,6 @@ void parse_quest(FILE *quest_f, int nr)
     case 'S':
       total_quests = ++i;
       return;
-      break;
     }
   }
 } /* parse_quest */
@@ -479,7 +476,7 @@ void list_quests(struct char_data *ch, zone_rnum zone, qst_vnum vmin, qst_vnum v
     send_to_char(ch, "None found.\r\n");
 }
 
-void quest_hist(struct char_data *ch)
+static void quest_hist(struct char_data *ch)
 {
   int i = 0, counter = 0;
   qst_rnum rnum = NOTHING;
@@ -499,7 +496,7 @@ void quest_hist(struct char_data *ch)
     send_to_char(ch, "You haven't completed any quests yet.\r\n");
 }
 
-void quest_join(struct char_data *ch, struct char_data *qm, char argument[MAX_INPUT_LENGTH])
+static void quest_join(struct char_data *ch, struct char_data *qm, char argument[MAX_INPUT_LENGTH])
 {
   qst_vnum vnum;
   qst_rnum rnum;
@@ -583,7 +580,7 @@ void quest_list(struct char_data *ch, struct char_data *qm, char argument[MAX_IN
     send_to_char(ch, "There is no further information on that quest.\r\n");
 }
 
-void quest_quit(struct char_data *ch)
+static void quest_quit(struct char_data *ch)
 {
   qst_rnum rnum;
 
@@ -609,7 +606,7 @@ void quest_quit(struct char_data *ch)
   }
 }
 
-void quest_progress(struct char_data *ch)
+static void quest_progress(struct char_data *ch)
 {
   qst_rnum rnum;
 
@@ -633,7 +630,7 @@ void quest_progress(struct char_data *ch)
   }
 }
 
-void quest_show(struct char_data *ch, mob_vnum qm)
+static void quest_show(struct char_data *ch, mob_vnum qm)
 {
   qst_rnum rnum;
   int counter = 0;
@@ -651,7 +648,7 @@ void quest_show(struct char_data *ch, mob_vnum qm)
     send_to_char(ch, "There are no quests available here at the moment.\r\n");
 }
 
-void quest_stat(struct char_data *ch, char argument[MAX_STRING_LENGTH])
+static void quest_stat(struct char_data *ch, char argument[MAX_STRING_LENGTH])
 {
   qst_rnum rnum;
   mob_rnum qmrnum;

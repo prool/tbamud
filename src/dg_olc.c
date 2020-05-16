@@ -67,7 +67,7 @@ ACMD(do_oasis_trigedit)
   d = ch->desc;
   /* Give descriptor an OLC structure. */
   if (d->olc) {
-    mudlog(BRF, LVL_IMMORT, TRUE,
+    mudlog(BRF, LVL_BUILDER, TRUE,
       "SYSERR: do_oasis_trigedit: Player already had olc structure.");
     free(d->olc);
   }
@@ -104,7 +104,7 @@ ACMD(do_oasis_trigedit)
   act("$n starts using OLC.", TRUE, d->character, 0, 0, TO_ROOM);
   SET_BIT_AR(PLR_FLAGS(ch), PLR_WRITING);
 
-  mudlog(CMP, LVL_IMMORT, TRUE,"OLC: %s starts editing zone %d [trigger](allowed zone %d)",
+  mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE,"OLC: %s starts editing zone %d [trigger](allowed zone %d)",
          GET_NAME(ch), zone_table[OLC_ZNUM(d)].number, GET_OLC_ZONE(ch));
 }
 
@@ -263,7 +263,7 @@ static void trigedit_disp_types(struct descriptor_data *d)
 /****************************************************************************************
  DG Scripts Code Syntax Highlighting
  Created by Victor Almeida (aka Stoneheart) in Brazil 
- from BrMUD:Tormenta www.tormenta.com.br (mudbrasil@gmail.com)
+ from BrMUD:Tormenta www.tormenta.com.br
  
  License: Attribution 4.0 International (CC BY 4.0)
  http://creativecommons.org/licenses/by/4.0/
@@ -281,7 +281,7 @@ static void trigedit_disp_types(struct descriptor_data *d)
  *****************************************************************************************/
 
 // Change a string for another without memory bugs
-char *str_replace(const char *string, const char *substr, const char *replacement) {
+static char *str_replace(const char *string, const char *substr, const char *replacement) {
     char *tok = NULL;
     char *newstr = NULL;
     char *oldstr = NULL;
@@ -317,7 +317,7 @@ char *str_replace(const char *string, const char *substr, const char *replacemen
 
 // You can easily change the color code (\tn) to the old one (@n or &n)
 #define SYNTAX_TERMS        49
-const char *syntax_color_replacement[SYNTAX_TERMS][2] =
+static const char *syntax_color_replacement[SYNTAX_TERMS][2] =
 {
     // script logic (10)
     { "if",             "\tcif\tn" }, // 0
@@ -377,11 +377,11 @@ const char *syntax_color_replacement[SYNTAX_TERMS][2] =
 };
 
 // Here you can include more commands usually used in your triggers
-#define COMMAND_TERMS   35
-const char *command_color_replacement[COMMAND_TERMS][2] =
+#define COMMAND_TERMS   36
+static const char *command_color_replacement[COMMAND_TERMS][2] =
 {
     // Mob specific commands (25)
-    { "marena",          "\tcmarena\tn" },  // 0
+    { "mlog",            "\tcmlog\tn" },  // 0
     { "masound",         "\tcmasound\tn" },
     { "mkill",           "\tcmkill\tn" },
     { "mjunk",           "\tcmjunk\tn" },
@@ -420,13 +420,14 @@ const char *command_color_replacement[COMMAND_TERMS][2] =
 };
 
 
-void script_syntax_highlighting(struct descriptor_data *d, char *string)
+static void script_syntax_highlighting(struct descriptor_data *d, char *string)
 {
     ACMD(do_action);
     char buffer[MAX_STRING_LENGTH] = "";
     char *newlist, *curtok;
-    int i;
     
+    size_t i;
+
     // Parse script text line by line
     newlist = strdup(string);
     for (curtok = strtok(newlist, "\r\n"); curtok; curtok = strtok(NULL, "\r\n")) {
@@ -455,12 +456,12 @@ void script_syntax_highlighting(struct descriptor_data *d, char *string)
         // Highlight lines
         if (!comment) {
             // Syntax replacement
-            for (i=0;i <= SYNTAX_TERMS;i++) {
+            for (i=0;i < SYNTAX_TERMS;i++) {
                 line = str_replace(line, syntax_color_replacement[i][0], syntax_color_replacement[i][1]);
             }
 
             // Commands replacement
-            for (i=0;i <= COMMAND_TERMS;i++) {
+            for (i=0;i < COMMAND_TERMS;i++) {
                 line = str_replace(line, command_color_replacement[i][0], command_color_replacement[i][1]);
             }
         
@@ -469,13 +470,14 @@ void script_syntax_highlighting(struct descriptor_data *d, char *string)
             for (cmd = 0; *complete_cmd_info[cmd].command != '\n'; cmd++) {
                 if (complete_cmd_info[cmd].command_pointer == do_action) {
                     char replace_social[MAX_INPUT_LENGTH];
-                    sprintf(replace_social, "\tc%s\tn", complete_cmd_info[cmd].command);
+                    snprintf(replace_social, MAX_INPUT_LENGTH, "\tc%s\tn", complete_cmd_info[cmd].command);
                     line = str_replace(line, complete_cmd_info[cmd].command, replace_social);
                 }
             }
         }
 
-        sprintf(buffer, "%s%s\tn\r\n", buffer, line);
+        strncat(buffer, line, sizeof(buffer) - strlen(buffer) - 1);
+        strncat(buffer, "\tn\r\n", sizeof(buffer) - strlen(buffer) - 1);
     }
     
     page_string(d, buffer, TRUE);
@@ -498,50 +500,50 @@ void trigedit_parse(struct descriptor_data *d, char *arg)
            OLC_MODE(d) = TRIGEDIT_CONFIRM_SAVESTRING;
          } else
            cleanup_olc(d, CLEANUP_ALL);
-           return;
-         case '1':
-           OLC_MODE(d) = TRIGEDIT_NAME;
-           write_to_output(d, "Name: ");
-           break;
-         case '2':
-           OLC_MODE(d) = TRIGEDIT_INTENDED;
-           write_to_output(d, "0: Mobiles, 1: Objects, 2: Rooms: ");
-           break;
-         case '3':
-           OLC_MODE(d) = TRIGEDIT_TYPES;
-           trigedit_disp_types(d);
-           break;
-         case '4':
-           OLC_MODE(d) = TRIGEDIT_NARG;
-           write_to_output(d, "Numeric argument: ");
-           break;
-         case '5':
-           OLC_MODE(d) = TRIGEDIT_ARGUMENT;
-           write_to_output(d, "Argument: ");
-           break;
-         case '6':
-           OLC_MODE(d) = TRIGEDIT_COMMANDS;
-           write_to_output(d, "Enter trigger commands: (/s saves /h for help)\r\n\r\n");
-           d->backstr = NULL;
-           if (OLC_STORAGE(d)) {
-             clear_screen(d);
-             script_syntax_highlighting(d, OLC_STORAGE(d));
-             d->backstr = strdup(OLC_STORAGE(d));
-           }
-           d->str = &OLC_STORAGE(d);
-           d->max_str = MAX_CMD_LENGTH;
-           d->mail_to = 0;
-           OLC_VAL(d) = 1;
+         return;
+       case '1':
+         OLC_MODE(d) = TRIGEDIT_NAME;
+         write_to_output(d, "Name: ");
+         break;
+       case '2':
+         OLC_MODE(d) = TRIGEDIT_INTENDED;
+         write_to_output(d, "0: Mobiles, 1: Objects, 2: Rooms: ");
+         break;
+       case '3':
+         OLC_MODE(d) = TRIGEDIT_TYPES;
+         trigedit_disp_types(d);
+         break;
+       case '4':
+         OLC_MODE(d) = TRIGEDIT_NARG;
+         write_to_output(d, "Numeric argument: ");
+         break;
+       case '5':
+         OLC_MODE(d) = TRIGEDIT_ARGUMENT;
+         write_to_output(d, "Argument: ");
+         break;
+       case '6':
+         OLC_MODE(d) = TRIGEDIT_COMMANDS;
+         write_to_output(d, "Enter trigger commands: (/s saves /h for help)\r\n\r\n");
+         d->backstr = NULL;
+         if (OLC_STORAGE(d)) {
+           clear_screen(d);
+           script_syntax_highlighting(d, OLC_STORAGE(d));
+           d->backstr = strdup(OLC_STORAGE(d));
+         }
+         d->str = &OLC_STORAGE(d);
+         d->max_str = MAX_CMD_LENGTH;
+         d->mail_to = 0;
+         OLC_VAL(d) = 1;
 
-           break;
-         case 'w':
-         case 'W':
-           write_to_output(d, "Copy what trigger? ");
-           OLC_MODE(d) = TRIGEDIT_COPY;
-           break;
-         default:
-           trigedit_disp_menu(d);
-           return;
+         break;
+       case 'w':
+       case 'W':
+         write_to_output(d, "Copy what trigger? ");
+         OLC_MODE(d) = TRIGEDIT_COPY;
+         break;
+       default:
+         trigedit_disp_menu(d);
+         return;
      }
      return;
 

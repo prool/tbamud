@@ -28,26 +28,6 @@
 #include "ibt.h"
 #include "msgedit.h"
 
-/* Internal Data Structures */
-/** @deprecated olc_scmd_info appears to be deprecated. Commented out for now.
-static struct olc_scmd_info_t {
-  const char *text;
-  int con_type;
-} olc_scmd_info[] = {
-  { "room",	CON_REDIT },
-  { "object",	CON_OEDIT },
-  { "zone",	CON_ZEDIT },
-  { "mobile",	CON_MEDIT },
-  { "shop",	CON_SEDIT },
-  { "config",   CON_CEDIT },
-  { "trigger",  CON_TRIGEDIT },
-  { "action",   CON_AEDIT },
-  { "help",     CON_HEDIT },
-  { "quest",     CON_QEDIT },
-  { "\n",	-1	  }
-};
-*/
-
 /* Global variables defined here, used elsewhere */
 const char *nrm, *grn, *cyn, *yel;
 
@@ -217,13 +197,18 @@ void cleanup_olc(struct descriptor_data *d, byte cleanup_type)
     act("$n stops using OLC.", TRUE, d->character, NULL, NULL, TO_ROOM);
 
     if (cleanup_type == CLEANUP_CONFIG)
-      mudlog(BRF, LVL_IMMORT, TRUE, "OLC: %s stops editing the game configuration", GET_NAME(d->character));
+      mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), 
+        TRUE, "OLC: %s stops editing the game configuration", GET_NAME(d->character));
     else if (STATE(d) == CON_TEDIT)
-      mudlog(BRF, LVL_IMMORT, TRUE, "OLC: %s stops editing text files.", GET_NAME(d->character));
+      mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)),
+       TRUE, "OLC: %s stops editing text files.", GET_NAME(d->character));
     else if (STATE(d) == CON_HEDIT)
-      mudlog(CMP, LVL_IMMORT, TRUE, "OLC: %s stops editing help files.", GET_NAME(d->character));
+      mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)),
+       TRUE, "OLC: %s stops editing help files.", GET_NAME(d->character));
     else
-      mudlog(CMP, LVL_IMMORT, TRUE, "OLC: %s stops editing zone %d allowed zone %d", GET_NAME(d->character), zone_table[OLC_ZNUM(d)].number, GET_OLC_ZONE(d->character));
+      mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)),
+        TRUE, "OLC: %s stops editing zone %d allowed zone %d", 
+        GET_NAME(d->character), zone_table[OLC_ZNUM(d)].number, GET_OLC_ZONE(d->character));
 
     STATE(d) = CON_PLAYING;
   }

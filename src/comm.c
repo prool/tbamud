@@ -8,8 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-#define __COMM_C__
-
 #include "conf.h"
 #include "sysdep.h"
 
@@ -172,7 +170,7 @@ static sigfunc *my_signal(int signo, sigfunc *func);
 #endif
 /* Webster Dictionary Lookup functions */
 static RETSIGTYPE websterlink(int sig);
-static void handle_webster_file();
+static void handle_webster_file(void);
 
 static void msdp_update(void); /* KaVir plugin*/
 
@@ -439,7 +437,16 @@ void copyover_recover()
 
   for (;;) {
     fOld = TRUE;
-    i = fscanf (fp, "%d %ld %s %s %s\n", &desc, &pref, name, host, guiopt);
+    if (fscanf(fp, "%d %ld %s %s %s\n", &desc, &pref, name, host, guiopt) != 5) {
+      if(!feof(fp)) {
+        if(ferror(fp))
+          log("SYSERR: error reading copyover file %s: %s", COPYOVER_FILE, strerror(errno));
+        else if(!feof(fp))
+          log("SYSERR: could not scan line in copyover file %s.", COPYOVER_FILE);
+        exit(1);
+      }
+    }
+
     if (desc == -1)
       break;
 
@@ -1613,14 +1620,15 @@ static int process_output(struct descriptor_data *t)
 
   /* add the extra CRLF if the person isn't in compact mode */
   if (STATE(t) == CON_PLAYING && t->character && !IS_NPC(t->character) && !PRF_FLAGGED(t->character, PRF_COMPACT))
-    strcat(osb, "\r\n");	/* strcpy: OK (osb:MAX_SOCK_BUF-2 reserves space) */
+    if ( !t->pProtocol->WriteOOB ) 
+      strcat(osb, "\r\n");	/* strcpy: OK (osb:MAX_SOCK_BUF-2 reserves space) */
 
   if (!t->pProtocol->WriteOOB) /* add a prompt */
     strcat(i, make_prompt(t));	/* strcpy: OK (i:MAX_SOCK_BUF reserves space) */
 
   /* now, send the output.  If this is an 'interruption', use the prepended
    * CRLF, otherwise send the straight output sans CRLF. */
-  if (t->has_prompt) {
+  if (t->has_prompt && !t->pProtocol->WriteOOB) {
     t->has_prompt = FALSE;
     result = write_to_descriptor(t->descriptor, i);
     if (result >= 2)
@@ -2553,7 +2561,7 @@ void send_to_range(room_vnum start, room_vnum finish, const char *messg, ...)
   }
 }
 
-const char *ACTNULL = "<NULL>";
+static const char *ACTNULL = "<NULL>";
 #define CHECK_NULL(pointer, expression) \
   if ((pointer) == NULL) i = ACTNULL; else i = (expression);
 /* higher-level communication: the act() function */
@@ -2563,7 +2571,7 @@ void perform_act(const char *orig, struct char_data *ch, struct obj_data *obj,
   const char *i = NULL;
   char lbuf[MAX_STRING_LENGTH], *buf, *j;
   bool uppercasenext = FALSE;
-  struct char_data *dg_victim = NULL;
+  struct char_data *dg_victim = (to == vict_obj) ? vict_obj : NULL;
   struct obj_data *dg_target = NULL;
   char *dg_arg = NULL;
 

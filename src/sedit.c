@@ -50,7 +50,6 @@ ACMD(do_oasis_sedit)
   int number = NOWHERE, save = 0;
   shop_rnum real_num;
   struct descriptor_data *d;
-  char *buf3;
   char buf1[MAX_INPUT_LENGTH];
   char buf2[MAX_INPUT_LENGTH];
 
@@ -59,7 +58,7 @@ ACMD(do_oasis_sedit)
     return;
     
   /* Parse any arguments. */
-  buf3 = two_arguments(argument, buf1, buf2);
+  two_arguments(argument, buf1, buf2);
 
   if (!*buf1) {
     send_to_char(ch, "Specify a shop VNUM to edit.\r\n");
@@ -168,7 +167,7 @@ ACMD(do_oasis_sedit)
   act("$n starts using OLC.", TRUE, d->character, 0, 0, TO_ROOM);
   SET_BIT_AR(PLR_FLAGS(ch), PLR_WRITING);
 
-  mudlog(CMP, LVL_IMMORT, TRUE, "OLC: %s starts editing zone %d allowed zone %d",
+  mudlog(CMP, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE, "OLC: %s starts editing zone %d allowed zone %d",
     GET_NAME(ch), zone_table[OLC_ZNUM(d)].number, GET_OLC_ZONE(ch));
 }
 
@@ -467,7 +466,6 @@ void sedit_parse(struct descriptor_data *d, char *arg)
      write_to_output(d, "Invalid choice!\r\nDo you wish to save your changes? : ");
       return;
     }
-    break;
 
   case SEDIT_MAIN_MENU:
     i = 0;
@@ -683,7 +681,6 @@ void sedit_parse(struct descriptor_data *d, char *arg)
 
     /* Numerical responses. */
   case SEDIT_KEEPER:
-    i = atoi(arg);
     if ((i = atoi(arg)) != -1)
       if ((i = real_mobile(i)) == NOBODY) {
 	write_to_output(d, "That mobile does not exist, try again : ");
@@ -745,7 +742,7 @@ void sedit_parse(struct descriptor_data *d, char *arg)
       }
     if (i >= 0)
       add_shop_to_int_list(&(S_ROOMS(OLC_SHOP(d))), atoi(arg));
-      sedit_rooms_menu(d);
+    sedit_rooms_menu(d);
     return;
   case SEDIT_DELETE_ROOM:
     remove_shop_from_int_list(&(S_ROOMS(OLC_SHOP(d))), atoi(arg));

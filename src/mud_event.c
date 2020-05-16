@@ -54,7 +54,6 @@ void init_events(void)
 EVENTFUNC(event_countdown)
 {
   struct mud_event_data * pMudEvent;
-  struct char_data * ch = NULL;
   struct room_data * room = NULL;
   room_rnum rnum = NOWHERE;
 
@@ -62,14 +61,13 @@ EVENTFUNC(event_countdown)
 
   switch (mud_event_index[pMudEvent->iId].iEvent_Type) {
     case EVENT_CHAR:
-      ch = (struct char_data * ) pMudEvent->pStruct;
-    break;
+      break;
     case EVENT_ROOM:
       room = (struct room_data * ) pMudEvent->pStruct;
       rnum = real_room(room->number);
-    break;
+      break;
     default:
-    break;
+      break;
   }
 
   switch (pMudEvent->iId) {
@@ -77,7 +75,11 @@ EVENTFUNC(event_countdown)
       REMOVE_BIT_AR(ROOM_FLAGS(rnum), ROOM_DARK);
       send_to_room(rnum, "The dark shroud disappates.\r\n");
       break;
-    default:
+    case ePROTOCOLS:
+      break;
+    case eWHIRLWIND:
+      break;
+    case eNULL:
       break;
   }
 
@@ -229,39 +231,3 @@ void clear_char_event_list(struct char_data * ch)
     event_cancel(pEvent);
   } 
 }
-
-/* change_event_duration contributed by Ripley */
-void change_event_duration(struct char_data * ch, event_id iId, long time)
-{
-  struct event * pEvent;
-  struct mud_event_data * pMudEvent;
-  bool found = FALSE;
-
-  if (ch->events == NULL)
-    return;
-
-  if (ch->events->iSize == 0)
-    return;
-
-  clear_simple_list();  
-
-  while ((pEvent = (struct event *) simple_list(ch->events)) != NULL) {
-    if (!pEvent->isMudEvent)
-      continue;
-
-    pMudEvent = (struct mud_event_data * ) pEvent->event_obj;
-
-    if (pMudEvent->iId == iId) {
-      found = TRUE;
-      break;
-    }
-  }
-
-  if (found) {        
-    /* So we found the offending event, now build a new one, with the new time */
-    attach_mud_event(new_mud_event(iId, pMudEvent->pStruct, pMudEvent->sVariables), time);
-    event_cancel(pEvent);
-  }    
-
-}
-

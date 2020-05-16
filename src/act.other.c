@@ -8,9 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-/* needed by sysdep.h to allow for definition of <sys/stat.h> */
-#define __ACT_OTHER_C__
-
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -403,7 +400,7 @@ ACMD(do_group)
       send_to_char(ch, "But you are already part of a group.\r\n");
       return;
     } else if (!GROUP(vict)) {
-      act("$E$u is not a part of a group!", FALSE, ch, 0, vict, TO_CHAR);
+      act("$E$u is not part of a group!", FALSE, ch, 0, vict, TO_CHAR);
       return;
     } else if (!IS_SET(GROUP_FLAGS(GROUP(vict)), GROUP_OPEN)) {
       send_to_char(ch, "That group isn't accepting members.\r\n");
@@ -431,9 +428,22 @@ ACMD(do_group)
     send_to_char(ch, "You have kicked %s out of the group.\r\n", GET_NAME(vict));
     send_to_char(vict, "You have been kicked out of the group.\r\n"); 
     leave_group(vict);
-  } else if (is_abbrev(buf, "leave")) {
+  } else if (is_abbrev(buf, "regroup")) {
     if (!GROUP(ch)) {
-      send_to_char(ch, "But you aren't apart of a group!\r\n");
+      send_to_char(ch, "But you aren't part of a group!\r\n");
+      return;
+    }
+    vict = GROUP_LEADER(GROUP(ch));
+    if (ch == vict) {
+      send_to_char(ch, "You are the group leader and cannot re-group.\r\n");
+    } else {
+      leave_group(ch);
+      join_group(ch, GROUP(vict));
+    }
+  } else if (is_abbrev(buf, "leave")) {
+    
+    if (!GROUP(ch)) {
+      send_to_char(ch, "But you aren't part of a group!\r\n");
       return;
     }
 		
@@ -719,7 +729,9 @@ ACMD(do_gen_tog)
     {"Autokey disabled.\r\n",
     "Autokey enabled.\r\n"},
     {"Autodoor disabled.\r\n",
-    "Autodoor enabled.\r\n"}
+    "Autodoor enabled.\r\n"},
+    {"ZoneResets disabled.\r\n",
+    "ZoneResets enabled.\r\n"}
   };
 
   if (IS_NPC(ch))
@@ -773,7 +785,7 @@ ACMD(do_gen_tog)
     break;
   case SCMD_CLS:
     result = PRF_TOG_CHK(ch, PRF_CLS);
-    break;
+    break;    
   case SCMD_BUILDWALK:
     if (GET_LEVEL(ch) < LVL_BUILDER) {
       send_to_char(ch, "Builders only, sorry.\r\n");
@@ -830,6 +842,9 @@ ACMD(do_gen_tog)
   case SCMD_AUTODOOR:
     result = PRF_TOG_CHK(ch, PRF_AUTODOOR);
     break;
+  case SCMD_ZONERESETS:
+    result = PRF_TOG_CHK(ch, PRF_ZONERESETS);
+    break;
   default:
     log("SYSERR: Unknown subcmd %d in do_gen_toggle.", subcmd);
     return;
@@ -843,7 +858,7 @@ ACMD(do_gen_tog)
   return;
 }
 
-void show_happyhour(struct char_data *ch)
+static void show_happyhour(struct char_data *ch)
 {
   char happyexp[80], happygold[80], happyqp[80];
   int secs_left;

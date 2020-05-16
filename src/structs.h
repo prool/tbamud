@@ -15,15 +15,6 @@
 #include "protocol.h" /* Kavir Plugin*/
 #include "lists.h"
 
-/** Intended use of this macro is to allow external packages to work with a
- * variety of versions without modifications.  For instance, an IS_CORPSE()
- * macro was introduced in pl13.  Any future code add-ons could take into
- * account the version and supply their own definition for the macro if used
- * on an older version. You are supposed to compare this with the macro
- * TBAMUD_VERSION() in utils.h.
- * It is read as Major/Minor/Patchlevel - MMmmPP */
-#define _TBAMUD    0x030670
-
 /** If you want equipment to be automatically equipped to the same place
  * it was when players rented, set the define below to 1 because
  * TRUE/FALSE aren't defined yet. */
@@ -271,12 +262,13 @@
 #define PRF_AUTOMAP      31   /**< Show map at the side of room descs */
 #define PRF_AUTOKEY      32   /**< Automatically unlock locked doors when opening */
 #define PRF_AUTODOOR     33   /**< Use the next available door */
+#define PRF_ZONERESETS   34
 /** Total number of available PRF flags */
-#define NUM_PRF_FLAGS    34
+#define NUM_PRF_FLAGS    35
 
 /* Affect bits: used in char_data.char_specials.saved.affected_by */
 /* WARNING: In the world files, NEVER set the bits marked "R" ("Reserved") */
-#define AFF_DONTUSE         0   /**< DON'T USE! */
+#define AFF_DONTUSE         0   /**< DON'T USE! This allows 0 to mean "no bits set" in the database */
 #define AFF_BLIND           1   /**< (R) Char is blind */
 #define AFF_INVISIBLE       2   /**< Char is invisible */
 #define AFF_DETECT_ALIGN    3   /**< Char is sensitive to align */
@@ -299,8 +291,8 @@
 #define AFF_HIDE           20   /**< Char is hidden */
 #define AFF_FREE           21   /**< Room for future expansion */
 #define AFF_CHARM          22   /**< Char is charmed */
-/** Total number of affect flags not including the don't use flag. */
-#define NUM_AFF_FLAGS   22
+/** Total number of affect flags */
+#define NUM_AFF_FLAGS   23
 
 /* Modes of connectedness: used by descriptor_data.state 		*/
 #define CON_PLAYING       0 /**< Playing - Nominal state 		*/
@@ -725,7 +717,7 @@ struct obj_data
   struct obj_data *in_obj; /**< Points to carrying object, or NULL */
   struct obj_data *contains; /**< List of objects being carried, or NULL */
 
-  long id; /**< used by DG triggers - unique id  */
+  long script_id; /**< used by DG triggers - fetch only with obj_script_id()  */
   struct trig_proto_list *proto_script; /**< list of default triggers  */
   struct script_data *script;           /**< script info for the object */
 
@@ -1042,7 +1034,7 @@ struct char_data
   struct obj_data *carrying;    /**< List head for objects in inventory */
   struct descriptor_data *desc; /**< Descriptor/connection info; NPCs = NULL */
 
-  long id; /**< used by DG triggers - unique id */
+  long script_id; /**< used by DG triggers - fetch only with char_script_id() */
   struct trig_proto_list *proto_script; /**< list of default triggers */
   struct script_data *script;           /**< script info for the object */
   struct script_memory *memory;         /**< for mob memory triggers */
