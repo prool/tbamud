@@ -24,6 +24,8 @@
 #include "class.h"
 
 
+long strtol(const char *restrict str, char **restrict endptr, int base); // prool fool
+
 /** Aportable random number function.
  * @param from The lower bounds of the random number.
  * @param to The upper bounds of the random number. */

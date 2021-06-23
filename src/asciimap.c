@@ -23,6 +23,8 @@
 #include "dg_scripts.h"
 #include "asciimap.h"
 
+int abs (int); // prool fool
+
 /******************************************************************************
  * Begin Local (File Scope) Defines and Global Variables
  *****************************************************************************/

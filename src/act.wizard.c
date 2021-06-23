@@ -37,6 +37,8 @@
 #include "ban.h"
 #include "screen.h"
 
+int abs (int); // prool fool
+
 /* local utility functions with file scope */
 static int perform_set(struct char_data *ch, struct char_data *vict, int mode, char *val_arg);
 static void perform_immort_invis(struct char_data *ch, int level);

@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include "protocol.h"
 
+#include <alloca.h> // prool fool
+
 /******************************************************************************
  The following section is for Diku/Merc derivatives.  Replace as needed.
  ******************************************************************************/
