@@ -246,12 +246,17 @@ S
 #1017
 Prool's Cabin~
 This is Prool's small cabin
+In south - gate to Midgaard
 ~
 10 8 0 0 0 0
 D0
 ~
 ~
 0 0 1016
+D2
+~
+~
+0 0 3001
 S
 #1018
 Khrushchev' House~
