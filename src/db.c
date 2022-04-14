@@ -8,6 +8,8 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
+#define PROOL_TYHO 1 // quiet
+
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -801,8 +803,10 @@ void boot_db(void)
 #endif
 
   for (i = 0; i <= top_of_zone_table; i++) {
+#ifndef PROOL_TYHO
     log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
 	zone_table[i].name, zone_table[i].bot, zone_table[i].top);
+#endif
     reset_zone(i);
   }
 

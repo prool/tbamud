@@ -8,6 +8,8 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
+#define PROOL_TYHO 1 // tyho=quiet
+
 #include "conf.h"
 #include "sysdep.h"
 
@@ -1559,7 +1561,11 @@ static int new_descriptor(socket_t s)
 
     /* resolution failed */
     if (!CONFIG_NS_IS_SLOW)
-      perror("SYSERR: gethostbyaddr");
+	{
+#ifndef PROOL_TYHO
+      	perror("SYSERR: gethostbyaddr");
+#endif
+	}
 
     /* find the numeric site address */
     strncpy(newd->host, (char *)inet_ntoa(peer.sin_addr), HOST_LENGTH);	/* strncpy: OK (n->host:HOST_LENGTH+1) */
@@ -1821,7 +1827,9 @@ static ssize_t perform_socket_read(socket_t desc, char *read_point, size_t space
 
   /* read() returned 0, meaning we got an EOF. */
   if (ret == 0) {
+#ifndef PROOL_TYHO
     log("WARNING: EOF on socket read (connection broken by peer)");
+#endif
     return (-1);
   }
 
@@ -2155,7 +2163,9 @@ void close_socket(struct descriptor_data *d)
       free_char(d->character);
     }
   } else {
+#ifndef PROOL_TYHO
     mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char.");
+#endif
     prool_log_("Losing descriptor without char.");
   }
 
@@ -2960,11 +2970,11 @@ static void msdp_update( void )
 
 // from prool:
 
-void prool_log(char *str) // prool: заглушка
+void prool_log(char *str) // prool: заглушка (dummy)
 {
 }
 
-void prool_log_(char *str) // prool: заглушка
+void prool_log_(char *str) // prool: заглушка (dummy)
 {
 }
 

@@ -12,6 +12,8 @@
 #include "db.h"
 #include "dg_event.h"
 
+#define PROOL_TYHO 1 // tyho (ukr) = quiet (engl)
+
 // prool's functions
 
 void prool_log(char *);
@@ -113,7 +115,9 @@ void remove_from_list(void * pContent, struct list_data * pList)
   struct item_data *pRemovedItem;
 
   if ((pRemovedItem = find_in_list(pContent, pList)) == NULL) {
+#ifndef PROOL_TYHO
     mudlog(CMP, LVL_GOD, TRUE, "WARNING: Attempting to remove contents that don't exist in list.");
+#endif
     return;
   }
 
@@ -146,13 +150,17 @@ void * merge_iterator(struct iterator_data * pIterator, struct list_data * pList
   void * pContent;
 
   if (pList == NULL) {
+#ifndef PROOL_TYHO
     mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to merge iterator to NULL list.");
+#endif
     pIterator->pList = NULL;
     pIterator->pItem = NULL;
     return NULL;
   }
   if (pList->pFirstItem == NULL) {
+#ifndef PROOL_TYHO
     mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to merge iterator to empty list.");
+#endif
     pIterator->pList = NULL;
     pIterator->pItem = NULL;
     return NULL;
@@ -170,7 +178,9 @@ void * merge_iterator(struct iterator_data * pIterator, struct list_data * pList
 void remove_iterator(struct iterator_data * pIterator)
 {
   if (pIterator->pList == NULL) {
+#ifndef PROOL_TYHO
     mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to remove iterator from NULL list.");
+#endif
     return;
   }
 
@@ -196,7 +206,9 @@ void * next_in_list(struct iterator_data * pIterator)
   }
 
   if (pIterator->pList == NULL) {
+#ifndef PROOL_TYHO
     mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to get content from iterator with NULL list.");
+#endif
     return NULL;
   }
 
