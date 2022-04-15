@@ -2244,14 +2244,14 @@ static void SendMSSP( descriptor_t *apDescriptor )
 
       /* Generic */
       { "CRAWL DELAY",        "-1", NULL },
-      { "HOSTNAME",           "glorymud.kharkov.org" },
+      { "HOSTNAME",           "mud.kharkov.org" },
       { "PORT",               "5000" },
       { "CODEBASE",           "tbaMUD" },
       { "CONTACT",            "proolix@gmail.com" },
-      { "IP",                 "185.82.217.164" },
+      { "IP",                 "195.123.245.173" },
       { "LANGUAGE",           "English" },
-      { "LOCATION",           "BU" },
-      { "WEBSITE",            "http://glorymud.kharkov.org" },
+      { "LOCATION",           "UA" },
+      { "WEBSITE",            "http://mud.kharkov.org" },
       { "CREATED",            "2018" },
       { "FAMILY",             "DikuMUD" },
       { "GENRE",              "Fantasy" },
