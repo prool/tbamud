@@ -8,6 +8,8 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
+#define PROOL_LOG_1984 // The Big Brother is logging you
+
 #include "conf.h"
 #include "sysdep.h"
 #include "structs.h"
@@ -486,6 +488,15 @@ void command_interpreter(struct char_data *ch, char *argument)
   skip_spaces(&argument);
   if (!*argument)
     return;
+
+  if (!IS_NPC(ch)) {
+#ifdef PROOL_LOG_1984
+  char proolbuf[200];
+  //printf("prooldebug: command='%s'\r\n", argument);
+  snprintf(proolbuf,200,"prooldebug: command_interpreter() plr %s room %i cmd '%s'", GET_NAME(ch), world[IN_ROOM(ch)].number, argument);
+  prool_log(proolbuf);
+#endif
+  }
 
   /* special case to handle one-character, non-alphanumeric commands; requested
    * by many people so "'hi" or ";godnet test" is possible. Patch sent by Eric

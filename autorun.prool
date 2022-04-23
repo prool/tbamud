@@ -1,14 +1,14 @@
 #!/bin/sh
 
-# prool's simply script for autorun for Glory MUD
+# prool's simply script for autorun for tba MUD
 
 while [ 1 ]; do
 
-# date "+%d-%m-%Y %H:%M:%S Glory MUD start"
-date "+%d-%m-%Y %H:%M:%S GloryMUD start" >> autolog.txt
+# date "+%d-%m-%Y %H:%M:%S tba MUD start"
+date "+%d-%m-%Y %H:%M:%S tbaMUD start" >> autolog.txt
 bin/circle
-date "+%d-%m-%Y %H:%M:%S GloryMUDexit" >> autolog.txt
-date "+%d-%m-%Y %H:%M:%S GloryMUD exit"
+date "+%d-%m-%Y %H:%M:%S tbaMUDexit" >> autolog.txt
+date "+%d-%m-%Y %H:%M:%S tbaMUD exit"
 
 # save syslog
 mv log_.log log-`date "+%d-%m-%Y-%H-%M-%S"`

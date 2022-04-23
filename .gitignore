@@ -10,3 +10,10 @@ src/util/Makefile
 src/.accepted
 src/depend
 src/util/depend
+*.log
+*.objs
+*.plr
+lib/etc/last
+lib/etc/plrmail
+lib/etc/time
+lib/plrfiles/index

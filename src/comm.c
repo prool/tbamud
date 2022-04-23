@@ -9,6 +9,8 @@
 **************************************************************************/
 
 #define PROOL_TYHO 1 // tyho=quiet
+#define PROOL_LOG
+#define PROOL_LOG2
 
 #include "conf.h"
 #include "sysdep.h"
@@ -213,11 +215,6 @@ int main(int argc, char **argv)
 {
   int pos = 1;
   const char *dir;
-  char prool_buf[200];
-
-snprintf(prool_buf,200,
-"========================== MUD started =======================\r\nby Prool, proolix@gmail.com, mud.kharkov.org");
-prool_log(prool_buf);
 
 //send_email2 ("MUD", "proolix@gmail.com", "MUD started!", "Subj\r\n-- \r\n");
 
@@ -555,6 +552,7 @@ static void init_game(ush_int local_port)
   copyover_recover();
 
   log("Entering game loop.");
+  prool_log("Entering game loop.");
 
   game_loop(mother_desc);
 
@@ -2970,12 +2968,47 @@ static void msdp_update( void )
 
 // from prool:
 
-void prool_log(char *str) // prool: заглушка (dummy)
+char *ptime(void) // ptime() from code of Virtustan MUD
+// Возвращаемое значение: ссылка на текстовую строку с текущим временем
+	{
+	char *tmstr;
+	time_t mytime;
+
+	mytime = time(0);
+
+	tmstr = (char *) asctime(localtime(&mytime));
+	*(tmstr + strlen(tmstr) - 1) = '\0';
+
+	return tmstr;
+
+	}
+
+void prool_log(char *str) // prool
 {
+#ifdef PROOL_LOG
+FILE *fp;
+
+fp=fopen("prool.log","a");
+if (fp==NULL) return;
+
+fprintf(fp,"%s %s\n",ptime(), str);
+fclose(fp);
+
+#endif
 }
 
-void prool_log_(char *str) // prool: заглушка (dummy)
+void prool_log_(char *str) // prool
 {
+#ifdef PROOL_LOG2
+FILE *fp;
+
+fp=fopen("prool2.log","a");
+if (fp==NULL) return;
+
+fprintf(fp,"%s %s\n",ptime(), str);
+fclose(fp);
+
+#endif
 }
 
 #ifndef ANDROID
