@@ -782,7 +782,7 @@ void game_loop(socket_t local_mother_desc)
 
     /* Sleep if we don't have any connections */
     if (descriptor_list == NULL) {
-      log("No connections.  Going to sleep.");
+      prool_log_("No connections.  Going to sleep.");
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
       if (select(local_mother_desc + 1, &input_set, (fd_set *) 0, (fd_set *) 0, NULL) < 0) {
@@ -790,8 +790,9 @@ void game_loop(socket_t local_mother_desc)
 	  log("Waking up to process signal.");
 	else
 	  perror("SYSERR: Select coma");
-      } else
-	log("New connection.  Waking up.");
+      } else {
+	prool_log_("New connection.  Waking up.");
+	}
       gettimeofday(&last_time, (struct timezone *) 0);
     }
     /* Set up the input, output, and exception sets for select(). */
