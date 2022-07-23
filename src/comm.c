@@ -552,6 +552,7 @@ static void init_game(ush_int local_port)
   copyover_recover();
 
   log("Entering game loop.");
+  printf("                        prool: compilation at %s %s\n",__DATE__,__TIME__);
   prool_log("Entering game loop.");
 
   game_loop(mother_desc);
@@ -1102,8 +1103,10 @@ static void record_usage(void)
       sockets_playing++;
   }
 
+#ifdef PROOL_TYHO
   log("nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
+#endif
 
   //prool_www();
 
@@ -2156,7 +2159,9 @@ void close_socket(struct descriptor_data *d)
 	snprintf(proolbuf,200,"%s closing link...", GET_NAME(link_challenged));
 	prool_log(proolbuf);
     } else {
+#ifdef PROOL_TYHO
       mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
+#endif
 	snprintf(proolbuf,200,"%s losing player", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
 	prool_log_(proolbuf);
       free_char(d->character);
