@@ -49,6 +49,9 @@ static bool perform_new_char_dupe_check(struct descriptor_data *d);
 /* sort_commands utility */
 static int sort_commands_helper(const void *a, const void *b);
 
+/* prool commands definition */
+ACMD(do_prool);
+
 /* globals defined here, used here and elsewhere */
 int *cmd_sort_info = NULL;
 
@@ -245,6 +248,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "policy"   , "pol"     , POS_DEAD    , do_gen_ps   , 0, SCMD_POLICIES },
   { "pour"     , "pour"    , POS_STANDING, do_pour     , 0, SCMD_POUR },
   { "prompt"   , "pro"     , POS_DEAD    , do_display  , 0, 0 },
+  { "prool"    , "prool"   , POS_DEAD    , do_prool  , 0, 0 }, // prool: prool cmd
   { "prefedit" , "pre"     , POS_DEAD    , do_oasis_prefedit , 0, 0 },
   { "purge"    , "purge"   , POS_DEAD    , do_purge    , LVL_BUILDER, 0 },
 
@@ -1808,4 +1812,15 @@ void nanny(struct descriptor_data *d, char *arg)
     STATE(d) = CON_DISCONNECT;	/* Safest to do. */
     break;
   }
+}
+
+/* prool commands */
+ACMD(do_prool)
+{
+char buf[300]; 
+
+sprintf(buf, "Color %scolor%s, %scolor%s, " "%sCOLOR%s!\n\r", 
+CCBLU(ch, C_CMP), CCNRM(ch, C_CMP), CCYEL(ch, C_NRM), CCNRM(ch, C_NRM), 
+CCRED(ch, C_SPR), CCNRM(ch, C_SPR)); 
+send_to_char(ch, buf); 
 }
