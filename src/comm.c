@@ -1103,7 +1103,7 @@ static void record_usage(void)
       sockets_playing++;
   }
 
-#ifdef PROOL_TYHO
+#ifndef PROOL_TYHO
   log("nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
 #endif
