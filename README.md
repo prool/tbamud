@@ -10,7 +10,7 @@ MUD cyrillized by Prool. UTF-8 or koi8-r codetable.
 
 Мои попытки показали, что кириллицу в UTF-8 нельзя пихать в таблицу команд,
 будут глюки. Проще сделать собственный обработчик кириллических команд перед
-стандартным обработчиком. См. как это сделано с командами аз, буки, веди (do_az, do_buki, do_vedi)
+стандартным обработчиком.
 
 Compile and run (any systems)
 -----------------------------
@@ -45,10 +45,8 @@ cd ..
 
 bin/circle
 
-Compile under Android 6.0 (dirty instruction)
+Compile under Android 6.0/termux (dirty instruction)
 ---------------------------------------------
-
-cp configure.android configure
 
 ./configure
 
