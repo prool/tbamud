@@ -552,7 +552,7 @@ static void init_game(ush_int local_port)
   copyover_recover();
 
   log("Entering game loop.");
-  printf("                        prool: compilation at %s %s\n",__DATE__,__TIME__);
+  printf("                        tbaMUD+prool: compilation at %s %s\n",__DATE__,__TIME__);
   prool_log("Entering game loop.");
 
   game_loop(mother_desc);
