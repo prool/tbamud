@@ -9,6 +9,7 @@
 **************************************************************************/
 
 #define PROOL_TIHO // prool: quiet
+//#define ANDROID // prool: uncomment this line, if making in OS Android
 
 #include "conf.h"
 #include "sysdep.h"
@@ -2257,7 +2258,11 @@ static RETSIGTYPE reap(int sig)
 {
   while (waitpid(-1, NULL, WNOHANG) > 0);
 
+#ifdef ANDROID
+  signal(SIGCHLD, reap);
+#else
   my_signal(SIGCHLD, reap);
+#endif
 }
 
 /* Dying anyway... */
