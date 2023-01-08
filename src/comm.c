@@ -8,6 +8,8 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
+#define PROOL_TIHO // prool: quiet
+
 #include "conf.h"
 #include "sysdep.h"
 
@@ -1081,8 +1083,10 @@ static void record_usage(void)
       sockets_playing++;
   }
 
+#ifndef PROOL_TIHO
   log("nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
+#endif
 
 #ifdef RUSAGE	/* Not RUSAGE_SELF because it doesn't guarantee prototype. */
   {
