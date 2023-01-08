@@ -2292,6 +2292,7 @@ static RETSIGTYPE hupsig(int sig)
  * SunOS Release 4.0.2 (sun386) needs this too, according to Tim Aldric. */
 
 #ifndef POSIX
+$$$$
 #define my_signal(signo, func) signal(signo, func)
 #else
 static sigfunc *my_signal(int signo, sigfunc *func)
