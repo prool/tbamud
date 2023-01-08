@@ -9,7 +9,7 @@
 **************************************************************************/
 
 #define PROOL_TIHO // prool: quiet
-#define ANDROID
+//#define ANDROID // prool: uncomment this line, if making in OS Android
 
 #include "conf.h"
 #include "sysdep.h"
