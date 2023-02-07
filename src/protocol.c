@@ -2226,6 +2226,8 @@ static void SendMSSP( descriptor_t *apDescriptor )
    int SizeBuffer = 3; /* IAC SB MSSP */
    int i; /* Loop counter */
 
+   log("prool debug: SendMSSP()\n"); // prool
+
    /* Before updating the following table, please read the MSSP specification:
     *
     * http://tintin.sourceforge.net/mssp/
