@@ -123,6 +123,9 @@ struct reset_q_type reset_q;	    /* queue of zones to be reset	 */
 
 struct happyhour happy_data = {0,0,0,0};
 
+/* prool globals */
+int prool_mobs;
+
 /* declaration of local (file scope) variables */
 static int converting = FALSE;
 
@@ -230,7 +233,7 @@ static void boot_social_messages(void)
     }
   }
 
-  log("Social table contains %d socials.", top_of_socialt);
+  //log("Social table contains %d socials.", top_of_socialt);
   rewind(fl);
 
   CREATE(soc_mess_list, struct social_messg, top_of_socialt + 1);
@@ -445,41 +448,41 @@ ACMD(do_reboot)
 
 void boot_world(void)
 {
-  log("Loading zone table.");
+  //log("Loading zone table.");
   index_boot(DB_BOOT_ZON);
 
-  log("Loading triggers and generating index.");
+  //log("Loading triggers and generating index.");
   index_boot(DB_BOOT_TRG);
 
-  log("Loading rooms.");
+  //log("Loading rooms.");
   index_boot(DB_BOOT_WLD);
 
-  log("Renumbering rooms.");
+  //log("Renumbering rooms.");
   renum_world();
 
-  log("Checking start rooms.");
+  //log("Checking start rooms.");
   check_start_rooms();
 
-  log("Loading mobs and generating index.");
+  //log("Loading mobs and generating index.");
   index_boot(DB_BOOT_MOB);
 
-  log("Loading objs and generating index.");
+  //log("Loading objs and generating index.");
   index_boot(DB_BOOT_OBJ);
 
-  log("Renumbering zone table.");
+  //log("Renumbering zone table.");
   renum_zone_table();
 
   if(converting) {
-    log("Saving 128bit world files to disk.");
+    //log("Saving 128bit world files to disk.");
     save_all();
   }
 
   if (!no_specials) {
-    log("Loading shops.");
+    //log("Loading shops.");
     index_boot(DB_BOOT_SHP);
   }
 
-  log("Loading quests.");
+  //log("Loading quests.");
   index_boot(DB_BOOT_QST);
 
 }
@@ -679,19 +682,19 @@ void boot_db(void)
 {
   zone_rnum i;
 
-  log("Boot db -- BEGIN.");
+  //log("Boot db -- BEGIN.");
 
-  log("Resetting the game time:");
+  //log("Resetting the game time:");
   reset_time();
   
-  log("Initialize Global Lists");
+  //log("Initialize Global Lists");
   global_lists = create_list();
   group_list   = create_list();
 
-  log("Initializing Events");
+  //log("Initializing Events");
   init_events();
 
-  log("Reading news, credits, help, ihelp, bground, info & motds.");
+  //log("Reading news, credits, help, ihelp, bground, info & motds.");
   file_to_string_alloc(NEWS_FILE, &news);
   file_to_string_alloc(CREDITS_FILE, &credits);
   file_to_string_alloc(MOTD_FILE, &motd);
@@ -707,84 +710,84 @@ void boot_db(void)
   if (file_to_string_alloc(GREETINGS_FILE, &GREETINGS) == 0)
     prune_crlf(GREETINGS);
 
-  log("Loading spell definitions.");
+  //log("Loading spell definitions.");
   mag_assign_spells();
 
   boot_world();
 
-  log("Loading help entries.");
+  //log("Loading help entries.");
   index_boot(DB_BOOT_HLP);
 
-  log("Generating player index.");
+  //log("Generating player index.");
   build_player_index();
 
   if (auto_pwipe) {
-    log("Cleaning out inactive pfiles.");
+    //log("Cleaning out inactive pfiles.");
     clean_pfiles();
   }
 
-  log("Loading fight messages.");
+  //log("Loading fight messages.");
   load_messages();
 
-  log("Loading social messages.");
+  //log("Loading social messages.");
   boot_social_messages();
 
-  log("Building command list.");
+  //log("Building command list.");
   create_command_list(); /* aedit patch -- M. Scott */
 
-  log("Assigning function pointers:");
+  //log("Assigning function pointers:");
 
   if (!no_specials) {
-    log("   Mobiles.");
+    //log("   Mobiles.");
     assign_mobiles();
-    log("   Shopkeepers.");
+    //log("   Shopkeepers.");
     assign_the_shopkeepers();
-    log("   Objects.");
+    //log("   Objects.");
     assign_objects();
-    log("   Rooms.");
+    //log("   Rooms.");
     assign_rooms();
-    log("   Questmasters.");
+    //log("   Questmasters.");
     assign_the_quests();
   }
 
-  log("Assigning spell and skill levels.");
+  //log("Assigning spell and skill levels.");
   init_spell_levels();
 
-  log("Sorting command list and spells.");
+  //log("Sorting command list and spells.");
   sort_commands();
   sort_spells();
 
-  log("Booting mail system.");
+  //log("Booting mail system.");
   if (!scan_file()) {
     log("    Mail boot failed -- Mail system disabled");
     no_mail = 1;
   }
-  log("Reading banned site and invalid-name list.");
+  //log("Reading banned site and invalid-name list.");
   load_banned();
   read_invalid_list();
 
-  log("Loading Ideas.");
+  //log("Loading Ideas.");
   load_ibt_file(SCMD_IDEA);
 
-  log("Loading Bugs.");
+  //log("Loading Bugs.");
   load_ibt_file(SCMD_BUG);
 
-  log("Loading Typos.");
+  //log("Loading Typos.");
   load_ibt_file(SCMD_TYPO);
 
   if (!no_rent_check) {
-    log("Deleting timed-out crash and rent files:");
+    //log("Deleting timed-out crash and rent files:");
     update_obj_file();
-    log("   Done.");
+    //log("   Done.");
   }
 
   /* Moved here so the object limit code works. -gg 6/24/98 */
   if (!mini_mud)  {
-    log("Booting houses.");
+    //log("Booting houses.");
     House_boot();
   }
 
-  log("Cleaning up last log.");
+  //log("Cleaning up last log.");
   clean_llog_entries();
 
 #if 1
@@ -801,8 +804,8 @@ void boot_db(void)
 #endif
 
   for (i = 0; i <= top_of_zone_table; i++) {
-    log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
-	zone_table[i].name, zone_table[i].bot, zone_table[i].top);
+    /*log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
+	zone_table[i].name, zone_table[i].bot, zone_table[i].top);*/
     reset_zone(i);
   }
 
@@ -811,7 +814,9 @@ void boot_db(void)
   if (!boot_time)
     boot_time = time(0);
 
-  log("Boot db -- DONE.");
+  //log("Boot db -- DONE.");
+  //printf("prool debug: top_of_mobt=%i\n", top_of_mobt); // prool
+  prool_mobs=top_of_mobt+1;
 }
 
 /* reset the time in the game from file */
@@ -1037,36 +1042,36 @@ void index_boot(int mode)
   case DB_BOOT_WLD:
     CREATE(world, struct room_data, rec_count);
     size[0] = sizeof(struct room_data) * rec_count;
-    log("   %d rooms, %d bytes.", rec_count, size[0]);
+    //log("   %d rooms, %d bytes.", rec_count, size[0]);
     break;
   case DB_BOOT_MOB:
     CREATE(mob_proto, struct char_data, rec_count);
     CREATE(mob_index, struct index_data, rec_count);
     size[0] = sizeof(struct index_data) * rec_count;
     size[1] = sizeof(struct char_data) * rec_count;
-    log("   %d mobs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
+    //log("   %d mobs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
     break;
   case DB_BOOT_OBJ:
     CREATE(obj_proto, struct obj_data, rec_count);
     CREATE(obj_index, struct index_data, rec_count);
     size[0] = sizeof(struct index_data) * rec_count;
     size[1] = sizeof(struct obj_data) * rec_count;
-    log("   %d objs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
+    //log("   %d objs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
     break;
   case DB_BOOT_ZON:
     CREATE(zone_table, struct zone_data, rec_count);
     size[0] = sizeof(struct zone_data) * rec_count;
-    log("   %d zones, %d bytes.", rec_count, size[0]);
+    //log("   %d zones, %d bytes.", rec_count, size[0]);
     break;
   case DB_BOOT_HLP:
     CREATE(help_table, struct help_index_element, rec_count);
     size[0] = sizeof(struct help_index_element) * rec_count;
-    log("   %d entries, %d bytes.", rec_count, size[0]);
+    //log("   %d entries, %d bytes.", rec_count, size[0]);
     break;
   case DB_BOOT_QST:
     CREATE(aquest_table, struct aq_data, rec_count);
     size[0] = sizeof(struct aq_data) * rec_count;
-    log("   %d entries, %d bytes.", rec_count, size[0]);
+    //log("   %d entries, %d bytes.", rec_count, size[0]);
     break;
   }
 
@@ -1317,7 +1322,7 @@ void parse_room(FILE *fl, int virtual_nr)
       converting = TRUE;
     }
 
-  log("   done.");
+  //log("   done.");
   } else if (retval == 6) {
     int taeller;
 
@@ -1819,7 +1824,7 @@ void parse_mobile(FILE *mob_f, int nr)
       converting =TRUE;
     }
 
-  log("   done.");
+  //log("   done.");
   } else if (retval == 10) {
     int taeller;
 
@@ -1957,7 +1962,7 @@ char *parse_object(FILE *obj_f, int nr)
       converting = TRUE;
     }
 
-    log("   done.");
+    //log("   done.");
   } else if (retval == 13) {
 
     GET_OBJ_EXTRA(obj_proto + i)[0] = asciiflag_conv(f1);

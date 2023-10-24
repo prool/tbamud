@@ -108,7 +108,7 @@ void remove_from_list(void * pContent, struct list_data * pList)
   struct item_data *pRemovedItem;
 
   if ((pRemovedItem = find_in_list(pContent, pList)) == NULL) {
-    mudlog(CMP, LVL_GOD, TRUE, "WARNING: Attempting to remove contents that don't exist in list.");
+    //mudlog(CMP, LVL_GOD, TRUE, "WARNING: Attempting to remove contents that don't exist in list."); // prool
     return;
   }
 
@@ -141,13 +141,13 @@ void * merge_iterator(struct iterator_data * pIterator, struct list_data * pList
   void * pContent;
 
   if (pList == NULL) {
-    mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to merge iterator to NULL list.");
+    //mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to merge iterator to NULL list."); // prool
     pIterator->pList = NULL;
     pIterator->pItem = NULL;
     return NULL;
   }
   if (pList->pFirstItem == NULL) {
-    mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to merge iterator to empty list.");
+    //mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to merge iterator to empty list."); // prool
     pIterator->pList = NULL;
     pIterator->pItem = NULL;
     return NULL;
@@ -165,7 +165,7 @@ void * merge_iterator(struct iterator_data * pIterator, struct list_data * pList
 void remove_iterator(struct iterator_data * pIterator)
 {
   if (pIterator->pList == NULL) {
-    mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to remove iterator from NULL list.");
+    //mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to remove iterator from NULL list."); // prool
     return;
   }
 
@@ -184,7 +184,7 @@ void * next_in_list(struct iterator_data * pIterator)
   struct item_data * pTempItem;
 
   if (pIterator->pList == NULL) {
-    mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to get content from iterator with NULL list.");
+    //mudlog(NRM, LVL_GOD, TRUE, "WARNING: Attempting to get content from iterator with NULL list."); // prool
     return NULL;
   }
 

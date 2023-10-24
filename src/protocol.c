@@ -36,6 +36,8 @@ const char * RGBone = "F022";
 const char * RGBtwo = "F055";
 const char * RGBthree = "F555";
 
+extern int prool_mobs;
+
 static void Write( descriptor_t *apDescriptor, const char *apData )
 {
    if ( apDescriptor != NULL)
@@ -2226,7 +2228,7 @@ static void SendMSSP( descriptor_t *apDescriptor )
    int SizeBuffer = 3; /* IAC SB MSSP */
    int i; /* Loop counter */
 
-   log("prool debug: SendMSSP()\n"); // prool
+   log("prool debug: SendMSSP() '%s' port %d", apDescriptor->host, port); // prool
 
    /* Before updating the following table, please read the MSSP specification:
     *
@@ -2235,7 +2237,7 @@ static void SendMSSP( descriptor_t *apDescriptor )
     * It's important that you use the correct format and spelling for the MSSP 
     * variables, otherwise crawlers may reject the data as invalid.
     */
-   static MSSP_t MSSPTable[] =
+   static MSSP_t MSSPTable[] = // values modifyed by prool
    {
       /* Required */
       { "NAME",               MUD_NAME, NULL },   /* Change this in protocol.h */
@@ -2244,29 +2246,29 @@ static void SendMSSP( descriptor_t *apDescriptor )
 
       /* Generic */
       { "CRAWL DELAY",        "-1", NULL },
-/*
-      { "HOSTNAME",           "" },
-      { "PORT",               "" },
-      { "CODEBASE",           "" },
-      { "CONTACT",            "" },
-      { "CREATED",            "" },
-      { "ICON",               "" },
-      { "IP",                 "" },
-      { "LANGUAGE",           "" },
-      { "LOCATION",           "" },
-      { "MINIMUM AGE",        "" },
-      { "WEBSITE",            "" },
-*/
+
+      { "HOSTNAME",           "mud.kharkov.org" },
+      { "PORT",               "8888" },
+      { "CODEBASE",           "tbaMUD" },
+      { "CONTACT",            "proolix@gmail.com" },
+      { "CREATED",            "2023" },
+//      { "ICON",               "" },
+      { "IP",                 "195.123.245.173" },
+      { "LANGUAGE",           "English" },
+      { "LOCATION",           "Ukraine" },
+//      { "MINIMUM AGE",        "" },
+      { "WEBSITE",            "http://mud.kharkov.org" },
+
       /* Categorisation */
-/*
-      { "FAMILY",             "" },
-      { "GENRE",              "" },
-      { "GAMEPLAY",           "" },
-      { "STATUS",             "" },
-      { "GAMESYSTEM",         "" },
-      { "INTERMUD",           "" },
-      { "SUBGENRE",           "" },
-*/
+
+      { "FAMILY",             "DikuMUD" },
+//      { "GENRE",              "" },
+//      { "GAMEPLAY",           "" },
+      { "STATUS",             "Experimental" },
+//      { "GAMESYSTEM",         "" },
+//      { "INTERMUD",           "" },
+//      { "SUBGENRE",           "" },
+
       /* World */
 /*
       { "AREAS",              "0" },
@@ -2280,7 +2282,7 @@ static void SendMSSP( descriptor_t *apDescriptor )
       { "SKILLS",             "0" },
 */
       /* Protocols */
-/*
+
       { "ANSI",               "1" },
       { "GMCP",               "0" },
 #ifdef USING_MCCP
@@ -2296,17 +2298,17 @@ static void SendMSSP( descriptor_t *apDescriptor )
       { "UTF-8",              "1" },
       { "VT100",              "0" },
       { "XTERM 256 COLORS",   "1" },
-*/
+
       /* Commercial */
-/*
+
       { "PAY TO PLAY",        "0" },
       { "PAY FOR PERKS",      "0" },
-*/
+
       /* Hiring */
-/*
+
       { "HIRING BUILDERS",    "0" },
       { "HIRING CODERS",      "0" },
-*/
+
       /* Extended variables */
 
       /* World */
@@ -2319,8 +2321,8 @@ static void SendMSSP( descriptor_t *apDescriptor )
       { "RESETS",             "0" },
 */
       /* Game */
-/*
       { "ADULT MATERIAL",     "0" },
+/*
       { "MULTICLASSING",      "0" },
       { "NEWBIE FRIENDLY",    "0" },
       { "PLAYER CITIES",      "0" },

@@ -47,6 +47,8 @@ static bool perform_new_char_dupe_check(struct descriptor_data *d);
 /* sort_commands utility */
 static int sort_commands_helper(const void *a, const void *b);
 
+char *ptime(void); // prool
+
 /* globals defined here, used here and elsewhere */
 int *cmd_sort_info = NULL;
 
@@ -1310,6 +1312,8 @@ EVENTFUNC(get_protocols)
    
   write_to_output(d, buf, 0);
     
+  write_to_output(d, "%s\r\n", ptime()); // prool
+  write_to_output(d, "Your IP is %s\r\n", d->host); // prool
   write_to_output(d, GREETINGS, 0); 
   STATE(d) = CON_GET_NAME;
   return 0;
@@ -1798,3 +1802,23 @@ void nanny(struct descriptor_data *d, char *arg)
     break;
   }
 }
+
+// begin prool's code
+
+char *ptime(void) // Возвращаемое значение: ссылка на текстовую строку с текущим временем
+	{
+	char *tmstr;
+	time_t mytime;
+
+	mytime = time(0);
+
+	tmstr = (char *) asctime(localtime(&mytime));
+	*(tmstr + strlen(tmstr) - 1) = '\0';
+
+	return tmstr;
+
+	}
+
+// end of prool's code
+
+// end of file

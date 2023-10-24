@@ -339,27 +339,27 @@ int main(int argc, char **argv)
 
   /* Moved here to distinguish command line options and to show up
    * in the log if stderr is redirected to a file. */
-  log("Loading configuration.");
-  log("%s", tbamud_version);
+  //log("Loading configuration.");
+  //log("%s", tbamud_version);
 
   if (chdir(dir) < 0) {
     perror("SYSERR: Fatal error changing to data directory");
     exit(1);
   }
-  log("Using %s as data directory.", dir);
+  //log("Using %s as data directory.", dir);
 
   if (scheck)
     boot_world();
   else {
-    log("Running game on port %d.", port);
+    //log("Running game on port %d.", port);
     init_game(port);
   }
 
-  log("Clearing game world.");
+  //log("Clearing game world.");
   destroy_db();
 
   if (!scheck) {
-    log("Clearing other memory.");
+    //log("Clearing other memory.");
     free_bufpool();         /* comm.c */
     free_player_index();    /* players.c */
     free_messages();        /* fight.c */
@@ -384,7 +384,7 @@ int main(int argc, char **argv)
   /* probably should free the entire config here.. */
   free(CONFIG_CONFFILE);
   
-  log("Done.");
+  //log("Done.");
 
 #ifdef MEMORY_DEBUG
   zmalloc_check();
@@ -404,7 +404,7 @@ void copyover_recover()
   char name[MAX_INPUT_LENGTH];
   long pref;
 
-  log ("Copyover recovery initiated");
+  //log ("Copyover recovery initiated");
 
   fp = fopen (COPYOVER_FILE, "r");
   /* there are some descriptors open which will hang forever then ? */
@@ -512,12 +512,12 @@ static void init_game(ush_int local_port)
 
   circle_srandom(time(0));
 
-  log("Finding player limit.");
+  //log("Finding player limit.");
   max_players = get_max_players();
 
   /* If copyover mother_desc is already set up */
   if (!fCopyOver) {
-     log ("Opening mother connection.");
+     //log ("Opening mother connection.");
      mother_desc = init_socket (local_port);
   }
 
@@ -529,7 +529,7 @@ static void init_game(ush_int local_port)
   boot_db();
 
 #if defined(CIRCLE_UNIX) || defined(CIRCLE_MACINTOSH)
-  log("Signal trapping.");
+  //log("Signal trapping.");
   signal_setup();
 #endif
 
@@ -539,13 +539,13 @@ static void init_game(ush_int local_port)
   if (fCopyOver) /* reload players */
   copyover_recover();
 
-  log("Entering game loop.");
+  //log("Entering game loop at port %d", port); // prool
 
   game_loop(mother_desc);
 
   Crash_save_all();
 
-  log("Closing all sockets.");
+  //log("Closing all sockets.");
   while (descriptor_list)
     close_socket(descriptor_list);
 
@@ -554,14 +554,14 @@ static void init_game(ush_int local_port)
   if (circle_reboot != 2)
     save_all();
 
-  log("Saving current MUD time.");
+  //log("Saving current MUD time.");
   save_mud_time(&time_info);
 
   if (circle_reboot) {
-    log("Rebooting.");
+    //log("Rebooting.");
     exit(52);			/* what's so great about HHGTTG, anyhow? */
   }
-  log("Normal termination of game.");
+  //log("Normal termination of game.");
 }
 
 /* init_socket sets up the mother descriptor - creates the socket, sets
@@ -590,7 +590,7 @@ static socket_t init_socket(ush_int local_port)
     if ((wsaData.iMaxSockets - 4) < max_players) {
       max_players = wsaData.iMaxSockets - 4;
     }
-    log("Max players set to %d", max_players);
+    //log("Max players set to %d", max_players);
 
     if ((s = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
       log("SYSERR: Error opening network connection: Winsock error #%d",
@@ -734,7 +734,7 @@ static int get_max_players(void)
 	    max_descs, method);
     exit(1);
   }
-  log("   Setting player limit to %d using %s.", max_descs, method);
+  //log("   Setting player limit to %d using %s.", max_descs, method);
   return (max_descs);
 #endif /* CIRCLE_UNIX */
 }
@@ -767,7 +767,7 @@ void game_loop(socket_t local_mother_desc)
 
     /* Sleep if we don't have any connections */
     if (descriptor_list == NULL) {
-      log("No connections.  Going to sleep.");
+      //log("No connections.  Going to sleep."); // prool
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
       if (select(local_mother_desc + 1, &input_set, (fd_set *) 0, (fd_set *) 0, NULL) < 0) {
@@ -776,7 +776,7 @@ void game_loop(socket_t local_mother_desc)
 	else
 	  perror("SYSERR: Select coma");
       } else
-	log("New connection.  Waking up.");
+	/* log("New connection.  Waking up.") */ ;
       gettimeofday(&last_time, (struct timezone *) 0);
     }
     /* Set up the input, output, and exception sets for select(). */
@@ -1522,8 +1522,10 @@ static int new_descriptor(socket_t s)
 		             sizeof(peer.sin_addr), AF_INET))) {
 
     /* resolution failed */
+/*
     if (!CONFIG_NS_IS_SLOW)
       perror("SYSERR: gethostbyaddr");
+*/
 
     /* find the numeric site address */
     strncpy(newd->host, (char *)inet_ntoa(peer.sin_addr), HOST_LENGTH);	/* strncpy: OK (n->host:HOST_LENGTH+1) */
@@ -1782,7 +1784,7 @@ static ssize_t perform_socket_read(socket_t desc, char *read_point, size_t space
 
   /* read() returned 0, meaning we got an EOF. */
   if (ret == 0) {
-    log("WARNING: EOF on socket read (connection broken by peer)");
+    //log("WARNING: EOF on socket read (connection broken by peer)"); // prool
     return (-1);
   }
 
@@ -2091,11 +2093,11 @@ void close_socket(struct descriptor_data *d)
       save_char(link_challenged);
       mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(link_challenged)), TRUE, "Closing link to: %s.", GET_NAME(link_challenged));
     } else {
-      mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>");
+      //mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>"); // prool
       free_char(d->character);
     }
   } else
-    mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char.");
+    /*mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char.")*/; // prool
 
   /* JE 2/22/95 -- part of my unending quest to make switch stable */
   if (d->original && d->original->desc)
