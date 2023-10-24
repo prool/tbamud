@@ -47,7 +47,11 @@ static bool perform_new_char_dupe_check(struct descriptor_data *d);
 /* sort_commands utility */
 static int sort_commands_helper(const void *a, const void *b);
 
-char *ptime(void); // prool
+// prool begin
+#define BUFLEN 1024
+char *ptime(void);
+ACMD (do_prool);
+// prool end
 
 /* globals defined here, used here and elsewhere */
 int *cmd_sort_info = NULL;
@@ -245,6 +249,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "policy"   , "pol"     , POS_DEAD    , do_gen_ps   , 0, SCMD_POLICIES },
   { "pour"     , "pour"    , POS_STANDING, do_pour     , 0, SCMD_POUR },
   { "prompt"   , "pro"     , POS_DEAD    , do_display  , 0, 0 },
+  { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 }, // prool's test command
   { "prefedit" , "pre"     , POS_DEAD    , do_oasis_prefedit , 0, 0 },
   { "purge"    , "purge"   , POS_DEAD    , do_purge    , LVL_BUILDER, 0 },
 
@@ -1818,6 +1823,28 @@ char *ptime(void) // Возвращаемое значение: ссылка н�
 	return tmstr;
 
 	}
+
+ACMD (do_prool)
+{
+printf("do_prool\r\n");
+send_to_char(ch, "do_prool!\r\n");
+// print file lib/file.txt to MUD
+FILE *fp;
+char buf[BUFLEN];
+
+fp=fopen("file.txt", "r");
+
+if (fp==NULL) {
+	send_to_char(ch, "Can't open file.txt\r\n");
+	return;
+	}
+
+while (!feof(fp)) {
+	if (fgets(buf, BUFLEN, fp)==NULL) break;
+	send_to_char(ch, buf);
+	}
+fclose(fp);
+}
 
 // end of prool's code
 
