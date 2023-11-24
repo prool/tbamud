@@ -2348,6 +2348,7 @@ static void SendMSSP( descriptor_t *apDescriptor )
       { "SSL",                "0" },
       { "ZMP",                "0" },
 */
+      { "REFERRAL",                "tbamud.com:4000" },
       { NULL, NULL, NULL } /* This must always be last. */
    };
 
