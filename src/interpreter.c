@@ -1826,8 +1826,9 @@ char *ptime(void) // Возвращаемое значение: ссылка н�
 
 ACMD (do_prool)
 {
-printf("do_prool\r\n");
-send_to_char(ch, "do_prool!\r\n");
+//printf("do_prool\r\n");
+//send_to_char(ch, "do_prool!\r\n");
+
 // print file lib/file.txt to MUD
 FILE *fp;
 char buf[BUFLEN];

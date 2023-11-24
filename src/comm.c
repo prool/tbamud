@@ -2734,7 +2734,7 @@ static void setup_log(const char *filename, int fd)
   if (filename == NULL || *filename == '\0') {
     /* No filename, set us up with the descriptor we just opened. */
     logfile = s_fp;
-    puts("Using file descriptor for logging.");
+    //puts("Using file descriptor for logging."); // prool
     return;
   }
 

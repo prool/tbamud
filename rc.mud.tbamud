@@ -1,0 +1,3 @@
+#!/bin/sh
+cd /home/prool/MUSEUM/tbamud
+nohup ./autorun.prool >> rc.log  2>> rc2.log &
