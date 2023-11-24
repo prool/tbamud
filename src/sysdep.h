@@ -78,9 +78,8 @@
 #include <strings.h>
 #endif
 
-#include <stdlib.h> // prool for macos
-
 #if     (defined (STDC_HEADERS) || defined (__GNU_LIBRARY__))
+#include <stdlib.h>
 
 #else   /* No standard headers.  */
 
@@ -88,12 +87,10 @@
 #include <memory.h>
 #endif
 
-#if 0 // prool for macos
 extern char *malloc(), *calloc(), *realloc();
 extern void free ();
 
 extern void abort (), exit ();
-#endif // prool
 
 #endif  /* Standard headers.  */
 
