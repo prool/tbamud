@@ -13511,4 +13511,12 @@ zlock - Locks one or all zones. Type zlock for usage.
 zunlock - Locks one or all zones. Type zunlock for usage. 
 
 #31
+PROOL POTVORA DUKHMADA
+Potvora MUD based on tbaMUD
+http://mud.kharkov.org
+
+prool - test command
+
+dukhmada - get waybread and goblet with water from dukh (spirit) of MUD
+#0
 $~

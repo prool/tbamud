@@ -1,9 +1,13 @@
 #0
 The Void~
    You don't think that you are not floating in nothing.  You can see
-a strange portal located above you.
+a strange portal located above you. In void floating letters: @CСЛАВА УКРАЇНІ!@n
 ~
 0 8 0 0 0 1
+D0
+~
+~
+0 0 60000
 D4
 ~
 ~
@@ -777,14 +781,14 @@ D2
 ~
 0 0 98
 E
-sky winds~
-   Cold winds plunge ceaselessly at you from the dark, cloudless sky.
-~
-E
 floor~
    The stone floor is the same shade of gray as the sky and is completely plain
 and unscratched. It is probably too hard for anything to leave as much as a
 scratch on it.
+~
+E
+sky winds~
+   Cold winds plunge ceaselessly at you from the dark, cloudless sky.
 ~
 S
 $~

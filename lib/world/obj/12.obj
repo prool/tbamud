@@ -9,7 +9,7 @@ A list of the staff's emails has been left here.~
 T 1205
 E
 list email staff~
-   @RHELP CONTACT@n for the most recent listing or:
+   	RHELP CONTACT	n for the most recent listing or:
 ~
 #1201
 pamphlet trigedit~
@@ -223,6 +223,22 @@ A level 34 weapon is used to test level restrictions.~
 5 0 0 0 0 ano 0 0 0 0 0 0 0
 11 2 2 0
 1 1 0 34 0
+#1234
+фігня something~
+якась фігня~
+Якась фігня лежить тут у кутку~
+~
+0 0 0 0 0 a 0 0 0 0 0 0 0
+0 0 0 0
+1 0 0 0 144000
+#1235
+ліхтар~
+ліхтар~
+Ліхтар стоїть тут на підлозі~
+~
+1 0 0 0 0 a 0 0 0 0 0 0 0
+0 0 -1 0
+1 0 0 0 144000
 #1266
 Black Staff of Immortality~
 the black staff of immortality~
@@ -322,13 +338,13 @@ A piece of fireworks is planted in a champagne bottle.~
 0 0 0 0 0
 T 1297
 E
-firework new year piece~
-   This large rocket is about to go up!  Strange colors will fill the sky!
-~
-E
 bottle champagne~
    The bottle is filled partially with water so it doesn't tilt over.  Someone
 has obviously drunk the champagne first.
+~
+E
+firework new year piece~
+   This large rocket is about to go up!  Strange colors will fill the sky!
 ~
 #1299
 christmas tree~

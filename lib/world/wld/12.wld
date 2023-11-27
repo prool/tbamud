@@ -48,6 +48,7 @@ S
 The Immortal Board Room~
    The main hang out of the Gods, the Immortal Board Room is the place to be.
 Gods exchange messages here most every day.  The eastern foyer is to the south.
+In wall has message: Лізь униз, козаче!
 ~
 12 8 0 0 0 0
 D2
@@ -55,6 +56,14 @@ The Gods' Meeting Room is located to the south.
 ~
 ~
 0 -1 34308
+D4
+~
+~
+0 0 1207
+D5
+~
+~
+0 0 60000
 E
 original~
    The main hang out of the Gods, the Immortal Board Room is the place to be.
@@ -90,6 +99,16 @@ D3
 ~
 ~
 0 0 34309
+S
+#1207
+Prool Cabinet~
+Це кабінет Пруля
+~
+12 8 0 0 0 0
+D5
+~
+~
+0 0 1204
 S
 #1290
 The Immortal Board Hall~

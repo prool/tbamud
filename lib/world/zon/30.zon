@@ -2,6 +2,9 @@
 DikuMUD~
 Northern Midgaard~
 3000 3099 15 2 d 0 0 0 1 33
+O 0 10 1 3005 	(a waybread)
+R 0 3005 3035 -1 	(the large fountain)
+O 0 3035 1 3005 	(the large fountain)
 R 0 3000 3006 -1 	(the teleporter)
 O 0 3006 99 3000 	(the teleporter)
 M 0 3011 1 3000 	(the travelling saleswoman)
@@ -169,7 +172,5 @@ M 0 3093 1 3032 	(the rottweiler)
 M 0 3094 1 3032 	(the wolf)
 M 0 3095 1 3064 	(the cryogenicist)
 E 1 3022 100 16 	(a long sword)
-R 0 3005 3035 -1 	(the large fountain)
-O 0 3035 1 3005 	(the large fountain)
 S
 $

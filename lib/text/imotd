@@ -1,11 +1,18 @@
 (lib/text/imotd)
 
-Welcome to tbaMUD!
-
-This is the immortal MOTD -- the file that immortals will see when they
-log in to the game.  You should change it to something more interesting
-when you get a chance (as well as most of the other files in lib/text.)
-
 If you need help, find a bug, or wish to contribute please stop by 
 The Builder Academy at: tbamud.com 9091 or @Chttp://tbamud.com@n.
 
+@yStop MUD only shutdown die!
+shutdown reboot no saved some info!@n
+
+Imm start room @C1204@n The Immortal Board Room
+Mortal start room @C3001@n
+@C3005@n - Temple Square
+
+Max zone number is 655. Max vnum is 65534. 65535 is reserved for corpses.
+
+601 - first prool zone
+
+prool - prool's test command
+dukhmada - dukh mada

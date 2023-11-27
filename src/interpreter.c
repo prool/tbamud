@@ -51,6 +51,8 @@ static int sort_commands_helper(const void *a, const void *b);
 #define BUFLEN 1024
 char *ptime(void);
 ACMD (do_prool);
+ACMD (do_dukhmada);
+void get_object(int n, struct char_data *ch);
 // prool end
 
 /* globals defined here, used here and elsewhere */
@@ -141,6 +143,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "donate"   , "don"     , POS_RESTING , do_drop     , 0, SCMD_DONATE },
   { "drink"    , "dri"     , POS_RESTING , do_drink    , 0, SCMD_DRINK },
   { "drop"     , "dro"     , POS_RESTING , do_drop     , 0, SCMD_DROP },
+  { "dukhmada" , "dukh"    , POS_DEAD    , do_dukhmada , 0, 0 }, // prool
 
   { "eat"      , "ea"      , POS_RESTING , do_eat      , 0, SCMD_EAT },
   { "echo"     , "ec"      , POS_SLEEPING, do_echo     , LVL_IMMORT, SCMD_ECHO },
@@ -1823,6 +1826,34 @@ char *ptime(void) // Возвращаемое значение: ссылка н�
 	return tmstr;
 
 	}
+
+void get_object(int n, struct char_data *ch)
+{
+    struct obj_data *obj;
+    obj_rnum r_num;
+
+    if ((r_num = real_object(n)) == NOTHING) {
+      send_to_char(ch, "There is no object with that number.\r\n");
+      return;
+    }
+    {
+      obj = read_object(r_num, REAL);
+      if (CONFIG_LOAD_INVENTORY)
+        obj_to_char(obj, ch);
+      else
+        obj_to_room(obj, IN_ROOM(ch));
+      act("$n makes a strange magical gesture.", TRUE, ch, 0, 0, TO_ROOM);
+      act("$n has created $p!", FALSE, ch, obj, 0, TO_ROOM);
+      act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
+      load_otrigger(obj);
+    }
+}
+
+ACMD(do_dukhmada)
+{
+get_object(10, ch); // waybread
+get_object(60103, ch); // goblet with water
+}
 
 ACMD (do_prool)
 {
