@@ -3724,7 +3724,7 @@ static int check_object(struct obj_data *obj)
 
     strlcpy(onealias, space ? space + 1 : obj->name, sizeof(onealias));
     if (search_block(onealias, drinknames, TRUE) < 0 && (error = TRUE))
-      log("SYSERR: Object #%d (%s) doesn't have drink type as last keyword. (%s)",
+      log("Warning: Object #%d (%s) doesn't have drink type as last keyword. (%s)",
 		GET_OBJ_VNUM(obj), obj->short_description, obj->name);
   }
   /* Fall through. */
