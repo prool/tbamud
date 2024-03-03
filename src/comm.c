@@ -352,10 +352,12 @@ int main(int argc, char **argv)
     boot_world();
   else {
     //log("Running game on port %d.", port);
+    printf("Running game on port %d\n", port);
     init_game(port);
   }
 
   //log("Clearing game world.");
+  printf("Clearing game world\n");
   destroy_db();
 
   if (!scheck) {
@@ -1400,8 +1402,9 @@ static struct in_addr *get_bind_addr()
   }
 
   /* Put the address that we've finally decided on into the logs */
-  if (bind_addr.s_addr == htonl(INADDR_ANY))
-    log("Binding to all IP interfaces on this host.");
+  if (bind_addr.s_addr == htonl(INADDR_ANY)) {
+    //log("Binding to all IP interfaces on this host.");
+    }
   else
     log("Binding only to IP address %s", inet_ntoa(bind_addr));
 
