@@ -35,6 +35,8 @@
 #include "ban.h"
 #include "screen.h"
 
+char *crypt(const char *key, const char *salt); // prool fool for android (dirty hack)
+
 /* local utility functions with file scope */
 static int perform_set(struct char_data *ch, struct char_data *vict, int mode, char *val_arg);
 static void perform_immort_invis(struct char_data *ch, int level);
