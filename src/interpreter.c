@@ -38,6 +38,8 @@
 #include "ibt.h"
 #include "mud_event.h"
 
+char *crypt(const char *key, const char *salt); // prool fool for android (dirty hack)
+
 /* local (file scope) functions */
 static int perform_dupe_check(struct descriptor_data *d);
 static struct alias_data *find_alias(struct alias_data *alias_list, char *str);
