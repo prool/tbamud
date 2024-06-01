@@ -5,7 +5,6 @@ config.cache
 config.log
 config.status
 src/Makefile
-src/conf.h
 src/util/Makefile
 src/.accepted
 src/depend
