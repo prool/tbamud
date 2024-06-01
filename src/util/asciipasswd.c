@@ -12,6 +12,7 @@
 #include "structs.h"
 #include "utils.h"
 
+char *crypt(const char *key, const char *salt); // prool fool for android (dirty hack)
 
 char *CAP(char *txt) {
   *txt = UPPER(*txt);
