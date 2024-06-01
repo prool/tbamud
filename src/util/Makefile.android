@@ -20,7 +20,7 @@ BINDIR = ../../bin
 # location of Circle include files
 INCDIR = ..
 
-CFLAGS = -g -O2 $(MYFLAGS) $(PROFILE) -I$(INCDIR)
+CFLAGS = -g -O2 $(MYFLAGS) $(PROFILE) -I$(INCDIR) -lcrypt
 
 default: all
 
