@@ -1537,9 +1537,9 @@ void nanny(struct descriptor_data *d, char *arg)
 	write_to_output(d, "%s", motd);
 
       if (GET_INVIS_LEV(d->character))
-        mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s has connected. (invis %d)", GET_NAME(d->character), GET_INVIS_LEV(d->character));
+        mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s has connected to tbaMUD (invis %d)", GET_NAME(d->character), GET_INVIS_LEV(d->character));
       else
-        mudlog(BRF, LVL_IMMORT, TRUE, "%s has connected.", GET_NAME(d->character));
+        mudlog(BRF, LVL_IMMORT, TRUE, "%s has connected to tbaMUD.", GET_NAME(d->character));
 
       /* Add to the list of 'recent' players (since last reboot) */
       if (AddRecentPlayer(GET_NAME(d->character), d->host, FALSE, FALSE) == FALSE)

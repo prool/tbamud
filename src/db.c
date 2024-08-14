@@ -815,7 +815,7 @@ void boot_db(void)
     boot_time = time(0);
 
   //log("Boot db -- DONE.");
-  printf("Boot db -- DONE\n");
+  printf("Boot db -- DONE. tbaMUD is ready\n");
   //printf("prool debug: top_of_mobt=%i\n", top_of_mobt); // prool
   prool_mobs=top_of_mobt+1;
 }

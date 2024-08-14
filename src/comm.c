@@ -352,12 +352,12 @@ int main(int argc, char **argv)
     boot_world();
   else {
     //log("Running game on port %d.", port);
-    printf("Running game on port %d\n", port);
+    printf("Running tbaMUD on port %d\n", port);
     init_game(port);
   }
 
   //log("Clearing game world.");
-  printf("Clearing game world\n");
+  printf("Clearing game world\ntbaMUD is stop\n");
   destroy_db();
 
   if (!scheck) {
