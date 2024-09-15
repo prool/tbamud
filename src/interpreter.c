@@ -490,6 +490,10 @@ void command_interpreter(struct char_data *ch, char *argument)
   char *line;
   char arg[MAX_INPUT_LENGTH];
 
+#if 1 // prool: Orwell's 1984 mode (The Big Brother is watching You!)
+if (!IS_NPC(ch)) printf("prooldebug cmd '%s'\n", argument);
+#endif
+
   REMOVE_BIT_AR(AFF_FLAGS(ch), AFF_HIDE);
 
   /* just drop to next line for hitting CR */
