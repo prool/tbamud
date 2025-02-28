@@ -52,6 +52,7 @@ static int sort_commands_helper(const void *a, const void *b);
 char *ptime(void);
 ACMD (do_prool);
 ACMD (do_dukhmada);
+ACMD (do_fflush);
 void get_object(int n, struct char_data *ch);
 // prool end
 
@@ -156,6 +157,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "export"   , "export"  , POS_DEAD    , do_export_zone, LVL_IMPL, 0 },
 
   { "force"    , "force"   , POS_SLEEPING, do_force    , LVL_GOD, 0 },
+  { "fflush"   , "fflush"  , POS_DEAD    , do_fflush   , 0, 0 }, // prool's test command
   { "fill"     , "fil"     , POS_STANDING, do_pour     , 0, SCMD_FILL },
   { "file"     , "file"    , POS_SLEEPING, do_file     , LVL_GOD, 0 },
   { "flee"     , "fl"      , POS_FIGHTING, do_flee     , 1, 0 },
@@ -491,7 +493,7 @@ void command_interpreter(struct char_data *ch, char *argument)
   char arg[MAX_INPUT_LENGTH];
 
 #if 1 // prool: Orwell's 1984 mode (The Big Brother is watching You!)
-if (!IS_NPC(ch)) printf("prooldebug cmd '%s'\n", argument);
+if (!IS_NPC(ch)) printf("prooldebug cmd %s '%s'\n", GET_NAME(ch), argument);
 #endif
 
   REMOVE_BIT_AR(AFF_FLAGS(ch), AFF_HIDE);
@@ -1880,6 +1882,12 @@ while (!feof(fp)) {
 	send_to_char(ch, buf);
 	}
 fclose(fp);
+}
+
+ACMD (do_fflush)
+{
+fflush(NULL);
+send_to_char(ch, "prool: flushed all buffers\r\n");
 }
 
 // end of prool's code
