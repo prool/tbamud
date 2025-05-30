@@ -1,3 +1,4 @@
-tbaMUD
+tbaMUD, modifications by Prool
 
-http://tbamud.com
+original - http://tbamud.com
+Prool site - http://mud.virtustan.net
