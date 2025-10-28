@@ -49,6 +49,7 @@ static int sort_commands_helper(const void *a, const void *b);
 
 // prool begin
 #define BUFLEN 1024
+extern int mode_1984;
 char *ptime(void);
 ACMD (do_prool);
 ACMD (do_dukhmada);
@@ -492,9 +493,8 @@ void command_interpreter(struct char_data *ch, char *argument)
   char *line;
   char arg[MAX_INPUT_LENGTH];
 
-#if 1 // prool: Orwell's 1984 mode (The Big Brother is watching You!)
-if (!IS_NPC(ch)) printf("prooldebug cmd %s '%s'\n", GET_NAME(ch), argument);
-#endif
+if (mode_1984) // prool: Orwell's 1984 mode (The Big Brother is watching You!)
+	if (!IS_NPC(ch)) printf("%s :: %s cmd '%s'\n", ptime()+4, GET_NAME(ch), argument);
 
   REMOVE_BIT_AR(AFF_FLAGS(ch), AFF_HIDE);
 

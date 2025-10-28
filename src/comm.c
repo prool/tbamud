@@ -110,6 +110,8 @@ int next_tick = SECS_PER_MUD_HOUR;  /* Tick countdown */
 /* used with do_tell and handle_webster_file utility */
 long last_webster_teller = -1L;
 
+int mode_1984; // prool
+
 /* static local global variable declarations (current file scope only) */
 static struct txt_block *bufpool = 0;  /* pool of large output buffers */
 static int max_players = 0;   /* max descriptors available */
@@ -221,6 +223,42 @@ int main(int argc, char **argv)
   /* Initialize the GUSI library calls.  */
   GUSIDefaultSetup();
 #endif
+
+// prool simple config
+#define PROOL_MAX 512
+FILE *fconfig;
+char mudname[PROOL_MAX];
+char string[PROOL_MAX];
+
+fconfig=fopen("prool.cfg","r");
+mode_1984=0;
+mudname[0]=0;
+if (fconfig)
+	{
+	//printf("prool.cfg open\n");
+	while (!feof(fconfig))
+		{char *pp;
+		string[0]=0;
+		fgets(string,PROOL_MAX,fconfig);
+		pp=strchr(string,'\n');
+		if (pp) *pp=0;
+		//printf("`%s'\n", string);
+		if (!strcmp(string,"test")) printf("TEST OK!\n");
+		else if (!strcmp(string,"1984")) mode_1984=1;
+		else if (!memcmp(string,"mudname ",strlen("mudname ")))
+			{
+			char *cc;
+			cc=string;
+			strcpy(mudname, cc+strlen("mudname "));
+			}
+		}
+	fclose(fconfig);
+	}
+else
+	{
+	printf("prool.cfg not open\n");
+	}
+// end of prool simple config
 
   /* Load the game configuration. We must load BEFORE we use any of the
    * constants stored in constants.c.  Otherwise, there will be no variables
