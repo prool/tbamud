@@ -2572,11 +2572,13 @@ void zone_update(void)
       mudlog(CMP, LVL_IMPL+1, FALSE, "Auto zone reset: %s (Zone %d)",
           zone_table[update_u->zone_to_reset].name, zone_table[update_u->zone_to_reset].number);
       struct descriptor_data *pt;
+#if 0 // prool fool
       for (pt = descriptor_list; pt; pt = pt->next)
         if (IS_PLAYING(pt) && pt->character && PRF_FLAGGED(pt->character, PRF_ZONERESETS))
           send_to_char(pt->character, "%s[Auto zone reset: %s (Zone %d)]%s", 
             CCGRN(pt->character, C_NRM), zone_table[update_u->zone_to_reset].name, 
             zone_table[update_u->zone_to_reset].number, CCNRM(pt->character, C_NRM));
+#endif
       /* dequeue */
       if (update_u == reset_q.head)
 	reset_q.head = reset_q.head->next;

@@ -2898,7 +2898,7 @@ void players_counted (void)
   		players++;
   		}
 
-	printf("prool debug: tick. players = %i\r\n", players);
+	//printf("prool debug: tick. players = %i\r\n", players);
 		fp=fopen("mudstat.lst","w");
 		if (fp) {
 		fprintf(fp,"tbaMUD/prool every tick statistics. This file is automatish generate\r\n");
