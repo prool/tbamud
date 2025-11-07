@@ -124,6 +124,8 @@ static bool fCopyOver;          /* Are we booting in copyover mode? */
 static char *last_act_message = NULL;
 
 /* static local function prototypes (current file scope only) */
+char *ptime(void); // prool
+void players_counted (void); // prool
 static RETSIGTYPE reread_wizlists(int sig);
 /* Appears to be orphaned right now...
 static RETSIGTYPE unrestrict_game(int sig);
@@ -800,6 +802,7 @@ void game_loop(socket_t local_mother_desc)
 
     /* Sleep if we don't have any connections */
     if (descriptor_list == NULL) {
+      players_counted(); // prool
       //log("No connections.  Going to sleep."); // prool
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
@@ -1028,8 +1031,9 @@ void heartbeat(int heart_pulse)
   if (!(heart_pulse % PULSE_ZONE))
     zone_update();
 
-  if (!(heart_pulse % PULSE_IDLEPWD))		/* 15 seconds */
+  if (!(heart_pulse % PULSE_IDLEPWD)) {		/* 15 seconds */
     check_idle_passwords();
+    }
 
   if (!(heart_pulse % PULSE_MOBILE))
     mobile_activity();
@@ -1044,6 +1048,7 @@ void heartbeat(int heart_pulse)
     affect_update();
     point_update();
     check_timed_quests();
+    players_counted(); // prool
   }
 
   if (CONFIG_AUTO_SAVE && !(heart_pulse % PULSE_AUTOSAVE)) {	/* 1 minute */
@@ -2875,3 +2880,31 @@ static void msdp_update( void )
     MSSPSetPlayers( PlayerCount );
   }
 }
+
+// prool: begin prool code
+void players_counted (void)
+	{
+	FILE *fp;
+  	struct descriptor_data *d;
+  	struct char_data *tch;
+  	int players = 0;
+
+  	for (d = descriptor_list; d; d = d->next) {
+    		if (d->original)
+      		tch = d->original;
+    		else if (!(tch = d->character))
+      		continue;
+
+  		players++;
+  		}
+
+	printf("prool debug: tick. players = %i\r\n", players);
+		fp=fopen("mudstat.lst","w");
+		if (fp) {
+		fprintf(fp,"tbaMUD/prool every tick statistics. This file is automatish generate\r\n");
+		fprintf(fp,"Time %s\r\n", ptime());
+		fprintf(fp,"Players %i\r\n", players);
+		fclose(fp);
+		}
+	}
+// prool: end prool code
