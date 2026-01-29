@@ -1551,6 +1551,8 @@ static int new_descriptor(socket_t s)
   /* create a new descriptor */
   CREATE(newd, struct descriptor_data, 1);
 
+printf("%s prool debug IP %s\n", ptime()+4, inet_ntoa(peer.sin_addr));
+
   /* find the sitename */
   if (CONFIG_NS_IS_SLOW ||
       !(from = gethostbyaddr((char *) &peer.sin_addr,

@@ -129,6 +129,8 @@ int prool_mobs;
 /* declaration of local (file scope) variables */
 static int converting = FALSE;
 
+char *ptime(void); // prool
+
 /* Local (file scope) utility functions */
 static int check_bitvector_names(bitvector_t bits, size_t namecount, const char *whatami, const char *whatbits);
 static int check_object_spell_number(struct obj_data *obj, int val);
@@ -815,7 +817,7 @@ void boot_db(void)
     boot_time = time(0);
 
   //log("Boot db -- DONE.");
-  printf("Boot db -- DONE. tbaMUD is ready\n");
+  printf("%s Boot db -- DONE. tbaMUD is ready\n", ptime()+4); // prool
   //printf("prool debug: top_of_mobt=%i\n", top_of_mobt); // prool
   prool_mobs=top_of_mobt+1;
 }
