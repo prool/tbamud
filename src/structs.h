@@ -600,7 +600,7 @@
 #define MAX_NAME_LENGTH       20     /**< Max PC/NPC name length */
 #define MAX_PWD_LENGTH        30     /**< Max PC password length */
 #define MAX_TITLE_LENGTH      80     /**< Max PC title length */
-#define HOST_LENGTH           40     /**< Max hostname resolution length */
+#define HOST_LENGTH           60 // 40     /**< Max hostname resolution length */ // prool
 #define PLR_DESC_LENGTH       4096   /**< Max length for PC description */
 #define MAX_SKILLS            200    /**< Max number of skills/spells */
 #define MAX_AFFECT            32     /**< Max number of player affections */
