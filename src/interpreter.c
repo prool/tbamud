@@ -52,6 +52,7 @@ static int sort_commands_helper(const void *a, const void *b);
 extern int mode_1984;
 char *ptime(void);
 ACMD (do_prool);
+ACMD (do_proolcolor);
 ACMD (do_dukhmada);
 ACMD (do_fflush);
 void get_object(int n, struct char_data *ch);
@@ -256,6 +257,7 @@ cpp_extern const struct command_info cmd_info[] = {
   { "pour"     , "pour"    , POS_STANDING, do_pour     , 0, SCMD_POUR },
   { "prompt"   , "pro"     , POS_DEAD    , do_display  , 0, 0 },
   { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 }, // prool's test command
+  { "proolcolor", "proolcolor",POS_DEAD  , do_proolcolor, 0, 0 }, // prool's test command
   { "prefedit" , "pre"     , POS_DEAD    , do_oasis_prefedit , 0, 0 },
   { "purge"    , "purge"   , POS_DEAD    , do_purge    , LVL_BUILDER, 0 },
 
@@ -1861,7 +1863,7 @@ get_object(10, ch); // waybread
 get_object(60103, ch); // goblet with water
 }
 
-ACMD (do_prool)
+ACMD (do_proolcolor)
 {
 //printf("do_prool\r\n");
 //send_to_char(ch, "do_prool!\r\n");
@@ -1882,6 +1884,27 @@ while (!feof(fp)) {
 	send_to_char(ch, buf);
 	}
 fclose(fp);
+}
+
+ACMD(do_prool)
+{
+int sock;
+struct sockaddr_in addr;
+socklen_t addr_len = sizeof(addr);
+
+send_to_char(ch, "do_prool()\n");
+
+sock=ch->desc->descriptor;
+
+
+    if (getpeername(sock, (struct sockaddr*)&addr, &addr_len) == 0) {
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
+        printf("Peer IP: %s\n", ip);
+    } else {
+        perror("getpeername");
+    }
+
 }
 
 ACMD (do_fflush)

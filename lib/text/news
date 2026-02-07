@@ -1,13 +1,18 @@
 (lib/text/news)
 
 7-Jan-2023 - this tbaMUD server in started in Prool's MUD Museum
-http://prool.kharkov.org
-https://github.com/prool/tbamud/tree/prool-2023
+http://mud.virtustan.net
+https://github.com/prool/tbamud/tree/prool-main
 
-UTF-8 Ukrainian text Цей сервер запущено у мад-музеї Пруля
+DE: Dieser Server wird im MUD-Museum von Herr Prool gestartet
 
-UTF-8 Russian text Этот сервер запущен в мад-музее Пруля
------------------------------------------------------------------
+UA: (UTF-8) Цей сервер запущено у мад-музеї Пруля
+
+RU: (UTF-8) Этот сервер запущен в мад-музее Пруля
+
+
+
+
 			   THE tbaMUD HERALD
    		 "We addict players for their own enjoyment."
 
