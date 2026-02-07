@@ -1551,7 +1551,9 @@ ACMD(do_gen_ps)
     send_to_char(ch, "\033[H\033[J");
     break;
   case SCMD_VERSION:
-    send_to_char(ch, "%s\r\nPotvora MUD by Prool, compiling %s %s\r\n", tbamud_version, __DATE__, __TIME__ ); // prool
+    send_to_char(ch,
+	"tba MUD/Potvora MUD by Prool, compiling %s %s\r\nsource https://github.com/prool/tbamud/tree/prool-main\r\n",
+	__DATE__, __TIME__ ); // prool
     break;
   case SCMD_WHOAMI:
     send_to_char(ch, "%s\r\n", GET_NAME(ch));
