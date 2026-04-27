@@ -465,7 +465,7 @@ void find_replacement(void *go, struct script_data *sc, trig_data *trig,
  * will return the number of bags of gold.
  * Addition inspired by Jamie Nelson */
       else if (!str_cmp(var, "findmob")) {
-        if (!field || !*field || !subfield || !*subfield) {
+        if (!*field || !subfield || !*subfield) {
           script_log("findmob.vnum(mvnum) - illegal syntax");
           strcpy(str, "0");
         } else {
@@ -486,7 +486,7 @@ void find_replacement(void *go, struct script_data *sc, trig_data *trig,
       }
       /* Addition inspired by Jamie Nelson. */
       else if (!str_cmp(var, "findobj")) {
-        if (!field || !*field || !subfield || !*subfield) {
+        if (!*field || !subfield || !*subfield) {
           script_log("findobj.vnum(ovnum) - illegal syntax");
           strcpy(str, "0");
         } else {
@@ -1722,5 +1722,5 @@ void var_subst(void *go, struct script_data *sc, trig_data *trig,
       left -= len;
     } /* else if *p .. */
   } /* while *p .. */
-  buf[sizeof(buf) - 1] = '\0';
+  *buf = '\0';
 }
