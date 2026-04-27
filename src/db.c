@@ -2601,9 +2601,11 @@ void zone_update(void)
 
 static void log_zone_error(zone_rnum zone, int cmd_no, const char *message)
 {
+#if 0 // prool
   mudlog(NRM, LVL_GOD, TRUE, "SYSERR: zone file: %s", message);
   mudlog(NRM, LVL_GOD, TRUE, "SYSERR: ...offending cmd: '%c' cmd in zone #%d, line %d",
 	ZCMD.command, zone_table[zone].number, ZCMD.line);
+#endif
 }
 
 #define ZONE_ERROR(message) \
