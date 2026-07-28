@@ -13513,7 +13513,7 @@ zunlock - Locks one or all zones. Type zunlock for usage.
 #31
 PROOL POTVORA DUKHMADA
 Potvora MUD based on tbaMUD
-http://mud.kharkov.org mud.virtustan.net
+https://virtustan.net
 
 prool - test command
 
@@ -13521,6 +13521,6 @@ proolcolor - color test
 
 dukhmada - get waybread and goblet with water from dukh (spirit) of MUD
 
-fflush - flush all fike buffers
+fflush - flush all file buffers
 #0
 $~
