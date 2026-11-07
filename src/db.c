@@ -108,6 +108,12 @@ char *typos = NULL;             /* typos file                    */
 char *ideas = NULL;             /* ideas file                    */
 
 int top_of_helpt = 0;
+/* Bumped every time help_table is rebuilt or replaced. hedit's delete
+ * stashes it when the editor opens and refuses if it has moved: an index
+ * alone cannot tell "the table is unchanged" from "something else has
+ * slid into that slot", and a reload that removes the entry being edited
+ * produces exactly the second. */
+long help_table_version = 0;
 struct help_index_element *help_table = NULL;
 
 struct social_messg *soc_mess_list = NULL;      /* list of socials */
@@ -123,13 +129,8 @@ struct reset_q_type reset_q;	    /* queue of zones to be reset	 */
 
 struct happyhour happy_data = {0,0,0,0};
 
-/* prool globals */
-int prool_mobs;
-
 /* declaration of local (file scope) variables */
 static int converting = FALSE;
-
-char *ptime(void); // prool
 
 /* Local (file scope) utility functions */
 static int check_bitvector_names(bitvector_t bits, size_t namecount, const char *whatami, const char *whatbits);
@@ -235,14 +236,14 @@ static void boot_social_messages(void)
     }
   }
 
-  //log("Social table contains %d socials.", top_of_socialt);
+  log("Social table contains %d socials.", top_of_socialt);
   rewind(fl);
 
   CREATE(soc_mess_list, struct social_messg, top_of_socialt + 1);
 
   /* now read 'em */
   for (line_number = 0;; ++line_number) {
-    if (fscanf(fl, " %s ", next_soc) != 1) {
+    if (fscanf(fl, " " BOOT_TOKEN_FMT " ", next_soc) != 1) {
       if(feof(fl))
         log("SYSERR: unexpected end of file encountered in socials file %s", SOCMESS_FILE_NEW);
       else if(ferror(fl))
@@ -253,7 +254,7 @@ static void boot_social_messages(void)
     }
     if (*next_soc == '$') break;
     if (CONFIG_NEW_SOCIALS == TRUE) {
-      if (fscanf(fl, " %s %d %d %d %d \n",
+      if (fscanf(fl, " " BOOT_TOKEN_FMT " %d %d %d %d \n",
   		sorted, &hide, &min_char_pos, &min_pos, &min_lvl) != 5) {
       log("SYSERR: format error in social file near social '%s'", next_soc);
       /* SYSERR_DESC: From boot_social_messages(), this error is output when
@@ -450,41 +451,41 @@ ACMD(do_reboot)
 
 void boot_world(void)
 {
-  //log("Loading zone table.");
+  log("Loading zone table.");
   index_boot(DB_BOOT_ZON);
 
-  //log("Loading triggers and generating index.");
+  log("Loading triggers and generating index.");
   index_boot(DB_BOOT_TRG);
 
-  //log("Loading rooms.");
+  log("Loading rooms.");
   index_boot(DB_BOOT_WLD);
 
-  //log("Renumbering rooms.");
+  log("Renumbering rooms.");
   renum_world();
 
-  //log("Checking start rooms.");
+  log("Checking start rooms.");
   check_start_rooms();
 
-  //log("Loading mobs and generating index.");
+  log("Loading mobs and generating index.");
   index_boot(DB_BOOT_MOB);
 
-  //log("Loading objs and generating index.");
+  log("Loading objs and generating index.");
   index_boot(DB_BOOT_OBJ);
 
-  //log("Renumbering zone table.");
+  log("Renumbering zone table.");
   renum_zone_table();
 
   if(converting) {
-    //log("Saving 128bit world files to disk.");
+    log("Saving 128bit world files to disk.");
     save_all();
   }
 
   if (!no_specials) {
-    //log("Loading shops.");
+    log("Loading shops.");
     index_boot(DB_BOOT_SHP);
   }
 
-  //log("Loading quests.");
+  log("Loading quests.");
   index_boot(DB_BOOT_QST);
 
 }
@@ -569,6 +570,7 @@ void destroy_db(void)
     }
   }
   free(world);
+  world = NULL;
   top_of_world = 0;
 
   /* Objects */
@@ -684,19 +686,19 @@ void boot_db(void)
 {
   zone_rnum i;
 
-  //log("Boot db -- BEGIN.");
+  log("Boot db -- BEGIN.");
 
-  //log("Resetting the game time:");
+  log("Resetting the game time:");
   reset_time();
   
-  //log("Initialize Global Lists");
+  log("Initialize Global Lists");
   global_lists = create_list();
   group_list   = create_list();
 
-  //log("Initializing Events");
+  log("Initializing Events");
   init_events();
 
-  //log("Reading news, credits, help, ihelp, bground, info & motds.");
+  log("Reading news, credits, help, ihelp, bground, info & motds.");
   file_to_string_alloc(NEWS_FILE, &news);
   file_to_string_alloc(CREDITS_FILE, &credits);
   file_to_string_alloc(MOTD_FILE, &motd);
@@ -712,91 +714,90 @@ void boot_db(void)
   if (file_to_string_alloc(GREETINGS_FILE, &GREETINGS) == 0)
     prune_crlf(GREETINGS);
 
-  //log("Loading spell definitions.");
+  log("Loading spell definitions.");
   mag_assign_spells();
 
   boot_world();
 
-  //log("Loading help entries.");
+  log("Loading help entries.");
   index_boot(DB_BOOT_HLP);
 
-  //log("Generating player index.");
+  log("Generating player index.");
   build_player_index();
 
   if (auto_pwipe) {
-    //log("Cleaning out inactive pfiles.");
+    log("Cleaning out inactive pfiles.");
     clean_pfiles();
   }
 
-  //log("Loading fight messages.");
+  log("Loading fight messages.");
   load_messages();
 
-  //log("Loading social messages.");
+  log("Loading social messages.");
   boot_social_messages();
 
-  //log("Building command list.");
+  log("Building command list.");
   create_command_list(); /* aedit patch -- M. Scott */
 
-  //log("Assigning function pointers:");
+  log("Assigning function pointers:");
 
   if (!no_specials) {
-    //log("   Mobiles.");
+    log("   Mobiles.");
     assign_mobiles();
-    //log("   Shopkeepers.");
+    log("   Shopkeepers.");
     assign_the_shopkeepers();
-    //log("   Objects.");
+    log("   Objects.");
     assign_objects();
-    //log("   Rooms.");
+    log("   Rooms.");
     assign_rooms();
-    //log("   Questmasters.");
+    log("   Questmasters.");
     assign_the_quests();
   }
 
-  //log("Assigning spell and skill levels.");
+  log("Assigning spell and skill levels.");
   init_spell_levels();
 
-  //log("Sorting command list and spells.");
-  sort_commands();
+  log("Sorting spells.");
   sort_spells();
 
-  //log("Booting mail system.");
+  log("Booting mail system.");
   if (!scan_file()) {
     log("    Mail boot failed -- Mail system disabled");
     no_mail = 1;
   }
-  //log("Reading banned site and invalid-name list.");
+  log("Reading banned site and invalid-name list.");
   load_banned();
   read_invalid_list();
 
-  //log("Loading Ideas.");
+  log("Loading Ideas.");
   load_ibt_file(SCMD_IDEA);
 
-  //log("Loading Bugs.");
+  log("Loading Bugs.");
   load_ibt_file(SCMD_BUG);
 
-  //log("Loading Typos.");
+  log("Loading Typos.");
   load_ibt_file(SCMD_TYPO);
 
   if (!no_rent_check) {
-    //log("Deleting timed-out crash and rent files:");
+    log("Deleting timed-out crash and rent files:");
     update_obj_file();
-    //log("   Done.");
+    log("   Done.");
   }
 
   /* Moved here so the object limit code works. -gg 6/24/98 */
   if (!mini_mud)  {
-    //log("Booting houses.");
+    log("Booting houses.");
     House_boot();
   }
 
-  //log("Cleaning up last log.");
+  log("Cleaning up last log.");
   clean_llog_entries();
 
 #if 1
 {
   int j;
 
-  for (j = 0 ; j < top_of_objt; j++) {
+  for (j = 0 ; j <= top_of_objt; j++) {
     if (obj_proto[j].script == (struct script_data *)&shop_keeper) {
       log("Item %d (%s) had shopkeeper trouble.", obj_index[j].vnum, obj_proto[j].short_description);
       obj_proto[j].script = NULL;
@@ -806,8 +807,8 @@ void boot_db(void)
 #endif
 
   for (i = 0; i <= top_of_zone_table; i++) {
-    /*log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
-	zone_table[i].name, zone_table[i].bot, zone_table[i].top);*/
+    log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
+	zone_table[i].name, zone_table[i].bot, zone_table[i].top);
     reset_zone(i);
   }
 
@@ -816,10 +817,7 @@ void boot_db(void)
   if (!boot_time)
     boot_time = time(0);
 
-  //log("Boot db -- DONE.");
-  printf("%s Boot db -- DONE. tbaMUD is ready\n", ptime()+4); // prool
-  //printf("prool debug: top_of_mobt=%i\n", top_of_mobt); // prool
-  prool_mobs=top_of_mobt+1;
+  log("Boot db -- DONE.");
 }
 
 /* reset the time in the game from file */
@@ -939,7 +937,7 @@ int count_hash_records(FILE *fl)
   char buf[128];
   int count = 0;
 
-  while (fgets(buf, 128, fl))
+  while (fgets(buf, sizeof(buf), fl))
     if (*buf == '#')
       count++;
 
@@ -951,7 +949,10 @@ void index_boot(int mode)
   const char *index_filename, *prefix = NULL;	/* NULL or egcs 1.1 complains */
   FILE *db_index, *db_file;
   int line_number, rec_count = 0, size[2];
-  char buf2[PATH_MAX], buf1[PATH_MAX - 100];   // - 100 to make room for prefix
+  /* buf1 holds one index entry, buf2 that entry behind its prefix.  buf1 is
+   * sized from the entry it holds now rather than from PATH_MAX, which is not
+   * the same number on every platform -- see INDEX_ENTRY_FIELD in db.h. */
+  char buf2[PATH_MAX], buf1[INDEX_ENTRY_FIELD + 1];
 
   switch (mode) {
   case DB_BOOT_WLD:
@@ -996,7 +997,7 @@ void index_boot(int mode)
 
   for (line_number = 0;; ++line_number) {
     /* first, count the number of records in the file so we can malloc */
-    if (fscanf(db_index, "%s\n", buf1) != 1) {
+    if (fscanf(db_index, INDEX_ENTRY_FMT "\n", buf1) != 1) {
       if (feof(db_index))
         log("SYSERR: boot error -- unexpected end of file encountered in index file ./%s%s. "
             "Ensure that the last line of the file starts with the character '$'.",
@@ -1028,10 +1029,14 @@ void index_boot(int mode)
     }
   }
 
-  /* Exit if 0 records, unless this is shops */
+  /* Exit if 0 records, unless this is shops or quests: a world may have
+   * neither, and neither is required for the MUD to run. */
   if (!rec_count) {
-    if (mode == DB_BOOT_SHP || mode == DB_BOOT_QST)
+    if (mode == DB_BOOT_SHP || mode == DB_BOOT_QST) {
+      /* Every other way out of this function closes the index or exits. */
+      fclose(db_index);
       return;
+    }
     log("SYSERR: boot error - 0 records counted in %s/%s.", prefix,
 	index_filename);
     exit(1);
@@ -1045,43 +1050,43 @@ void index_boot(int mode)
   case DB_BOOT_WLD:
     CREATE(world, struct room_data, rec_count);
     size[0] = sizeof(struct room_data) * rec_count;
-    //log("   %d rooms, %d bytes.", rec_count, size[0]);
+    log("   %d rooms, %d bytes.", rec_count, size[0]);
     break;
   case DB_BOOT_MOB:
     CREATE(mob_proto, struct char_data, rec_count);
     CREATE(mob_index, struct index_data, rec_count);
     size[0] = sizeof(struct index_data) * rec_count;
     size[1] = sizeof(struct char_data) * rec_count;
-    //log("   %d mobs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
+    log("   %d mobs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
     break;
   case DB_BOOT_OBJ:
     CREATE(obj_proto, struct obj_data, rec_count);
     CREATE(obj_index, struct index_data, rec_count);
     size[0] = sizeof(struct index_data) * rec_count;
     size[1] = sizeof(struct obj_data) * rec_count;
-    //log("   %d objs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
+    log("   %d objs, %d bytes in index, %d bytes in prototypes.", rec_count, size[0], size[1]);
     break;
   case DB_BOOT_ZON:
     CREATE(zone_table, struct zone_data, rec_count);
     size[0] = sizeof(struct zone_data) * rec_count;
-    //log("   %d zones, %d bytes.", rec_count, size[0]);
+    log("   %d zones, %d bytes.", rec_count, size[0]);
     break;
   case DB_BOOT_HLP:
     CREATE(help_table, struct help_index_element, rec_count);
     size[0] = sizeof(struct help_index_element) * rec_count;
-    //log("   %d entries, %d bytes.", rec_count, size[0]);
+    log("   %d entries, %d bytes.", rec_count, size[0]);
     break;
   case DB_BOOT_QST:
     CREATE(aquest_table, struct aq_data, rec_count);
     size[0] = sizeof(struct aq_data) * rec_count;
-    //log("   %d entries, %d bytes.", rec_count, size[0]);
+    log("   %d entries, %d bytes.", rec_count, size[0]);
     break;
   }
 
   rewind(db_index);
 
   for (line_number = 1;; ++line_number) {
-    if (fscanf(db_index, "%s\n", buf1) != 1) {
+    if (fscanf(db_index, INDEX_ENTRY_FMT "\n", buf1) != 1) {
       if (feof(db_index))
         log("SYSERR: boot error -- unexpected end of file encountered in index file ./%s%s",
             prefix, index_filename);
@@ -1143,7 +1148,7 @@ void discrete_load(FILE *fl, int mode, char *filename)
     /* We have to do special processing with the obj files because they have no
      * end-of-record marker. */
     if (mode != DB_BOOT_OBJ || nr < 0)
-      if (!get_line(fl, line)) {
+      if (!get_line(fl, line, sizeof(line))) {
 	if (nr == -1) {
 	  log("SYSERR: %s file %s is empty!", modes[mode], filename);
 	} else {
@@ -1265,13 +1270,46 @@ void ensure_newline_terminated(struct extra_descr_data* new_descr) {
   }
 }
 
+/* A scanf field width bounds the STORE, not the SCAN.  Given a token longer
+ * than the width, %<n>s copies n characters, appends the NUL -- and leaves
+ * the read position inside the token.  The whitespace directive that follows
+ * matches zero characters there, so the NEXT conversion picks up the rest of
+ * the same token as if it were the next field.  Everything after it shifts
+ * along by one and the conversion count still reaches its total, so the
+ * caller's `retval == 6` test sees a perfectly ordinary line and loads a
+ * room whose sector type used to be half of its flags.
+ *
+ * Bounding the buffers stopped the overflow; it did not stop that.  So
+ * refuse the line before it is parsed: no legal field in a world file is
+ * this long, and a file that carries one is not one we can read correctly.
+ * Checked per whitespace-separated token, so it covers the numeric fields
+ * on the same line as well. */
+static int line_has_overlong_field(const char *line)
+{
+  const char *p = line;
+
+  while (*p) {
+    size_t run = 0;
+
+    while (*p && isspace((unsigned char)*p))
+      p++;
+    while (p[run] && !isspace((unsigned char)p[run]))
+      run++;
+    if (run > WORLD_FLAG_FIELD)
+      return TRUE;
+    p += run;
+  }
+  return FALSE;
+}
+
 /* load the rooms */
 void parse_room(FILE *fl, int virtual_nr)
 {
   static int room_nr = 0, zone = 0;
   int t[10], i, retval;
-  char line[READ_SIZE], flags[128], flags2[128], flags3[128];
-  char flags4[128], buf2[MAX_STRING_LENGTH], buf[128];
+  char line[READ_SIZE], flags[WORLD_FLAG_FIELD + 1];
+  char flags2[WORLD_FLAG_FIELD + 1], flags3[WORLD_FLAG_FIELD + 1];
+  char flags4[WORLD_FLAG_FIELD + 1], buf2[MAX_STRING_LENGTH], buf[128];
   struct extra_descr_data *new_descr;
   char letter;
 
@@ -1287,18 +1325,41 @@ void parse_room(FILE *fl, int virtual_nr)
       log("SYSERR: Room %d is outside of any zone.", virtual_nr);
       exit(1);
     }
+  /* Test the lower bound again, against the zone the loop stopped on.  The
+   * one above ran against whichever zone the previous room landed in, and
+   * this loop only ever advances, so a vnum falling in a gap between one
+   * zone's top and the next zone's bot passes both and is filed under a
+   * zone that does not contain it.  Gaps are legal -- the .zon reader
+   * rejects only bot > top, and the shipped world has thirty-six of them.
+   * Whether any zone covers such a room at all is a separate question:
+   * real_zone_by_thing() searches [bot,top] over the whole table, so it
+   * can find one further along that the loader's forward scan never
+   * reached, and then world[].zone and the lookup disagree. */
+  if (virtual_nr < zone_table[zone].bot) {
+    log("SYSERR: Room %d falls between zones %d and %d in the order the "
+        "index gives them, so the loader cannot file it.",
+        virtual_nr, zone_table[zone - 1].number, zone_table[zone].number);
+    exit(1);
+  }
   world[room_nr].zone = zone;
   world[room_nr].number = virtual_nr;
   world[room_nr].name = fread_string(fl, buf2);
   world[room_nr].description = fread_string(fl, buf2);
 
-  if (!get_line(fl, line)) {
+  if (!get_line(fl, line, sizeof(line))) {
     log("SYSERR: Expecting roomflags/sector type of room #%d but file ended!",
 	virtual_nr);
     exit(1);
   }
 
-  if (((retval = sscanf(line, " %d %s %s %s %s %d ", t, flags, flags2, flags3, flags4, t + 2)) == 3) && (bitwarning == TRUE)) {
+  if (line_has_overlong_field(line)) {
+    log("SYSERR: Room #%d has a field longer than %d characters.",
+	virtual_nr, WORLD_FLAG_FIELD);
+    exit(1);
+  }
+
+  if (((retval = sscanf(line, " %d " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT
+                       " " FLAG_FIELD_FMT " %d ", t, flags, flags2, flags3, flags4, t + 2)) == 3) && (bitwarning == TRUE)) {
     log("WARNING: Conventional world files detected. See config.c.");
     exit(1);
   } else if ((retval == 3) && (bitwarning == FALSE)) {
@@ -1314,6 +1375,12 @@ void parse_room(FILE *fl, int virtual_nr)
 
     /* In the old-style files, the 3rd item was the sector-type */
     world[room_nr].sector_type = atoi(flags2);
+    if (world[room_nr].sector_type < 0 ||
+        world[room_nr].sector_type >= NUM_ROOM_SECTORS) {
+      log("SYSERR: Sector type %d out of range in room #%d, using inside.",
+          world[room_nr].sector_type, virtual_nr);
+      world[room_nr].sector_type = SECT_INSIDE;
+    }
 
    sprintf(flags, "room #%d", virtual_nr);	/* sprintf: OK (until 399-bit integers) */
 
@@ -1321,11 +1388,24 @@ void parse_room(FILE *fl, int virtual_nr)
     check_bitvector_names(world[room_nr].room_flags[0], room_bits_count, flags, "room");
 
     if(bitsavetodisk) { /* Maybe the implementor just wants to look at the 128bit files */
-      add_to_save_list(zone_table[real_zone_by_thing(virtual_nr)].number, 3);
+      /* The checks above have already placed this room inside
+       * zone_table[zone] and world[room_nr].zone records it, so the file
+       * the loader has filed it under is known here without asking
+       * real_zone_by_thing().
+       * That function searches [bot,top] and gives up on anything above
+       * zone_table[top_of_zone_table].top -- the LAST zone's top, not the
+       * highest top of any zone -- so a table whose final entry has a low
+       * range answers NOWHERE for every room above it however correctly
+       * the room is filed, and zone_table[NOWHERE] reads off the end of
+       * the table, or off the front of it where IDXTYPE is signed.
+       * Asking the room's own zone is what genwld.c and oasis_copy.c do
+       * for the same list, it cannot go out of bounds, and it converts the
+       * room instead of skipping it. */
+      add_to_save_list(zone_table[zone].number, SL_WLD);
       converting = TRUE;
     }
 
-  //log("   done.");
+  log("   done.");
   } else if (retval == 6) {
     int taeller;
 
@@ -1338,8 +1418,14 @@ void parse_room(FILE *fl, int virtual_nr)
     for(taeller=0; taeller < AF_ARRAY_MAX; taeller++)
       check_bitvector_names(world[room_nr].room_flags[taeller], room_bits_count, flags, "room");
 
-    /* Added Sanity check */
-    if (t[2] > NUM_ROOM_SECTORS) t[2] = SECT_INSIDE;
+    /* Added Sanity check.  Sectors run 0 to NUM_ROOM_SECTORS - 1, so the
+     * test has to be >=: sector 10 was passing it and then indexing
+     * movement_loss[], which has exactly NUM_ROOM_SECTORS entries.  A
+     * negative sector was never tested for at all. */
+    if (t[2] < 0 || t[2] >= NUM_ROOM_SECTORS) {
+      log("SYSERR: Sector type %d out of range in room #%d, using inside.", t[2], virtual_nr);
+      t[2] = SECT_INSIDE;
+    }
 
     world[room_nr].sector_type = t[2];
     } else {
@@ -1360,7 +1446,7 @@ void parse_room(FILE *fl, int virtual_nr)
   snprintf(buf, sizeof(buf), "SYSERR: Format error in room #%d (expecting D/E/S)", virtual_nr);
 
   for (;;) {
-    if (!get_line(fl, line)) {
+    if (!get_line(fl, line, sizeof(line))) {
       log("%s", buf);
       exit(1);
     }
@@ -1400,19 +1486,24 @@ void setup_dir(FILE *fl, int room, int dir)
 {
   int t[5];
   char line[READ_SIZE], buf2[128];
+  char *general_description, *keyword;
 
-  snprintf(buf2, sizeof(buf2), "room #%d, direction D%d", GET_ROOM_VNUM(room)+1, dir);
+  /* Not GET_ROOM_VNUM(room): top_of_world is not advanced to this room
+   * until its 'S' line is read, which happens after these D blocks, so
+   * the macro answers NOWHERE for every room but rnum 0 and the label
+   * reads "room #65536".  world[room].number was set by parse_room and
+   * is the vnum being read. */
+  snprintf(buf2, sizeof(buf2), "room #%d, direction D%d", world[room].number, dir);
 
-  if (!CONFIG_DIAGONAL_DIRS && IS_DIAGONAL(dir)) {
-    log("Warning: Diagonal direction disabled: %s", buf2);
-    return;
-  }
+  /* Read the block before deciding what to do with it.  A direction this
+   * build will not store still occupies two ~-terminated strings and a
+   * numeric line in the file, and leaving them in the stream makes the
+   * next pass round parse_room's loop read the exit's description as
+   * though it were a directive. */
+  general_description = fread_string(fl, buf2);
+  keyword = fread_string(fl, buf2);
 
-  CREATE(world[room].dir_option[dir], struct room_direction_data, 1);
-  world[room].dir_option[dir]->general_description = fread_string(fl, buf2);
-  world[room].dir_option[dir]->keyword = fread_string(fl, buf2);
-
-  if (!get_line(fl, line)) {
+  if (!get_line(fl, line, sizeof(line))) {
     log("SYSERR: Format error, %s", buf2);
     exit(1);
   }
@@ -1420,6 +1511,35 @@ void setup_dir(FILE *fl, int room, int dir)
     log("SYSERR: Format error, %s", buf2);
     exit(1);
   }
+
+  /* dir indexes dir_option[NUM_OF_DIRS] and comes from atoi() on the D
+   * line, so nothing has established that it is a direction at all. */
+  if (dir < 0 || dir >= NUM_OF_DIRS) {
+    log("SYSERR: Direction out of range, %s (0-%d)", buf2, NUM_OF_DIRS - 1);
+    free(general_description);
+    free(keyword);
+    return;
+  }
+
+  if (!CONFIG_DIAGONAL_DIRS && IS_DIAGONAL(dir)) {
+    log("Warning: Diagonal direction disabled: %s", buf2);
+    free(general_description);
+    free(keyword);
+    return;
+  }
+
+  /* A second D block for the same direction would otherwise drop the
+   * first one's struct and both of its strings on the floor. */
+  if (world[room].dir_option[dir]) {
+    log("SYSERR: Duplicate %s, replacing the first one", buf2);
+    free(world[room].dir_option[dir]->general_description);
+    free(world[room].dir_option[dir]->keyword);
+    free(world[room].dir_option[dir]);
+  }
+
+  CREATE(world[room].dir_option[dir], struct room_direction_data, 1);
+  world[room].dir_option[dir]->general_description = general_description;
+  world[room].dir_option[dir]->keyword = keyword;
   if (t[0] == 1)
     world[room].dir_option[dir]->exit_info = EX_ISDOOR;
   else if (t[0] == 2)
@@ -1458,13 +1578,33 @@ static void check_start_rooms(void)
 void renum_world(void)
 {
   int room, door;
+  room_vnum vnum;
+  room_rnum rnum;
 
   for (room = 0; room <= top_of_world; room++)
     for (door = 0; door < NUM_OF_DIRS; door++)
-      if (world[room].dir_option[door])
-	if (world[room].dir_option[door]->to_room != NOWHERE)
-	  world[room].dir_option[door]->to_room =
-	    real_room(world[room].dir_option[door]->to_room);
+      if (world[room].dir_option[door]) {
+	vnum = world[room].dir_option[door]->to_room;
+	if (vnum == NOWHERE)
+	  continue;	/* a description-only direction, written as -1 or 0 */
+
+	/* Report an exit naming a room that is not loaded. This is the last
+	 * point at which it CAN be reported: the lookup below overwrites the
+	 * vnum, and afterwards a dangling exit and a deliberate
+	 * description-only direction are both simply NOWHERE and cannot be
+	 * told apart. Until now nothing said anything at all -- the exit
+	 * stopped working and stopped being listed, with no trace anywhere. */
+	/* Not in mini-mud mode: index.mini loads a handful of files, so most
+	 * of the world legitimately is not there and every other boot-time
+	 * vnum diagnostic in this file skips it for the same reason. A
+	 * developer who is taught to ignore these stops reading them. */
+	rnum = real_room(vnum);
+	if (rnum == NOWHERE && !mini_mud)
+	  log("SYSERR: Room #%d exit %s leads to room #%d, which could not be found.",
+	      world[room].number, dirs[door], vnum);
+
+	world[room].dir_option[door]->to_room = rnum;
+      }
 }
 
 /** This is not the same ZCMD as used elsewhere. GRUMBLE... namespace conflict
@@ -1551,7 +1691,7 @@ static void parse_simple_mob(FILE *mob_f, int i, int nr)
   mob_proto[i].real_abils.con = 11;
   mob_proto[i].real_abils.cha = 11;
 
-  if (!get_line(mob_f, line)) {
+  if (!get_line(mob_f, line, sizeof(line))) {
     log("SYSERR: Format error in mob #%d, file ended after S flag!", nr);
     exit(1);
   }
@@ -1580,7 +1720,7 @@ static void parse_simple_mob(FILE *mob_f, int i, int nr)
   mob_proto[i].mob_specials.damsizedice = t[7];
   GET_DAMROLL(mob_proto + i) = t[8];
 
-  if (!get_line(mob_f, line)) {
+  if (!get_line(mob_f, line, sizeof(line))) {
       log("SYSERR: Format error in mob #%d, second line after S flag\n"
 	  "...expecting line of form '# #', but file ended!", nr);
       exit(1);
@@ -1595,7 +1735,7 @@ static void parse_simple_mob(FILE *mob_f, int i, int nr)
   GET_GOLD(mob_proto + i) = t[0];
   GET_EXP(mob_proto + i) = t[1];
 
-  if (!get_line(mob_f, line)) {
+  if (!get_line(mob_f, line, sizeof(line))) {
     log("SYSERR: Format error in last line of mob #%d\n"
 	"...expecting line of form '# # #', but file ended!", nr);
     exit(1);
@@ -1733,7 +1873,7 @@ static void parse_enhanced_mob(FILE *mob_f, int i, int nr)
 
   parse_simple_mob(mob_f, i, nr);
 
-  while (get_line(mob_f, line)) {
+  while (get_line(mob_f, line, sizeof(line))) {
     if (!strcmp(line, "E"))	/* end of the enhanced section */
       return;
     else if (*line == '#') {	/* we've hit the next mob, maybe? */
@@ -1752,7 +1892,10 @@ void parse_mobile(FILE *mob_f, int nr)
   static int i = 0;
   int j, t[10], retval;
   char line[READ_SIZE], *tmpptr, letter;
-  char f1[128], f2[128], f3[128], f4[128], f5[128], f6[128], f7[128], f8[128], buf2[128];
+  char f1[WORLD_FLAG_FIELD + 1], f2[WORLD_FLAG_FIELD + 1];
+  char f3[WORLD_FLAG_FIELD + 1], f4[WORLD_FLAG_FIELD + 1];
+  char f5[WORLD_FLAG_FIELD + 1], f6[WORLD_FLAG_FIELD + 1];
+  char f7[WORLD_FLAG_FIELD + 1], f8[WORLD_FLAG_FIELD + 1], buf2[128];
 
   mob_index[i].vnum = nr;
   mob_index[i].number = 0;
@@ -1778,13 +1921,21 @@ void parse_mobile(FILE *mob_f, int nr)
   GET_TITLE(mob_proto + i) = NULL;
 
   /* Numeric data */
-  if (!get_line(mob_f, line)) {
+  if (!get_line(mob_f, line, sizeof(line))) {
     log("SYSERR: Format error after string section of mob #%d\n"
 	"...expecting line of form '# # # {S | E}', but file ended!", nr);
     exit(1);
   }
 
-  if (((retval = sscanf(line, "%s %s %s %s %s %s %s %s %d %c", f1, f2, f3, f4, f5, f6, f7, f8, t + 2, &letter)) != 10) && (bitwarning == TRUE)) {
+  if (line_has_overlong_field(line)) {
+    log("SYSERR: Mob #%d has a field longer than %d characters.",
+	nr, WORLD_FLAG_FIELD);
+    exit(1);
+  }
+
+  if (((retval = sscanf(line, FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT
+                       " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT
+                       " %d %c", f1, f2, f3, f4, f5, f6, f7, f8, t + 2, &letter)) != 10) && (bitwarning == TRUE)) {
     /* Let's make the implementor read some, before converting his world files. */
     log("WARNING: Conventional mobile files detected. See config.c.");
     exit(1);
@@ -1804,9 +1955,6 @@ void parse_mobile(FILE *mob_f, int nr)
     GET_ALIGNMENT(mob_proto + i) = atoi(f3);
 
     /* Make some basic checks. */
-    REMOVE_BIT_AR(AFF_FLAGS(mob_proto + i), AFF_CHARM);
-    REMOVE_BIT_AR(AFF_FLAGS(mob_proto + i), AFF_POISON);
-    REMOVE_BIT_AR(AFF_FLAGS(mob_proto + i), AFF_SLEEP);
     if (MOB_FLAGGED(mob_proto + i, MOB_AGGRESSIVE) && MOB_FLAGGED(mob_proto + i, MOB_AGGR_GOOD))
       REMOVE_BIT_AR(MOB_FLAGS(mob_proto + i), MOB_AGGR_GOOD);
     if (MOB_FLAGGED(mob_proto + i, MOB_AGGRESSIVE) && MOB_FLAGGED(mob_proto + i, MOB_AGGR_NEUTRAL))
@@ -1823,11 +1971,33 @@ void parse_mobile(FILE *mob_f, int nr)
     letter = *f4;
 
     if(bitsavetodisk) {
-      add_to_save_list(zone_table[real_zone_by_thing(nr)].number, 0);
+      /* real_zone_by_thing() answers NOWHERE when it cannot place the
+       * vnum, and this indexed zone_table with it -- past the end of the
+       * table where IDXTYPE is unsigned, before the start where it is
+       * signed.  add_to_save_list() re-checks the zone number it is
+       * handed, so what usually follows is the boot walking off the table
+       * rather than the wrong file being rewritten; either way the read is
+       * out of bounds.  parse_room has a zone of its own to file the room
+       * under; here the lookup is the only answer there is, so a vnum it
+       * cannot place is not queued.  What becomes of the record after
+       * that is not something this knows.  A vnum no zone covers is
+       * dropped by a rewrite of the file it sits in, since the savers
+       * walk their own zone's range; but the lookup also gives up on a
+       * vnum some zone does cover, when its search never reaches that
+       * entry, and then the outcome turns on which file the record
+       * happens to sit in.  So the message says what was established and
+       * no more. */
+      zone_rnum tzone = real_zone_by_thing(nr);
+
+      if (tzone == NOWHERE)
+        log("SYSERR: No zone found for mobile #%d; it is not queued for "
+            "conversion.", nr);
+      else
+        add_to_save_list(zone_table[tzone].number, SL_MOB);
       converting =TRUE;
     }
 
-  //log("   done.");
+  log("   done.");
   } else if (retval == 10) {
     int taeller;
 
@@ -1857,6 +2027,27 @@ void parse_mobile(FILE *mob_f, int nr)
     /* Rather bad to load mobiles with this bit already set. */
     log("SYSERR: Mob #%d has reserved bit MOB_NOTDEADYET set.", nr);
     REMOVE_BIT_AR(MOB_FLAGS(mob_proto + i), MOB_NOTDEADYET);
+  }
+
+  /* CHARM, POISON and SLEEP say something is being done to a mob rather than
+   * something it is, and nothing in the game puts them back once they are
+   * gone, so a mob file that sets one leaves the mob that way for the rest of
+   * its life.  medit strips all three on save; this is the same check for the
+   * files medit has never touched.  It used to sit in the conversion branch
+   * above and so ran only on pre-128-bit mob files, which is to say on none
+   * of a modern world's.  Say which mob is at fault rather than fixing it
+   * quietly: the mob file still has the bit, and only a builder can take it
+   * out for good. */
+  if (AFF_FLAGGED(mob_proto + i, AFF_CHARM) ||
+      AFF_FLAGGED(mob_proto + i, AFF_POISON) ||
+      AFF_FLAGGED(mob_proto + i, AFF_SLEEP)) {
+    log("SYSERR: Mob #%d has illegal affection bits set:%s%s%s -- removing them.", nr,
+        AFF_FLAGGED(mob_proto + i, AFF_CHARM)  ? " CHARM"  : "",
+        AFF_FLAGGED(mob_proto + i, AFF_POISON) ? " POISON" : "",
+        AFF_FLAGGED(mob_proto + i, AFF_SLEEP)  ? " SLEEP"  : "");
+    REMOVE_BIT_AR(AFF_FLAGS(mob_proto + i), AFF_CHARM);
+    REMOVE_BIT_AR(AFF_FLAGS(mob_proto + i), AFF_POISON);
+    REMOVE_BIT_AR(AFF_FLAGS(mob_proto + i), AFF_SLEEP);
   }
 
   switch (UPPER(letter)) {
@@ -1929,7 +2120,7 @@ char *parse_object(FILE *obj_f, int nr)
   obj_proto[i].action_description = fread_string(obj_f, buf2);
 
   /* numeric data */
-  if (!get_line(obj_f, line)) {
+  if (!get_line(obj_f, line, sizeof(line))) {
     log("SYSERR: Expecting first numeric line of %s, but file ended!", buf2);
     exit(1);
   }
@@ -1961,11 +2152,33 @@ char *parse_object(FILE *obj_f, int nr)
     GET_OBJ_AFFECT(obj_proto + i)[3] = 0;
 
     if(bitsavetodisk) {
-      add_to_save_list(zone_table[real_zone_by_thing(nr)].number, 1);
+      /* real_zone_by_thing() answers NOWHERE when it cannot place the
+       * vnum, and this indexed zone_table with it -- past the end of the
+       * table where IDXTYPE is unsigned, before the start where it is
+       * signed.  add_to_save_list() re-checks the zone number it is
+       * handed, so what usually follows is the boot walking off the table
+       * rather than the wrong file being rewritten; either way the read is
+       * out of bounds.  parse_room has a zone of its own to file the room
+       * under; here the lookup is the only answer there is, so a vnum it
+       * cannot place is not queued.  What becomes of the record after
+       * that is not something this knows.  A vnum no zone covers is
+       * dropped by a rewrite of the file it sits in, since the savers
+       * walk their own zone's range; but the lookup also gives up on a
+       * vnum some zone does cover, when its search never reaches that
+       * entry, and then the outcome turns on which file the record
+       * happens to sit in.  So the message says what was established and
+       * no more. */
+      zone_rnum tzone = real_zone_by_thing(nr);
+
+      if (tzone == NOWHERE)
+        log("SYSERR: No zone found for object #%d; it is not queued for "
+            "conversion.", nr);
+      else
+        add_to_save_list(zone_table[tzone].number, SL_OBJ);
       converting = TRUE;
     }
 
-    //log("   done.");
+    log("   done.");
   } else if (retval == 13) {
 
     GET_OBJ_EXTRA(obj_proto + i)[0] = asciiflag_conv(f1);
@@ -1989,7 +2202,7 @@ char *parse_object(FILE *obj_f, int nr)
   /* Object flags checked in check_object(). */
   GET_OBJ_TYPE(obj_proto + i) = t[0];
 
-  if (!get_line(obj_f, line)) {
+  if (!get_line(obj_f, line, sizeof(line))) {
     log("SYSERR: Expecting second numeric line of %s, but file ended!", buf2);
     exit(1);
   }
@@ -2002,7 +2215,7 @@ char *parse_object(FILE *obj_f, int nr)
   GET_OBJ_VAL(obj_proto + i, 2) = t[2];
   GET_OBJ_VAL(obj_proto + i, 3) = t[3];
 
-  if (!get_line(obj_f, line)) {
+  if (!get_line(obj_f, line, sizeof(line))) {
     log("SYSERR: Expecting third numeric line of %s, but file ended!", buf2);
     exit(1);
   }
@@ -2044,7 +2257,7 @@ char *parse_object(FILE *obj_f, int nr)
   j = 0;
 
   for (;;) {
-    if (!get_line(obj_f, line)) {
+    if (!get_line(obj_f, line, sizeof(line))) {
       log("SYSERR: Format error in %s", buf2);
       exit(1);
     }
@@ -2061,7 +2274,7 @@ char *parse_object(FILE *obj_f, int nr)
 	log("SYSERR: Too many A fields (%d max), %s", MAX_OBJ_AFFECT, buf2);
 	exit(1);
       }
-      if (!get_line(obj_f, line)) {
+      if (!get_line(obj_f, line, sizeof(line))) {
 	log("SYSERR: Format error in 'A' field, %s\n"
 	    "...expecting 2 numeric constants but file ended!", buf2);
 	exit(1);
@@ -2101,7 +2314,7 @@ static void load_zones(FILE *fl, char *zonename)
   int i, cmd_no, num_of_cmds = 0, line_num = 0, tmp, error;
   char *ptr, buf[READ_SIZE], zname[READ_SIZE], buf2[MAX_STRING_LENGTH];
   int zone_fix = FALSE;
-  char t1[80], t2[80];
+  char t1[ZCMD_STR_FIELD + 1], t2[ZCMD_STR_FIELD + 1];
   char zbuf1[MAX_STRING_LENGTH], zbuf2[MAX_STRING_LENGTH];
   char zbuf3[MAX_STRING_LENGTH], zbuf4[MAX_STRING_LENGTH];
 
@@ -2109,14 +2322,33 @@ static void load_zones(FILE *fl, char *zonename)
 
   /* Skip first 3 lines lest we mistake the zone name for a command. */
   for (tmp = 0; tmp < 3; tmp++)
-    get_line(fl, buf);
+    get_line(fl, buf, sizeof(buf));
 
-  /* More accurate count. Previous was always 4 or 5 too high. -gg Note that if
-   * a new zone command is added to reset_zone(), this string will need to be
-   * updated to suit. - ae. */
-  while (get_line(fl, buf))
-    if ((strchr("MOPGERDTV", buf[0]) && buf[1] == ' ') || (buf[0] == 'S' && buf[1] == '\0'))
-      num_of_cmds++;
+  /* Count a line for every one the loop below can write, and never fewer.
+   * Z.cmd is allocated to this number and indexed by cmd_no, so a line the
+   * parser accepts and this pass does not is a struct reset_com written
+   * past the end of the allocation.  Testing the command letter here and
+   * calling skip_spaces() there made the two disagree over a command with
+   * leading whitespace, a tab after the letter, a letter outside the list,
+   * and the '$' form of the terminator: all four are parsed, none were
+   * counted.
+   *
+   * Counting every line that is not a comment cannot come out short.  It
+   * is one over in the ordinary case, because the numeric constants line
+   * is still ahead of us here, and exactly right for a zone with no
+   * builders line, where the parser reuses that line as its first command.
+   * A spare entry costs one zeroed struct per zone and is never reached --
+   * reset_zone() stops at the 'S'.  Nothing here has to be kept up to date
+   * when a new command letter is added, either. */
+  while (get_line(fl, buf, sizeof(buf))) {
+    ptr = buf;
+    skip_spaces(&ptr);
+    if (*ptr == '*')
+      continue;
+    num_of_cmds++;
+    if (*ptr == 'S' || *ptr == '$')
+      break;
+  }
 
   rewind(fl);
 
@@ -2126,7 +2358,7 @@ static void load_zones(FILE *fl, char *zonename)
   } else
     CREATE(Z.cmd, struct reset_com, num_of_cmds);
 
-  line_num += get_line(fl, buf);
+  line_num += get_line(fl, buf, sizeof(buf));
 
   if (sscanf(buf, "#%hd", &Z.number) != 1) {
     log("SYSERR: Format error in %s, line %d", zname, line_num);
@@ -2134,12 +2366,12 @@ static void load_zones(FILE *fl, char *zonename)
   }
   snprintf(buf2, sizeof(buf2), "beginning of zone #%d", Z.number);
 
-  line_num += get_line(fl, buf);
+  line_num += get_line(fl, buf, sizeof(buf));
   if ((ptr = strchr(buf, '~')) != NULL) /* take off the '~' if it's there */
     *ptr = '\0';
   Z.builders = strdup(buf);
 
-  line_num += get_line(fl, buf);
+  line_num += get_line(fl, buf, sizeof(buf));
   if ((ptr = strchr(buf, '~')) != NULL)	/* take off the '~' if it's there */
     *ptr = '\0';
   Z.name = strdup(buf);
@@ -2149,7 +2381,7 @@ static void load_zones(FILE *fl, char *zonename)
   for (i=0; i<ZN_ARRAY_MAX; i++)
     Z.zone_flags[i] = 0;
 
-  line_num += get_line(fl, buf);
+  line_num += get_line(fl, buf, sizeof(buf));
   /* Look for 10 items first (new tbaMUD), if not found, try 4 (old tbaMUD) */
   if  (sscanf(buf, " %hd %hd %d %d %s %s %s %s %d %d", &Z.bot, &Z.top, &Z.lifespan,
       &Z.reset_mode, zbuf1, zbuf2, zbuf3, zbuf4, &Z.min_level, &Z.max_level) != 10)
@@ -2192,7 +2424,7 @@ static void load_zones(FILE *fl, char *zonename)
   for (;;) {
     /* skip reading one line if we fixed above (line is correct already) */
     if (zone_fix != TRUE) {
-      if ((tmp = get_line(fl, buf)) == 0) {
+      if ((tmp = get_line(fl, buf, sizeof(buf))) == 0) {
         log("SYSERR: Format error in %s - premature end of file", zname);
         exit(1);
       }
@@ -2202,6 +2434,15 @@ static void load_zones(FILE *fl, char *zonename)
     line_num += tmp;
     ptr = buf;
     skip_spaces(&ptr);
+
+    /* Before the write, not after it.  The count and this loop have to
+     * agree, and the test that they did was made once the whole file had
+     * been parsed -- by which time whatever they disagreed about had
+     * already been written past the end of Z.cmd. */
+    if (cmd_no >= num_of_cmds) {
+      log("SYSERR: More commands in %s than the %d counted.", zname, num_of_cmds);
+      exit(1);
+    }
 
     if ((ZCMD.command = *ptr) == '*')
       continue;
@@ -2217,7 +2458,7 @@ static void load_zones(FILE *fl, char *zonename)
       if (sscanf(ptr, " %d %d %d ", &tmp, &ZCMD.arg1, &ZCMD.arg2) != 3)
 	error = 1;
     } else if (ZCMD.command=='V') { /* a string-arg command */
-      if (sscanf(ptr, " %d %d %d %d %79s %79[^\f\n\r\t\v]", &tmp, &ZCMD.arg1, &ZCMD.arg2,
+      if (sscanf(ptr, " %d %d %d %d " ZCMD_STR_FMT " " ZCMD_TXT_FMT, &tmp, &ZCMD.arg1, &ZCMD.arg2,
 		 &ZCMD.arg3, t1, t2) != 6)
 	error = 1;
       else {
@@ -2238,11 +2479,6 @@ static void load_zones(FILE *fl, char *zonename)
     }
     ZCMD.line = line_num;
     cmd_no++;
-  }
-
-  if (num_of_cmds != cmd_no + 1) {
-    log("SYSERR: Zone command count mismatch for %s. Estimated: %d, Actual: %d", zname, num_of_cmds, cmd_no + 1);
-    exit(1);
   }
 
   top_of_zone_table = zone++;
@@ -2283,6 +2519,7 @@ void free_help_table(void)
     help_table = NULL;
   }
   top_of_helpt = 0;
+  help_table_version++;
 }
 
 void load_help(FILE * fl, char *name)
@@ -2434,6 +2671,7 @@ void new_mobile_data(struct char_data *ch)
 struct char_data *read_mobile(mob_vnum nr, int type) /* and mob_rnum */
 {
   mob_rnum i;
+  int j;
   struct char_data *mob;
 
   if (type == VIRTUAL) {
@@ -2448,6 +2686,16 @@ struct char_data *read_mobile(mob_vnum nr, int type) /* and mob_rnum */
   clear_char(mob);
  
   *mob = mob_proto[i];
+
+  /* Remember the flags this mob is created with, so that affect bookkeeping
+   * can tell one of them from a flag some spell or item put there.  Kept on
+   * the mob rather than read back out of the prototype later, because the two
+   * drift: medit can edit a prototype under a mob already in the world, and
+   * %transform% leaves a mob wearing another prototype's flags while
+   * GET_MOB_RNUM() still names the one it was loaded from. */
+  for (j = 0; j < AF_ARRAY_MAX; j++)
+    GET_INNATE_AFF(mob)[j] = AFF_FLAGS(mob)[j];
+
   mob->next = character_list;
   character_list = mob;
   
@@ -2574,13 +2822,11 @@ void zone_update(void)
       mudlog(CMP, LVL_IMPL+1, FALSE, "Auto zone reset: %s (Zone %d)",
           zone_table[update_u->zone_to_reset].name, zone_table[update_u->zone_to_reset].number);
       struct descriptor_data *pt;
-#if 0 // prool fool
       for (pt = descriptor_list; pt; pt = pt->next)
         if (IS_PLAYING(pt) && pt->character && PRF_FLAGGED(pt->character, PRF_ZONERESETS))
           send_to_char(pt->character, "%s[Auto zone reset: %s (Zone %d)]%s", 
             CCGRN(pt->character, C_NRM), zone_table[update_u->zone_to_reset].name, 
             zone_table[update_u->zone_to_reset].number, CCNRM(pt->character, C_NRM));
-#endif
       /* dequeue */
       if (update_u == reset_q.head)
 	reset_q.head = reset_q.head->next;
@@ -2601,11 +2847,9 @@ void zone_update(void)
 
 static void log_zone_error(zone_rnum zone, int cmd_no, const char *message)
 {
-#if 0 // prool
   mudlog(NRM, LVL_GOD, TRUE, "SYSERR: zone file: %s", message);
   mudlog(NRM, LVL_GOD, TRUE, "SYSERR: ...offending cmd: '%c' cmd in zone #%d, line %d",
 	ZCMD.command, zone_table[zone].number, ZCMD.line);
-#endif
 }
 
 #define ZONE_ERROR(message) \
@@ -2713,7 +2957,11 @@ void reset_zone(zone_rnum zone)
       if (obj_index[ZCMD.arg1].number < ZCMD.arg2) {
 	if (ZCMD.arg3 < 0 || ZCMD.arg3 >= NUM_WEARS) {
           char error[MAX_INPUT_LENGTH];
-	  snprintf(error, sizeof(error), "invalid equipment pos number (mob %s, obj %d, pos %d)", GET_NAME(mob), obj_index[ZCMD.arg2].vnum, ZCMD.arg3);
+	  /* arg1 is the object, arg2 the load count -- the tests either side
+	   * of this one both use arg1.  Indexing obj_index[] with the count
+	   * named an unrelated object, and read past the table on a world
+	   * holding fewer objects than the count. */
+	  snprintf(error, sizeof(error), "invalid equipment pos number (mob %s, obj %d, pos %d)", GET_NAME(mob), obj_index[ZCMD.arg1].vnum, ZCMD.arg3);
 	  ZONE_ERROR(error);
 	} else {
 	  obj = read_object(ZCMD.arg1, REAL);
@@ -2786,13 +3034,17 @@ void reset_zone(zone_rnum zone)
         add_trigger(SCRIPT(tobj), read_trigger(ZCMD.arg2), -1);
         last_cmd = 1;
       } else if (ZCMD.arg1==WLD_TRIGGER) {
+        /* The V case below has the else and is the shape this wants: the
+         * test logged the room number and then indexed world[] with it
+         * regardless, which for NOWHERE is world[65535]. */
         if (ZCMD.arg3 == NOWHERE || ZCMD.arg3>top_of_world) {
           ZONE_ERROR("Invalid room number in trigger assignment");
+        } else {
+          if (!world[ZCMD.arg3].script)
+            CREATE(world[ZCMD.arg3].script, struct script_data, 1);
+          add_trigger(world[ZCMD.arg3].script, read_trigger(ZCMD.arg2), -1);
+          last_cmd = 1;
         }
-        if (!world[ZCMD.arg3].script)
-          CREATE(world[ZCMD.arg3].script, struct script_data, 1);
-        add_trigger(world[ZCMD.arg3].script, read_trigger(ZCMD.arg2), -1);
-        last_cmd = 1;
       }
 
       break;
@@ -2871,14 +3123,22 @@ int is_empty(zone_rnum zone_nr)
 /* read and allocate space for a '~'-terminated string from a given file */
 char *fread_string(FILE *fl, const char *error)
 {
-  char buf[MAX_STRING_LENGTH], tmp[513];
+  /* fgets() stores at most FREAD_CHUNK - 1 characters and a NUL, so the NUL
+   * can land at FREAD_CHUNK - 1.  The else branch below then writes from
+   * there: '\r', '\n' and '\0', ending two past the NUL.  So the array has to
+   * be the fgets bound plus two, and it was the fgets bound plus one -- a
+   * line of FREAD_CHUNK - 1 characters with no newline among them wrote one
+   * byte off the end of the stack.  Deriving both from one constant is what
+   * keeps the two in step; that they were written as 512 and 513 is how they
+   * drifted apart in the first place. */
+  char buf[MAX_STRING_LENGTH], tmp[FREAD_CHUNK + 2];
   char *point;
   int done = 0, length = 0, templength;
 
   *buf = '\0';
 
   do {
-    if (!fgets(tmp, 512, fl)) {
+    if (!fgets(tmp, FREAD_CHUNK, fl)) {
       log("SYSERR: fread_string: format error at or near %s", error);
       exit(1);
     }
@@ -2919,7 +3179,9 @@ char *fread_string(FILE *fl, const char *error)
 /* fread_clean_string is the same as fread_string, but skips preceding spaces */
 char *fread_clean_string(FILE *fl, const char *error)
 {
-  char buf[MAX_STRING_LENGTH], tmp[513];
+  /* Same three-byte tail as fread_string(), and this one always takes it --
+   * there is no branch here that rewrites in place -- so the same plus-two. */
+  char buf[MAX_STRING_LENGTH], tmp[FREAD_CHUNK + 2];
   char *point, c;
   int done = 0, length = 0, templength;
 
@@ -2938,19 +3200,29 @@ char *fread_clean_string(FILE *fl, const char *error)
   ungetc( c, fl );
 
   do {
-    if (!fgets(tmp, 512, fl)) {
+    if (!fgets(tmp, FREAD_CHUNK, fl)) {
       log("SYSERR: fread_clean_string: format error at or near %s", error);
       exit(1);
     }
     /* If there is a '~', end the string; else put an "\r\n" over the '\n'. */
     /* now only removes trailing ~'s -- Welcor */
     point = strchr(tmp, '\0');
-    for (point-- ; (*point=='\r' || *point=='\n'); point--);
+    /* Same walk and same tail as fread_string().  The guard and the in-place
+     * branch below are one mechanism, not two: without the guard a chunk that
+     * is nothing but newlines walks point off the FRONT of tmp, and the guard
+     * is what makes it possible for point to still be sitting on a carriage
+     * return or a newline when the walk stops -- which is the case the branch
+     * rewrites in place instead of appending past.  This copy had neither. */
+    for (point-- ; (*point=='\r' || *point=='\n') && point > tmp; point--);
     if (*point=='~') {
       *point='\0';
       done = 1;
     } else {
-      *(++point) = '\r';
+      if (*point == '\n' || *point == '\r')
+        *point = '\r';
+      else
+        *(++point) = '\r';
+
       *(++point) = '\n';
       *(++point) = '\0';
     }
@@ -3502,7 +3774,9 @@ void clear_object(struct obj_data *obj)
 
   obj->item_number = NOTHING;
   IN_ROOM(obj) = NOWHERE;
-  obj->worn_on = NOWHERE;
+  /* A wear slot, not a room.  NOWHERE only became the -1 that unequip_char()
+   * uses because converting 65535 to sh_int yields -1. */
+  obj->worn_on = -1;
 }
 
 /* Called during character creation after picking character class (and then
@@ -3589,16 +3863,90 @@ void init_char(struct char_data *ch)
   GET_SCREEN_WIDTH(ch) = PAGE_WIDTH;
   
   /* Set Beginning Toggles Here */
-  SET_BIT_AR(PRF_FLAGS(ch), PRF_AUTOEXIT);
+  set_default_prefs(ch, PRF_FLAGS(ch));
+}
+
+/* The default preference toggles, in one place.  This used to live only here,
+ * spelled out inline, while prefedit's "restore defaults" kept a second and
+ * longer list of its own -- and the two disagreed about six flags, so
+ * restoring defaults handed a player a set no newly created character had ever
+ * had.  Whichever list is right, there cannot be two of them.
+ *
+ * A character brand new from init_char() and one restored by prefedit now get
+ * the same answer, and adding a toggle means editing one function.
+ *
+ * The colour test below is the one init_char() has always used, and it is
+ * worth being plain about what it does rather than what it looks like.
+ * pVariables is an array of pointers, and ProtocolCreate() mallocs an entry for
+ * every variable in it, so the entry is never NULL and the condition is true
+ * whenever ch->desc is: colour goes on for anyone with a descriptor, not only
+ * for a client that advertised it.  That is the established behaviour and this
+ * does not change it.  Reading the value instead of the pointer would turn
+ * colour off for every client that never negotiates MSDP, which is a decision
+ * for each MUD to make deliberately rather than one to slip in here. */
+void set_default_prefs(struct char_data *ch, int flags[])
+{
+  int i;
+
+  for (i = 0; i < PR_ARRAY_MAX; i++)
+    flags[i] = 0;
+
+  SET_BIT_AR(flags, PRF_AUTOEXIT);
+  SET_BIT_AR(flags, PRF_DISPHP);
+  SET_BIT_AR(flags, PRF_DISPMANA);
+  SET_BIT_AR(flags, PRF_DISPMOVE);
+
   if (ch->desc)
-    if (ch->desc->pProtocol->pVariables[eMSDP_ANSI_COLORS] || 
+    if (ch->desc->pProtocol->pVariables[eMSDP_ANSI_COLORS] ||
       ch->desc->pProtocol->pVariables[eMSDP_XTERM_256_COLORS]) {
-      SET_BIT_AR(PRF_FLAGS(ch), PRF_COLOR_1);
-      SET_BIT_AR(PRF_FLAGS(ch), PRF_COLOR_2);
-    } 
-  SET_BIT_AR(PRF_FLAGS(ch), PRF_DISPHP);  
-  SET_BIT_AR(PRF_FLAGS(ch), PRF_DISPMANA);
-  SET_BIT_AR(PRF_FLAGS(ch), PRF_DISPMOVE);
+      SET_BIT_AR(flags, PRF_COLOR_1);
+      SET_BIT_AR(flags, PRF_COLOR_2);
+    }
+
+  /* What the game grants for rank rather than for taste, from the same list
+   * do_advance() uses when it promotes someone.  prefedit is the caller that
+   * needs the test: it restores an existing character, who may be any level.
+   * From init_char() it is very nearly dead -- a new character is level 0 --
+   * but not entirely, because the first character created on a fresh MUD has
+   * been made LVL_IMPL a few lines above.  That implementor is now given the
+   * set at creation; before, it started with none of it and set it by hand.
+   *
+   * The boundary is >= LVL_IMMORT, the one prefedit's own menu uses to decide
+   * who is shown these, and the one do_advance() draws.  A character at
+   * exactly LVL_IMMORT is an immortal. */
+  if (GET_LEVEL(ch) >= LVL_IMMORT)
+    set_rank_prefs(flags);
+}
+
+/* The preference flags a character holds by rank rather than by taste.  One
+ * list, because there were two: do_advance() granted LOG2, HOLYLIGHT and
+ * SHOWVNUMS on promotion while set_default_prefs() granted NOHASSLE,
+ * HOLYLIGHT and SHOWVNUMS, and the demotion arm stripped all of them.  So a
+ * character demoted and promoted again came back without the NOHASSLE it had,
+ * while HOLYLIGHT and SHOWVNUMS returned by themselves.
+ *
+ * The set is what demotion has always taken away, which is the game's own
+ * statement of which flags belong to rank rather than to the player.  The
+ * syslog bits are the one wrinkle: demotion clears both, to put the level at
+ * Off, and this sets only LOG2, which is Normal. */
+void set_rank_prefs(int flags[])
+{
+  SET_BIT_AR(flags, PRF_NOHASSLE);
+  SET_BIT_AR(flags, PRF_HOLYLIGHT);
+  SET_BIT_AR(flags, PRF_SHOWVNUMS);
+  SET_BIT_AR(flags, PRF_LOG2);   /* with LOG1 clear, syslog level Normal */
+}
+
+/* The same set on the way back down, plus PRF_LOG1: the two syslog bits are
+ * one level from 0 to 3, so both have to go to turn it off rather than leave
+ * it at Brief. */
+void remove_rank_prefs(int flags[])
+{
+  REMOVE_BIT_AR(flags, PRF_NOHASSLE);
+  REMOVE_BIT_AR(flags, PRF_HOLYLIGHT);
+  REMOVE_BIT_AR(flags, PRF_SHOWVNUMS);
+  REMOVE_BIT_AR(flags, PRF_LOG1);
+  REMOVE_BIT_AR(flags, PRF_LOG2);
 }
 
 /* returns the real number of the room with given virtual number */
@@ -3717,6 +4065,24 @@ static int check_object(struct obj_data *obj)
     log("SYSERR: Object #%d (%s) has negative cost/day (%d).",
 	GET_OBJ_VNUM(obj), obj->short_description, GET_OBJ_RENT(obj));
 
+  /* item_types[] is indexed by this directly -- olist, stat and the two spell
+   * displays all do it -- and nothing between the file and those readers
+   * bounds it.  parse_object() assigns the file's number straight into a
+   * signed char, so a type of 200 in an .obj file arrives as a negative one
+   * and reads before the array rather than past it.
+   *
+   * Corrected rather than only reported, because this function's result is
+   * discarded by its only caller: a line in the log would leave the bad type
+   * sitting in the prototype for every reader to trip over.  Correcting a
+   * malformed world value at load is what parse_object() already does for a
+   * drink container lighter than its own contents.  It also has to happen
+   * before the switch below, which dispatches on this same value. */
+  if ((GET_OBJ_TYPE(obj) < 0 || GET_OBJ_TYPE(obj) >= NUM_ITEM_TYPES) && (error = TRUE)) {
+    log("SYSERR: Object #%d (%s) has unknown type %d, treating it as UNDEFINED.",
+	GET_OBJ_VNUM(obj), obj->short_description, GET_OBJ_TYPE(obj));
+    GET_OBJ_TYPE(obj) = ITEM_UNDEFINED;
+  }
+
   snprintf(objname, sizeof(objname), "Object #%d (%s)", GET_OBJ_VNUM(obj), obj->short_description);
   for(y = 0; y < TW_ARRAY_MAX; y++) {
     error |= check_bitvector_names(GET_OBJ_WEAR(obj)[y], wear_bits_count, objname, "object wear");
@@ -3731,8 +4097,19 @@ static int check_object(struct obj_data *obj)
 
     strlcpy(onealias, space ? space + 1 : obj->name, sizeof(onealias));
     if (search_block(onealias, drinknames, TRUE) < 0 && (error = TRUE))
-      log("Warning: Object #%d (%s) doesn't have drink type as last keyword. (%s)",
+      log("SYSERR: Object #%d (%s) doesn't have drink type as last keyword. (%s)",
 		GET_OBJ_VNUM(obj), obj->short_description, obj->name);
+
+    /* The liquid type indexes three tables that act.item.c indexes
+     * directly, and was never looked at here.  oedit bounds what it writes, so a value out of
+     * range came from the file, from a script, or from a rent or house
+     * restore.  The uses are bounded now, but an operator should hear about
+     * it at boot rather than wonder why a bottle holds water. */
+    if ((GET_OBJ_VAL(obj, 2) < 0 || GET_OBJ_VAL(obj, 2) >= NUM_LIQ_TYPES)
+        && (error = TRUE))
+      log("SYSERR: Object #%d (%s) has liquid type %d, outside 0-%d.",
+		GET_OBJ_VNUM(obj), obj->short_description, GET_OBJ_VAL(obj, 2),
+		NUM_LIQ_TYPES - 1);
   }
   /* Fall through. */
   case ITEM_FOUNTAIN:
@@ -3947,7 +4324,7 @@ void load_config( void )
   }
 
   /* Load the game configuration file. */
-  while (get_line(fl, line)) {
+  while (get_line(fl, line, sizeof(line))) {
     split_argument(line, tag);
     num = atoi(line);
 

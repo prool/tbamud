@@ -47,17 +47,6 @@ static bool perform_new_char_dupe_check(struct descriptor_data *d);
 /* sort_commands utility */
 static int sort_commands_helper(const void *a, const void *b);
 
-// prool begin
-#define BUFLEN 1024
-extern int mode_1984;
-char *ptime(void);
-ACMD (do_prool);
-ACMD (do_proolcolor);
-ACMD (do_dukhmada);
-ACMD (do_fflush);
-void get_object(int n, struct char_data *ch);
-// prool end
-
 /* globals defined here, used here and elsewhere */
 int *cmd_sort_info = NULL;
 
@@ -146,7 +135,6 @@ cpp_extern const struct command_info cmd_info[] = {
   { "donate"   , "don"     , POS_RESTING , do_drop     , 0, SCMD_DONATE },
   { "drink"    , "dri"     , POS_RESTING , do_drink    , 0, SCMD_DRINK },
   { "drop"     , "dro"     , POS_RESTING , do_drop     , 0, SCMD_DROP },
-  { "dukhmada" , "dukh"    , POS_DEAD    , do_dukhmada , 0, 0 }, // prool
 
   { "eat"      , "ea"      , POS_RESTING , do_eat      , 0, SCMD_EAT },
   { "echo"     , "ec"      , POS_SLEEPING, do_echo     , LVL_IMMORT, SCMD_ECHO },
@@ -159,7 +147,6 @@ cpp_extern const struct command_info cmd_info[] = {
   { "export"   , "export"  , POS_DEAD    , do_export_zone, LVL_IMPL, 0 },
 
   { "force"    , "force"   , POS_SLEEPING, do_force    , LVL_GOD, 0 },
-  { "fflush"   , "fflush"  , POS_DEAD    , do_fflush   , 0, 0 }, // prool's test command
   { "fill"     , "fil"     , POS_STANDING, do_pour     , 0, SCMD_FILL },
   { "file"     , "file"    , POS_SLEEPING, do_file     , LVL_GOD, 0 },
   { "flee"     , "fl"      , POS_FIGHTING, do_flee     , 1, 0 },
@@ -256,8 +243,6 @@ cpp_extern const struct command_info cmd_info[] = {
   { "policy"   , "pol"     , POS_DEAD    , do_gen_ps   , 0, SCMD_POLICIES },
   { "pour"     , "pour"    , POS_STANDING, do_pour     , 0, SCMD_POUR },
   { "prompt"   , "pro"     , POS_DEAD    , do_display  , 0, 0 },
-  { "prool"    , "prool"   , POS_DEAD    , do_prool    , 0, 0 }, // prool's test command
-  { "proolcolor", "proolcolor",POS_DEAD  , do_proolcolor, 0, 0 }, // prool's test command
   { "prefedit" , "pre"     , POS_DEAD    , do_oasis_prefedit , 0, 0 },
   { "purge"    , "purge"   , POS_DEAD    , do_purge    , LVL_BUILDER, 0 },
 
@@ -476,6 +461,10 @@ void sort_commands(void)
     num_of_cmds++;
   num_of_cmds++;  /* \n */
 
+  /* Rebuilt, not built. aedit rebuilds the command table on every save and
+   * calls this again to match; each of those runs allocated a fresh array
+   * and dropped the previous one on the floor. */
+  free(cmd_sort_info);
   CREATE(cmd_sort_info, int, num_of_cmds);
 
   for (a = 0; a < num_of_cmds; a++)
@@ -494,9 +483,6 @@ void command_interpreter(struct char_data *ch, char *argument)
   int cmd, length;
   char *line;
   char arg[MAX_INPUT_LENGTH];
-
-if (mode_1984) // prool: Orwell's 1984 mode (The Big Brother is watching You!)
-	if (!IS_NPC(ch)) printf("%s :: %s cmd '%s'\n", ptime()+4, GET_NAME(ch), argument);
 
   REMOVE_BIT_AR(AFF_FLAGS(ch), AFF_HIDE);
 
@@ -564,7 +550,9 @@ if (mode_1984) // prool: Orwell's 1984 mode (The Big Brother is watching You!)
           send_to_char(ch, "\r\nDid you mean:\r\n");
           found = 1;
         }
-        send_to_char(ch, "  %s\r\n", cmd_info[cmd].command);
+        /* \t( \t) is a <send> with no href, which sends its own text: for a
+         * command that is exactly what a click should do. */
+        send_to_char(ch, "  \t(%s\t)\r\n", cmd_info[cmd].command);
       }
     }
   }
@@ -715,6 +703,14 @@ static int perform_complex_alias(struct txt_q *input_q, char *orig, struct alias
       write_point = buf;
     } else if (*temp == ALIAS_VAR_CHAR) {
       temp++;
+      /* A replacement ending in a bare '$' leaves nothing for temp to point
+       * at.  Every branch below treats the '$' as an introducer and writes
+       * only what the code after it stands for, so there is nothing to write
+       * here -- but the last of them copied the terminator into the output
+       * buffer, and the loop's own temp++ then stepped over it and carried on
+       * reading whatever followed the replacement in memory. */
+      if (!*temp)
+        break;
       if ((num = *temp - '1') < num_of_tokens && num >= 0) {
         if ((write_point - buf) + strlen(tokens[num]) >= MAX_RAW_INPUT_LENGTH)
           goto overflow;
@@ -989,14 +985,18 @@ int is_abbrev(const char *arg1, const char *arg2)
 }
 
 /* Return first space-delimited token in arg1; remainder of string in arg2.
- * NOTE: Requires sizeof(arg2) >= sizeof(string) */
+ * NOTE: Requires sizeof(arg2) >= sizeof(string)
+ * NOTE: arg2 may alias string -- half_chop(buf, arg, buf) is how most of the
+ *       tree consumes a line one token at a time -- so the remainder is moved
+ *       with memmove().  arg1 must NOT alias string; any_one_arg() writes it
+ *       while still reading. */
 void half_chop(char *string, char *arg1, char *arg2)
 {
   char *temp;
 
   temp = any_one_arg(string, arg1);
   skip_spaces(&temp);
-  strcpy(arg2, temp);	/* strcpy: OK (documentation) */
+  memmove(arg2, temp, strlen(temp) + 1);	/* memmove: arg2 may alias string */
 }
 
 /* Used in specprocs, mostly.  (Exactly) matches "command" to cmd number */
@@ -1349,11 +1349,12 @@ EVENTFUNC(get_protocols)
   len += snprintf(buf + len, MAX_STRING_LENGTH - len,   "\tO[\toMSDP\tO] \tw%s\tn | ", d->pProtocol->bMSDP ? "Yes" : "No");
   snprintf(buf + len, MAX_STRING_LENGTH - len,   "\tO[\toATCP\tO] \tw%s\tn\r\n\r\n", d->pProtocol->bATCP ? "Yes" : "No");
    
-  write_to_output(d, buf, 0);
+  /* buf carries the client's own TTYPE string (CLIENT_ID), so it must be
+   * an argument to a %s, never the format itself: a client whose terminal
+   * type is "%s%n" would otherwise have write_to_output() interpret it. */
+  write_to_output(d, "%s", buf);
     
-  write_to_output(d, "%s\r\n", ptime()); // prool
-  write_to_output(d, "Your IP is %s\r\n", d->host); // prool
-  write_to_output(d, GREETINGS, 0); 
+  write_to_output(d, "%s", GREETINGS);
   STATE(d) = CON_GET_NAME;
   return 0;
 }
@@ -1568,9 +1569,9 @@ void nanny(struct descriptor_data *d, char *arg)
 	write_to_output(d, "%s", motd);
 
       if (GET_INVIS_LEV(d->character))
-        mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s has connected to tbaMUD (invis %d)", GET_NAME(d->character), GET_INVIS_LEV(d->character));
+        mudlog(BRF, MAX(LVL_IMMORT, GET_INVIS_LEV(d->character)), TRUE, "%s has connected. (invis %d)", GET_NAME(d->character), GET_INVIS_LEV(d->character));
       else
-        mudlog(BRF, LVL_IMMORT, TRUE, "%s has connected to tbaMUD.", GET_NAME(d->character));
+        mudlog(BRF, LVL_IMMORT, TRUE, "%s has connected.", GET_NAME(d->character));
 
       /* Add to the list of 'recent' players (since last reboot) */
       if (AddRecentPlayer(GET_NAME(d->character), d->host, FALSE, FALSE) == FALSE)
@@ -1842,101 +1843,3 @@ void nanny(struct descriptor_data *d, char *arg)
     break;
   }
 }
-
-// begin prool's code
-
-char *ptime(void) // Возвращаемое значение: ссылка на текстовую строку с текущим временем
-	{
-	char *tmstr;
-	time_t mytime;
-
-	mytime = time(0);
-
-	tmstr = (char *) asctime(localtime(&mytime));
-	*(tmstr + strlen(tmstr) - 1) = '\0';
-
-	return tmstr;
-
-	}
-
-void get_object(int n, struct char_data *ch)
-{
-    struct obj_data *obj;
-    obj_rnum r_num;
-
-    if ((r_num = real_object(n)) == NOTHING) {
-      send_to_char(ch, "There is no object with that number.\r\n");
-      return;
-    }
-    {
-      obj = read_object(r_num, REAL);
-      if (CONFIG_LOAD_INVENTORY)
-        obj_to_char(obj, ch);
-      else
-        obj_to_room(obj, IN_ROOM(ch));
-      act("$n makes a strange magical gesture.", TRUE, ch, 0, 0, TO_ROOM);
-      act("$n has created $p!", FALSE, ch, obj, 0, TO_ROOM);
-      act("You create $p.", FALSE, ch, obj, 0, TO_CHAR);
-      load_otrigger(obj);
-    }
-}
-
-ACMD(do_dukhmada)
-{
-get_object(10, ch); // waybread
-get_object(60103, ch); // goblet with water
-}
-
-ACMD (do_proolcolor)
-{
-//printf("do_prool\r\n");
-//send_to_char(ch, "do_prool!\r\n");
-
-// print file lib/file.txt to MUD
-FILE *fp;
-char buf[BUFLEN];
-
-fp=fopen("file.txt", "r");
-
-if (fp==NULL) {
-	send_to_char(ch, "Can't open file.txt\r\n");
-	return;
-	}
-
-while (!feof(fp)) {
-	if (fgets(buf, BUFLEN, fp)==NULL) break;
-	send_to_char(ch, buf);
-	}
-fclose(fp);
-}
-
-ACMD(do_prool)
-{
-int sock;
-struct sockaddr_in addr;
-socklen_t addr_len = sizeof(addr);
-
-send_to_char(ch, "do_prool()\n");
-
-sock=ch->desc->descriptor;
-
-
-    if (getpeername(sock, (struct sockaddr*)&addr, &addr_len) == 0) {
-        char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
-        printf("Peer IP: %s\n", ip);
-    } else {
-        perror("getpeername");
-    }
-
-}
-
-ACMD (do_fflush)
-{
-fflush(NULL);
-send_to_char(ch, "prool: flushed all buffers\r\n");
-}
-
-// end of prool's code
-
-// end of file

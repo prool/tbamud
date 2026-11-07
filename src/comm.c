@@ -8,9 +8,6 @@
 *  CircleMUD is based on DikuMUD, Copyright (C) 1990, 1991.               *
 **************************************************************************/
 
-#define PROOL_TIHO // prool: quiet
-//#define ANDROID // prool: uncomment this line, if making in OS Android
-
 #include "conf.h"
 #include "sysdep.h"
 
@@ -84,6 +81,7 @@
 #include "modify.h"
 #include "quest.h"
 #include "ibt.h" /* for free_ibt_lists */
+#include "class.h" /* for level_exp, in the MSDP experience variables */
 #include "mud_event.h"
 
 #ifndef INVALID_SOCKET
@@ -109,8 +107,6 @@ socket_t mother_desc;
 int next_tick = SECS_PER_MUD_HOUR;  /* Tick countdown */
 
 
-int mode_1984; // prool
-
 /* static local global variable declarations (current file scope only) */
 static struct txt_block *bufpool = 0;  /* pool of large output buffers */
 static int max_players = 0;   /* max descriptors available */
@@ -124,8 +120,6 @@ static bool fCopyOver;          /* Are we booting in copyover mode? */
 static char *last_act_message = NULL;
 
 /* static local function prototypes (current file scope only) */
-char *ptime(void); // prool
-void players_counted (void); // prool
 static RETSIGTYPE reread_wizlists(int sig);
 /* Appears to be orphaned right now...
 static RETSIGTYPE unrestrict_game(int sig);
@@ -141,6 +135,10 @@ static void init_game(ush_int port);
 static void signal_setup(void);
 static socket_t init_socket(ush_int port);
 static int new_descriptor(socket_t s);
+
+/** How many waiting connections one pulse will accept before getting on
+ * with the game.  At ten pulses a second this is 500 logins a second. */
+#define MAX_ACCEPTS_PER_PULSE 50
 static int get_max_players(void);
 static int process_output(struct descriptor_data *t);
 static int process_input(struct descriptor_data *t);
@@ -218,42 +216,6 @@ int main(int argc, char **argv)
   /* Initialize the GUSI library calls.  */
   GUSIDefaultSetup();
 #endif
-
-// prool simple config
-#define PROOL_MAX 512
-FILE *fconfig;
-char mudname[PROOL_MAX];
-char string[PROOL_MAX];
-
-fconfig=fopen("prool.cfg","r");
-mode_1984=0;
-mudname[0]=0;
-if (fconfig)
-	{
-	//printf("prool.cfg open\n");
-	while (!feof(fconfig))
-		{char *pp;
-		string[0]=0;
-		fgets(string,PROOL_MAX,fconfig);
-		pp=strchr(string,'\n');
-		if (pp) *pp=0;
-		//printf("`%s'\n", string);
-		if (!strcmp(string,"test")) printf("TEST OK!\n");
-		else if (!strcmp(string,"1984")) mode_1984=1;
-		else if (!memcmp(string,"mudname ",strlen("mudname ")))
-			{
-			char *cc;
-			cc=string;
-			strcpy(mudname, cc+strlen("mudname "));
-			}
-		}
-	fclose(fconfig);
-	}
-else
-	{
-	printf("prool.cfg not open\n");
-	}
-// end of prool simple config
 
   /* Load the game configuration. We must load BEFORE we use any of the
    * constants stored in constants.c.  Otherwise, there will be no variables
@@ -372,35 +334,37 @@ else
 
   /* Moved here to distinguish command line options and to show up
    * in the log if stderr is redirected to a file. */
-  //log("Loading configuration.");
-  //log("%s", tbamud_version);
+  log("Loading configuration.");
+  log("%s", tbamud_version);
 
   if (chdir(dir) < 0) {
     perror("SYSERR: Fatal error changing to data directory");
     exit(1);
   }
-  //log("Using %s as data directory.", dir);
+  log("Using %s as data directory.", dir);
 
   if (scheck)
     boot_world();
   else {
-    //log("Running game on port %d.", port);
-    printf("Running tbaMUD on port %d\n", port);
+    log("Running game on port %d.", port);
     init_game(port);
   }
 
-  //log("Clearing game world.");
-  printf("Clearing game world\ntbaMUD is stop\n");
+  log("Clearing game world.");
   destroy_db();
 
   if (!scheck) {
-    //log("Clearing other memory.");
+    log("Clearing other memory.");
     free_bufpool();         /* comm.c */
     free_player_index();    /* players.c */
     free_messages();        /* fight.c */
     free_text_files();      /* db.c */
     board_clear_all();      /* boards.c */
+    /* NULL, not just freed: sort_commands() releases this pointer before
+     * replacing it, so a call after this point would free it twice where
+     * it used to only leak. Nothing runs after this block today. */
     free(cmd_sort_info);    /* act.informative.c */
+    cmd_sort_info = NULL;
     free_command_list();    /* act.informative.c */
     free_social_messages(); /* act.social.c */
     free_help_table();      /* db.c */
@@ -419,7 +383,7 @@ else
   /* probably should free the entire config here.. */
   free(CONFIG_CONFFILE);
   
-  //log("Done.");
+  log("Done.");
 
 #ifdef MEMORY_DEBUG
   zmalloc_check();
@@ -433,13 +397,19 @@ void copyover_recover()
 {
   struct descriptor_data *d;
   FILE *fp;
-  char host[1024], guiopt[1024];
+  /* Each of these is sized from the field the writer took it out of, rather
+   * than from a round number: the name is a player name, the host is copied
+   * straight into d->host, and the gui string is whatever CopyoverGet() built.
+   * host mattered most -- it was read unbounded into a kilobyte and then
+   * strcpy'd into HOST_LENGTH + 1 bytes. */
+  char host[HOST_LENGTH + 1], guiopt[COPYOVER_GUI_FIELD + 1];
+  char name[MAX_NAME_LENGTH + 1];
+  char line[READ_SIZE], junk[2];
   int desc, i, player_i;
-  bool fOld;
-  char name[MAX_INPUT_LENGTH];
+  bool fOld, saw_terminator = FALSE;
   long pref;
 
-  //log ("Copyover recovery initiated");
+  log ("Copyover recovery initiated");
 
   fp = fopen (COPYOVER_FILE, "r");
   /* there are some descriptors open which will hang forever then ? */
@@ -458,20 +428,31 @@ void copyover_recover()
   if (i != 1) 
     log("SYSERR: Error reading boot time.");
 
-  for (;;) {
+  /* A line at a time.  Scanning fields straight out of the FILE left the name,
+   * the host and the gui string with nothing bounding them, and it left this
+   * loop with no way to stop: the file ends with a bare "-1", which satisfies
+   * only the first conversion, so the old `!= 5` test could not tell the
+   * terminator from a malformed line.  It fell through on feof and got away
+   * with it because desc happened to hold -1 by then.  A file that ended
+   * without the terminator -- truncated by a full disk, say -- left desc
+   * holding the previous record and span there rebuilding that descriptor;
+   * an empty one read desc before anything had set it. */
+  while (get_line(fp, line, sizeof(line))) {
     fOld = TRUE;
-    if (fscanf(fp, "%d %ld %s %s %s\n", &desc, &pref, name, host, guiopt) != 5) {
-      if(!feof(fp)) {
-        if(ferror(fp))
-          log("SYSERR: error reading copyover file %s: %s", COPYOVER_FILE, strerror(errno));
-        else if(!feof(fp))
-          log("SYSERR: could not scan line in copyover file %s.", COPYOVER_FILE);
-        exit(1);
-      }
+
+    if (sscanf(line, "%d", &desc) == 1 && desc == -1) {
+      saw_terminator = TRUE;
+      break;
     }
 
-    if (desc == -1)
-      break;
+    /* Trailing %1s is a sentinel, not a field: a truncated host would
+     * otherwise push the rest of itself into guiopt and still count five. */
+    if (sscanf(line, "%d %ld %" SCANF_WIDTH(MAX_NAME_LENGTH) "s %"
+	       SCANF_WIDTH(HOST_LENGTH) "s %" SCANF_WIDTH(COPYOVER_GUI_FIELD) "s %1s",
+	       &desc, &pref, name, host, guiopt, junk) != 5) {
+      log("SYSERR: could not scan line in copyover file %s: %s", COPYOVER_FILE, line);
+      exit(1);
+    }
 
     /* Write something, and check if it goes error-free */
     if (write_to_descriptor (desc, "\n\rRestoring from copyover...\n\r") < 0) {
@@ -484,7 +465,8 @@ void copyover_recover()
     memset ((char *) d, 0, sizeof (struct descriptor_data));
     init_descriptor (d,desc); /* set up various stuff */
 
-    strcpy(d->host, host);
+    strncpy(d->host, host, HOST_LENGTH);	/* strncpy: OK (d->host:HOST_LENGTH+1) */
+    d->host[HOST_LENGTH] = '\0';
     d->next = descriptor_list;
     descriptor_list = d;
 
@@ -536,6 +518,18 @@ void copyover_recover()
       }
     }
   }
+
+  /* Running out of file is now how the loop can end, so say which way it did.
+   * Neither of these used to be reachable: the loop had no exit but the
+   * terminator, so a file without one did not fall out here, it spun. */
+  if (!saw_terminator) {
+    if (ferror(fp))
+      log("SYSERR: error reading copyover file %s: %s", COPYOVER_FILE, strerror(errno));
+    else
+      log("SYSERR: copyover file %s ended without its '-1' terminator; "
+          "any descriptors past that point are lost.", COPYOVER_FILE);
+  }
+
   fclose (fp);
 }
 
@@ -547,12 +541,12 @@ static void init_game(ush_int local_port)
 
   circle_srandom(time(0));
 
-  //log("Finding player limit.");
+  log("Finding player limit.");
   max_players = get_max_players();
 
   /* If copyover mother_desc is already set up */
   if (!fCopyOver) {
-     //log ("Opening mother connection.");
+     log ("Opening mother connection.");
      mother_desc = init_socket (local_port);
   }
 
@@ -564,7 +558,7 @@ static void init_game(ush_int local_port)
   boot_db();
 
 #if defined(CIRCLE_UNIX) || defined(CIRCLE_MACINTOSH)
-  //log("Signal trapping.");
+  log("Signal trapping.");
   signal_setup();
 #endif
 
@@ -574,13 +568,18 @@ static void init_game(ush_int local_port)
   if (fCopyOver) /* reload players */
   copyover_recover();
 
-  //log("Entering game loop at port %d", port); // prool
+  log("Entering game loop.");
 
   game_loop(mother_desc);
 
-  Crash_save_all();
+  /* Nothing runs after this, so anything the bug throttle is still holding
+   * goes out now or not at all. */
+  ReportBugFlush();
 
-  //log("Closing all sockets.");
+  Crash_save_all();
+  House_save_all();
+
+  log("Closing all sockets.");
   while (descriptor_list)
     close_socket(descriptor_list);
 
@@ -589,14 +588,14 @@ static void init_game(ush_int local_port)
   if (circle_reboot != 2)
     save_all();
 
-  //log("Saving current MUD time.");
+  log("Saving current MUD time.");
   save_mud_time(&time_info);
 
   if (circle_reboot) {
-    //log("Rebooting.");
+    log("Rebooting.");
     exit(52);			/* what's so great about HHGTTG, anyhow? */
   }
-  //log("Normal termination of game.");
+  log("Normal termination of game.");
 }
 
 /* init_socket sets up the mother descriptor - creates the socket, sets
@@ -625,7 +624,7 @@ static socket_t init_socket(ush_int local_port)
     if ((wsaData.iMaxSockets - 4) < max_players) {
       max_players = wsaData.iMaxSockets - 4;
     }
-    //log("Max players set to %d", max_players);
+    log("Max players set to %d", max_players);
 
     if ((s = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
       log("SYSERR: Error opening network connection: Winsock error #%d",
@@ -685,7 +684,18 @@ static socket_t init_socket(ush_int local_port)
     exit(1);
   }
   nonblock(s);
-  listen(s, 5);
+  /* A backlog of 5 was the number since CircleMUD, and a reconnect flood
+   * after a crash shows what it costs: the queue fills, the kernel drops
+   * the SYNs behind it, and every client past the fifth sits in TCP's
+   * retransmit back-off -- 250 players took 42 seconds to be greeted.  128
+   * holds a whole burst while the game loop drains it, and is within what
+   * every kernel this runs on allows (Linux clamps the request to
+   * net.core.somaxconn, 128 on old kernels and 4096 since 5.4). */
+  if (listen(s, 128) < 0) {
+    perror("SYSERR: listen");
+    CLOSE_SOCKET(s);
+    exit(1);
+  }
   return (s);
 }
 
@@ -769,7 +779,7 @@ static int get_max_players(void)
 	    max_descs, method);
     exit(1);
   }
-  //log("   Setting player limit to %d using %s.", max_descs, method);
+  log("   Setting player limit to %d using %s.", max_descs, method);
   return (max_descs);
 #endif /* CIRCLE_UNIX */
 }
@@ -802,8 +812,14 @@ void game_loop(socket_t local_mother_desc)
 
     /* Sleep if we don't have any connections */
     if (descriptor_list == NULL) {
-      players_counted(); // prool
-      //log("No connections.  Going to sleep."); // prool
+      /* The select() below has no timeout, so the heartbeat stops until
+       * somebody connects.  Anything a protocol bug report is still
+       * holding would sit there with it -- and the commonest way a
+       * player-driven flood ends is that player logging off, which is
+       * this branch.  Flush rather than tick: their slot is seconds old,
+       * and nothing will be running to retire it when the minute is up. */
+      ReportBugFlush();
+      log("No connections.  Going to sleep.");
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
       if (select(local_mother_desc + 1, &input_set, (fd_set *) 0, (fd_set *) 0, NULL) < 0) {
@@ -812,7 +828,7 @@ void game_loop(socket_t local_mother_desc)
 	else
 	  perror("SYSERR: Select coma");
       } else
-	/* log("New connection.  Waking up.") */ ;
+	log("New connection.  Waking up.");
       gettimeofday(&last_time, (struct timezone *) 0);
     }
     /* Set up the input, output, and exception sets for select(). */
@@ -871,9 +887,24 @@ void game_loop(socket_t local_mother_desc)
       perror("SYSERR: Select poll");
       return;
     }
-    /* If there are new connections waiting, accept them. */
-    if (FD_ISSET(local_mother_desc, &input_set))
-      new_descriptor(local_mother_desc);
+    /* If there are new connections waiting, accept them.  All of them, up
+     * to a limit, not one per pulse: at one a pulse a burst of reconnects
+     * drained at ten a second, and with the backlog above that meant
+     * waiting in the kernel's queue instead of being refused.  The mother
+     * socket is nonblocking, so new_descriptor() answers -1 as soon as the
+     * queue is empty.  The limit bounds how long a flood can hold the pulse.
+     * Each accept still blocks on one reverse lookup unless nameserver_is_slow
+     * is set, and batching concentrates that cost: fifty lookups at 50ms each
+     * is 2.5 seconds spent in a single pulse, where the old loop spent 50ms a
+     * pulse.  A host that expects reconnect floods should set
+     * nameserver_is_slow. */
+    if (FD_ISSET(local_mother_desc, &input_set)) {
+      int accepted;
+
+      for (accepted = 0; accepted < MAX_ACCEPTS_PER_PULSE; accepted++)
+        if (new_descriptor(local_mother_desc) < 0)
+          break;
+    }
 
     /* Kick out the freaky folks in the exception set and marked for close */
     for (d = descriptor_list; d; d = next_d) {
@@ -1031,9 +1062,8 @@ void heartbeat(int heart_pulse)
   if (!(heart_pulse % PULSE_ZONE))
     zone_update();
 
-  if (!(heart_pulse % PULSE_IDLEPWD)) {		/* 15 seconds */
+  if (!(heart_pulse % PULSE_IDLEPWD))		/* 15 seconds */
     check_idle_passwords();
-    }
 
   if (!(heart_pulse % PULSE_MOBILE))
     mobile_activity();
@@ -1048,7 +1078,6 @@ void heartbeat(int heart_pulse)
     affect_update();
     point_update();
     check_timed_quests();
-    players_counted(); // prool
   }
 
   if (CONFIG_AUTO_SAVE && !(heart_pulse % PULSE_AUTOSAVE)) {	/* 1 minute */
@@ -1061,6 +1090,12 @@ void heartbeat(int heart_pulse)
 
   if (!(heart_pulse % PULSE_USAGE))
     record_usage();
+
+  /* Retires protocol bug reports whose repeat window has passed, so that a
+   * flood which stops still has its count reported rather than waiting for
+   * the next unrelated report to carry it out. */
+  if (!(heart_pulse % PULSE_AUTOSAVE))
+    ReportBugTick();
 
   if (!(heart_pulse % PULSE_TIMESAVE))
   save_mud_time(&time_info);
@@ -1118,10 +1153,8 @@ static void record_usage(void)
       sockets_playing++;
   }
 
-#ifndef PROOL_TIHO
   log("nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
-#endif
 
 #ifdef RUSAGE	/* Not RUSAGE_SELF because it doesn't guarantee prototype. */
   {
@@ -1434,9 +1467,8 @@ static struct in_addr *get_bind_addr()
   }
 
   /* Put the address that we've finally decided on into the logs */
-  if (bind_addr.s_addr == htonl(INADDR_ANY)) {
-    //log("Binding to all IP interfaces on this host.");
-    }
+  if (bind_addr.s_addr == htonl(INADDR_ANY))
+    log("Binding to all IP interfaces on this host.");
   else
     log("Binding only to IP address %s", inet_ntoa(bind_addr));
 
@@ -1527,6 +1559,31 @@ static int new_descriptor(socket_t s)
   /* accept the new connection */
   i = sizeof(peer);
   if ((desc = accept(s, (struct sockaddr *) &peer, &i)) == INVALID_SOCKET) {
+    /* The mother socket is nonblocking and the game loop accepts until we
+     * say the queue is empty, so an empty queue is the expected way out of
+     * every burst and not worth a line in the log.  A client that hung up
+     * while it waited in the queue is not the queue running dry: there is
+     * nobody to greet, but there may be more behind it, so the loop goes
+     * on. */
+#if defined(CIRCLE_WINDOWS)
+    if (WSAGetLastError() == WSAEWOULDBLOCK)
+      return (-1);
+    if (WSAGetLastError() == WSAECONNRESET)
+      return (0);
+#else
+#ifdef EAGAIN		/* POSIX */
+    if (errno == EAGAIN)
+      return (-1);
+#endif
+#ifdef EWOULDBLOCK	/* BSD */
+    if (errno == EWOULDBLOCK)
+      return (-1);
+#endif
+#ifdef ECONNABORTED	/* the client gave up before we reached it */
+    if (errno == ECONNABORTED)
+      return (0);
+#endif
+#endif /* CIRCLE_WINDOWS */
     perror("SYSERR: accept");
     return (-1);
   }
@@ -1551,18 +1608,14 @@ static int new_descriptor(socket_t s)
   /* create a new descriptor */
   CREATE(newd, struct descriptor_data, 1);
 
-printf("%s prool debug IP %s\n", ptime()+4, inet_ntoa(peer.sin_addr));
-
   /* find the sitename */
   if (CONFIG_NS_IS_SLOW ||
       !(from = gethostbyaddr((char *) &peer.sin_addr,
 		             sizeof(peer.sin_addr), AF_INET))) {
 
     /* resolution failed */
-/*
     if (!CONFIG_NS_IS_SLOW)
       perror("SYSERR: gethostbyaddr");
-*/
 
     /* find the numeric site address */
     strncpy(newd->host, (char *)inet_ntoa(peer.sin_addr), HOST_LENGTH);	/* strncpy: OK (n->host:HOST_LENGTH+1) */
@@ -1677,7 +1730,8 @@ static int process_output(struct descriptor_data *t)
 
   } else {
     /* Not all data in buffer sent.  result < output buffersize. */
-    strcpy(t->output, t->output + result);	/* strcpy: OK (overlap) */
+    memmove(t->output, t->output + result,
+	    strlen(t->output + result) + 1);	/* memmove: the copy overlaps */
     t->bufptr   -= result;
     t->bufspace += result;
   }
@@ -1820,10 +1874,8 @@ static ssize_t perform_socket_read(socket_t desc, char *read_point, size_t space
     return (ret);
 
   /* read() returned 0, meaning we got an EOF. */
-  if (ret == 0) {
-    //log("WARNING: EOF on socket read (connection broken by peer)"); // prool
-    return (-1);
-  }
+  if (ret == 0)
+    return (-2);  /* Distinct return so callers can log with host info. */
 
   /* Read returned a value < 0: there was an error. */
 #if defined(CIRCLE_WINDOWS)	/* Windows */
@@ -1904,9 +1956,11 @@ static int process_input(struct descriptor_data *t)
     if ( bytes_read > 0 )
       bytes_read = ProtocolInput( t, read_buf, bytes_read, t->inbuf );
 
-    if (bytes_read < 0)	/* Error, disconnect them. */
+    if (bytes_read < 0) {  /* Error or EOF, disconnect them. */
+      if (bytes_read == -2)
+        log("WARNING: EOF on socket read (connection broken by peer) [%s]", t->host);
       return (-1);
-    else if (bytes_read == 0)	/* Just blocking, no problems. */
+    } else if (bytes_read == 0)	/* Just blocking, no problems. */
       return (0);
 
     /* at this point, we know we got some data from the read */
@@ -1956,8 +2010,7 @@ static int process_input(struct descriptor_data *t)
 	  } else
 	    space_left++;
 	}
-      /*} else if (isascii(*ptr) && isprint(*ptr)) { */
-      } else if (((unsigned char)*ptr)>=32U) { // prool: for support full 8bit for cyrillic UTF-8, koi8-r, cp1251
+      } else if (isascii(*ptr) && isprint(*ptr)) {
 	if ((*(write_point++) = *ptr) == '$') {		/* copy one character */
 	  *(write_point++) = '$';	/* if it's a $, double it */
 	  space_left -= 2;
@@ -1968,7 +2021,7 @@ static int process_input(struct descriptor_data *t)
 
     *write_point = '\0';
 
-    if ((space_left <= 0) && (ptr < nl_pos)) {
+    if (ptr < nl_pos) {
       char buffer[MAX_INPUT_LENGTH + 64];
 
       snprintf(buffer, sizeof(buffer), "Line too long.  Truncated to:\r\n%s\r\n", tmp);
@@ -2105,6 +2158,34 @@ void close_socket(struct descriptor_data *d)
     d->snoop_by->snooping = NULL;
   }
 
+  /* The descriptor's own copy of the text an editor started with, kept so
+   * that /a can put it back. Nothing else points at it: a save frees it, and
+   * an abort from an editor state hands it to *d->str and clears the field
+   * -- so if it is still here the edit was interrupted and this is the only
+   * reference left.
+   *
+   * It used to be freed only for a character NOT flagged PLR_WRITING, with
+   * the comment "editing description ... not olc" beside it. That is one
+   * editor out of all of them, and the only one it ever worked for:
+   * string_write() sets PLR_WRITING on the way in and every OLC command sets
+   * it too, so the test was true for exactly one caller -- the description
+   * editor off the main menu, which fills d->backstr by hand and never goes
+   * through string_write. Every other interrupted edit kept its copy.
+   *
+   * The IS_NPC test went with the flag test: it was there so PLR_FLAGGED was
+   * not read off a mobile, and with no flag left to read there is nothing to
+   * guard. A switched god who drops the link owns this string as anyone does.
+   *
+   * Outside the d->character block, not inside it. perform_dupe_check clears
+   * k->character before it sets STATE(k) = CON_CLOSE, so a descriptor closed
+   * mid-edit by its owner logging in again arrives here with no character at
+   * all -- and that is a link loss like any other. Nothing below reads
+   * character state, so there is nothing to move it in for. */
+  if (d->backstr) {
+    free(d->backstr);
+    d->backstr = NULL;
+  }
+
   if (d->character) {
     /* If we're switched, this resets the mobile taken. */
     d->character->desc = NULL;
@@ -2115,9 +2196,6 @@ void close_socket(struct descriptor_data *d)
         free(*(d->str));
       free(d->str);
       d->str = NULL;
-    } else if (d->backstr && !IS_NPC(d->character) && !PLR_FLAGGED(d->character, PLR_WRITING)) {
-      free(d->backstr);      /* editing description ... not olc */
-      d->backstr = NULL;
     }
 
     add_llog_entry(d->character, LAST_DISCONNECT);
@@ -2130,11 +2208,11 @@ void close_socket(struct descriptor_data *d)
       save_char(link_challenged);
       mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(link_challenged)), TRUE, "Closing link to: %s.", GET_NAME(link_challenged));
     } else {
-      //mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s.", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>"); // prool
+      mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s [%s].", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>", d->host);
       free_char(d->character);
     }
   } else
-    /*mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char.")*/; // prool
+    mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char from [%s].", d->host);
 
   /* JE 2/22/95 -- part of my unending quest to make switch stable */
   if (d->original && d->original->desc)
@@ -2168,23 +2246,20 @@ void close_socket(struct descriptor_data *d)
   free_list(d->events);
 
   /*. Kill any OLC stuff .*/
-  switch (d->connected) {
-    case CON_OEDIT:
-    case CON_REDIT:
-    case CON_ZEDIT:
-    case CON_MEDIT:
-    case CON_SEDIT:
-    case CON_TEDIT:
-    case CON_TRIGEDIT:
-    case CON_AEDIT:
-    case CON_HEDIT:
-    case CON_QEDIT:
-    case CON_MSGEDIT:
-      cleanup_olc(d, CLEANUP_ALL);
-      break;
-    default:
-      break;
-  }
+  /* Every OLC state, without listing them. utils.h has had IS_IN_OLC() --
+   * the FIRST_OLC_STATE..LAST_OLC_STATE range -- since before any of the
+   * editors this switch kept forgetting, and nothing has ever called it.
+   * Enumerating the states is what left cedit, prefedit and ibtedit out for
+   * as long as they have existed, and the next editor added would have gone
+   * the same way. The two are equivalent today: the switch listed exactly
+   * CON_OEDIT through CON_MSGEDIT, which is the range.
+   *
+   * cedit apart, because cleanup_olc picks its log line off the cleanup
+   * type and CLEANUP_ALL would have it announce a zone it was never
+   * editing. Its own three exits all pass CLEANUP_CONFIG; so does this, so
+   * a builder who drops the link is logged the same as one who quits. */
+  if (IS_IN_OLC(d))
+    cleanup_olc(d, STATE(d) == CON_CEDIT ? CLEANUP_CONFIG : CLEANUP_ALL);
 
   free(d);
 }
@@ -2289,11 +2364,7 @@ static RETSIGTYPE reap(int sig)
 {
   while (waitpid(-1, NULL, WNOHANG) > 0);
 
-#ifdef ANDROID
-  signal(SIGCHLD, reap);
-#else
   my_signal(SIGCHLD, reap);
-#endif
 }
 
 /* Dying anyway... */
@@ -2512,7 +2583,7 @@ void send_to_range(room_vnum start, room_vnum finish, const char *messg, ...)
   if (messg == NULL)
     return;
 
-  for (j = 0; j < top_of_world; j++) {
+  for (j = 0; j <= top_of_world; j++) {
     if (GET_ROOM_VNUM(j) >= start && GET_ROOM_VNUM(j) <= finish) {
       for (i = world[j].people; i; i = i->next_in_room) {
         if (!i->desc)
@@ -2763,7 +2834,7 @@ static void setup_log(const char *filename, int fd)
   if (filename == NULL || *filename == '\0') {
     /* No filename, set us up with the descriptor we just opened. */
     logfile = s_fp;
-    //puts("Using file descriptor for logging."); // prool
+    puts("Using file descriptor for logging.");
     return;
   }
 
@@ -2856,11 +2927,126 @@ static void msdp_update( void )
       MSDPSetNumber( d, eMSDP_MOVEMENT_MAX, GET_MAX_MOVE(ch) );
       MSDPSetNumber( d, eMSDP_AC, compute_armor_class(ch) );
 
+      /* The rest of the character sheet. These are advertised in the same
+       * table as the ones above and were never set either, so a client that
+       * asked for them waited forever -- which is indistinguishable from the
+       * server not supporting MSDP at all, the same argument as the room
+       * variables below.
+       */
+      MSDPSetNumber( d, eMSDP_HITROLL, GET_HITROLL(ch) );
+      MSDPSetNumber( d, eMSDP_DAMROLL, GET_DAMROLL(ch) );
+      MSDPSetNumber( d, eMSDP_PRACTICE, GET_PRACTICES(ch) );
+
+      /* GET_STR() and friends read aff_abils, real_abils holds the scores
+       * without modifiers, and that is exactly the split MSDP asks for with
+       * its plain and _PERM pair. tbaMUD's exceptional strength lives in a
+       * separate GET_ADD() that MSDP has no variable for, so STR reports the
+       * whole number a player sees on their sheet and nothing reports the
+       * fraction.
+       */
+      MSDPSetNumber( d, eMSDP_STR,      GET_STR(ch) );
+      MSDPSetNumber( d, eMSDP_INT,      GET_INT(ch) );
+      MSDPSetNumber( d, eMSDP_WIS,      GET_WIS(ch) );
+      MSDPSetNumber( d, eMSDP_DEX,      GET_DEX(ch) );
+      MSDPSetNumber( d, eMSDP_CON,      GET_CON(ch) );
+      MSDPSetNumber( d, eMSDP_STR_PERM, ch->real_abils.str );
+      MSDPSetNumber( d, eMSDP_INT_PERM, ch->real_abils.intel );
+      MSDPSetNumber( d, eMSDP_WIS_PERM, ch->real_abils.wis );
+      MSDPSetNumber( d, eMSDP_DEX_PERM, ch->real_abils.dex );
+      MSDPSetNumber( d, eMSDP_CON_PERM, ch->real_abils.con );
+
+      /* The same sum score prints, and cut off where score cuts it off.
+       * score stops at LVL_IMMORT because immortal levels are not earned
+       * with experience: above LVL_IMMORT level_exp() returns a fixed
+       * offset from EXP_MAX rather than a total anyone works toward, so
+       * reporting it would tell a level 31 immortal they are two million
+       * exp short of a level 32 that no amount of exp reaches -- once a
+       * second, for as long as they are online. An immortal is told their
+       * own total and nothing left to earn, which is what score implies
+       * by printing nothing at all.
+       */
+      if ( GET_LEVEL(ch) < LVL_IMMORT )
+      {
+          int needed = level_exp(GET_CLASS(ch), GET_LEVEL(ch) + 1);
+
+          MSDPSetNumber( d, eMSDP_EXPERIENCE_MAX, needed );
+          MSDPSetNumber( d, eMSDP_EXPERIENCE_TNL, MAX(0, needed - GET_EXP(ch)) );
+      }
+      else
+      {
+          MSDPSetNumber( d, eMSDP_EXPERIENCE_MAX, GET_EXP(ch) );
+          MSDPSetNumber( d, eMSDP_EXPERIENCE_TNL, 0 );
+      }
+
+      /* An array of the spells currently on the character, named the way stat
+       * names them. One spell can hold several affects -- a single cast fills
+       * one per apply -- so each is listed once rather than once per slot.
+       */
+      {
+          char affects[MAX_INPUT_LENGTH];
+          size_t aff_len = 0;
+          struct affected_type *af, *earlier;
+
+          *affects = '\0';
+          for ( af = ch->affected; af != NULL; af = af->next )
+          {
+              bool listed = FALSE;
+
+              for ( earlier = ch->affected; earlier != af; earlier = earlier->next )
+              {
+                  if ( earlier->spell == af->spell )
+                  {
+                      listed = TRUE;
+                      break;
+                  }
+              }
+
+              if ( listed )
+                  continue;
+              if ( aff_len >= sizeof(affects) - 1 )
+                  break;
+              aff_len += snprintf( affects + aff_len, sizeof(affects) - aff_len,
+                  "%c%s", (char)MSDP_VAL, skill_name(af->spell) );
+          }
+          MSDPSetArray( d, eMSDP_AFFECTS, affects );
+      }
+
+      /* Who and when. protocol.c already sends SERVER_ID by hand when a
+       * client turns MSDP or ATCP on, but never through the variable table,
+       * so a client that REPORTed it rather than reading the handshake got
+       * nothing. This puts it where the other variables are.
+       */
+      MSDPSetString( d, eMSDP_SERVER_ID,   MUD_NAME );
+      MSDPSetNumber( d, eMSDP_SERVER_TIME, (int) time(0) );
+      MSDPSetNumber( d, eMSDP_WORLD_TIME,  time_info.hours );
+
+      /* RACE is left alone deliberately. It is the one advertised variable
+       * with nothing behind it: stock tbaMUD has no race, only class, and
+       * answering with an invented value would be worse than the silence.
+       */
+
       /* This would be better moved elsewhere */
       if ( pOpponent != NULL )
       {
-          int hit_points = (GET_HIT(pOpponent) * 100) / GET_MAX_HIT(pOpponent);
-          MSDPSetNumber( d, eMSDP_OPPONENT_HEALTH, hit_points );
+          /* A mob can have a maximum of zero hit points -- medit accepts
+           * hp dice of 0d0 and db.c then computes dice(0,0)+0 -- and every
+           * playing descriptor runs this once a second while its character
+           * fights, so one player attacking such a mob divides by zero and
+           * takes the whole server down. */
+          int max_hit = GET_MAX_HIT(pOpponent);
+          int health_percent = max_hit > 0 ? (GET_HIT(pOpponent) * 100) / max_hit : 0;
+
+          /* OPPONENT_HEALTH_MAX below is the constant 100, so this is a
+           * percentage and has to stay on that scale.  Neither end is
+           * guaranteed by what goes into it: update_pos() leaves an
+           * opponent alive down to -10 hit points, and only the victim
+           * stops fighting there, so the player is still pointed at a
+           * negative one; and `set maxhit' lowers the maximum without
+           * lowering what is already in it.  EXPERIENCE_TNL above is
+           * bounded the same way. */
+          health_percent = MAX(0, MIN(100, health_percent));
+
+          MSDPSetNumber( d, eMSDP_OPPONENT_HEALTH, health_percent );
           MSDPSetNumber( d, eMSDP_OPPONENT_HEALTH_MAX, 100 );
           MSDPSetNumber( d, eMSDP_OPPONENT_LEVEL, GET_LEVEL(pOpponent) );
           MSDPSetString( d, eMSDP_OPPONENT_NAME, PERS(pOpponent, ch) );
@@ -2870,6 +3056,56 @@ static void msdp_update( void )
           MSDPSetNumber( d, eMSDP_OPPONENT_HEALTH, 0 );
           MSDPSetNumber( d, eMSDP_OPPONENT_LEVEL, 0 ); 
           MSDPSetString( d, eMSDP_OPPONENT_NAME, "" ); 
+      }
+
+      /* Where the player is. The variable table has always advertised
+       * these four as reportable, but nothing ever set them, so a client
+       * that asked for them waited forever and every mapper was pushed
+       * back onto scraping the room description out of the scroll.
+       */
+      if ( IN_ROOM(ch) != NOWHERE )
+      {
+          char exits[MAX_INPUT_LENGTH];
+          size_t exit_len = 0;
+          int door;
+
+          MSDPSetString( d, eMSDP_ROOM_NAME, world[IN_ROOM(ch)].name );
+          MSDPSetNumber( d, eMSDP_ROOM_VNUM, GET_ROOM_VNUM(IN_ROOM(ch)) );
+          MSDPSetString( d, eMSDP_AREA_NAME,
+              zone_table[GET_ROOM_ZONE(IN_ROOM(ch))].name );
+
+          /* A table of direction -> destination vnum, holding exactly the
+           * exits the autoexit line would show this character: closed doors
+           * only where the game displays them, hidden ones only to holylight.
+           * A mapper must not learn a door the player cannot see.
+           *
+           * A closed door is listed with an empty destination. do_exits
+           * withholds the vnum and the room name behind a closed door from
+           * everyone -- showvnums immortals included -- and says only that
+           * it is closed. So the direction is reported, because the player
+           * sees it in the autoexit line, and where it leads is not,
+           * because they cannot see that until they open it.
+           */
+          *exits = '\0';
+          for ( door = 0; door < DIR_COUNT; door++ )
+          {
+              if ( !EXIT(ch, door) || EXIT(ch, door)->to_room == NOWHERE )
+                  continue;
+              if ( EXIT_FLAGGED(EXIT(ch, door), EX_CLOSED) && !CONFIG_DISP_CLOSED_DOORS )
+                  continue;
+              if ( EXIT_FLAGGED(EXIT(ch, door), EX_HIDDEN) && !PRF_FLAGGED(ch, PRF_HOLYLIGHT) )
+                  continue;
+              if ( exit_len >= sizeof(exits) - 1 )
+                  break;
+              if ( EXIT_FLAGGED(EXIT(ch, door), EX_CLOSED) )
+                  exit_len += snprintf( exits + exit_len, sizeof(exits) - exit_len,
+                      "%c%s%c", (char)MSDP_VAR, autoexits[door], (char)MSDP_VAL );
+              else
+                  exit_len += snprintf( exits + exit_len, sizeof(exits) - exit_len,
+                      "%c%s%c%d", (char)MSDP_VAR, autoexits[door], (char)MSDP_VAL,
+                      GET_ROOM_VNUM(EXIT(ch, door)->to_room) );
+          }
+          MSDPSetTable( d, eMSDP_ROOM_EXITS, exits );
       }
 
       MSDPUpdate( d );
@@ -2882,31 +3118,3 @@ static void msdp_update( void )
     MSSPSetPlayers( PlayerCount );
   }
 }
-
-// prool: begin prool code
-void players_counted (void)
-	{
-	FILE *fp;
-  	struct descriptor_data *d;
-  	struct char_data *tch;
-  	int players = 0;
-
-  	for (d = descriptor_list; d; d = d->next) {
-    		if (d->original)
-      		tch = d->original;
-    		else if (!(tch = d->character))
-      		continue;
-
-  		players++;
-  		}
-
-	//printf("prool debug: tick. players = %i\r\n", players);
-		fp=fopen("mudstat.lst","w");
-		if (fp) {
-		fprintf(fp,"tbaMUD/prool every tick statistics. This file is automatish generate\r\n");
-		fprintf(fp,"Time %s\r\n", ptime());
-		fprintf(fp,"Players %i\r\n", players);
-		fclose(fp);
-		}
-	}
-// prool: end prool code
