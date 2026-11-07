@@ -96,6 +96,16 @@ static const char *prac_types[] = {
 #define MAXGAIN(ch) (prac_params[MAX_PER_PRAC][(int)GET_CLASS(ch)])
 #define SPLSKL(ch) (prac_types[prac_params[PRAC_TYPE][(int)GET_CLASS(ch)]])
 
+/* How far one practice session moves a skill, in percentage points.
+ * Intelligence sets the figure and the class bounds it: a warrior gains twelve
+ * however clever he is, and a caster twenty-five however dull. Exposed so that
+ * anything reporting the number to a player reports what practising will
+ * actually give them. */
+int practice_gain_percent(struct char_data *ch)
+{
+  return MIN(MAXGAIN(ch), MAX(MINGAIN(ch), int_app[GET_INT(ch)].learn));
+}
+
 void list_skills(struct char_data *ch)
 {
   const char *overflow = "\r\n**OVERFLOW**\r\n";
@@ -120,6 +130,18 @@ void list_skills(struct char_data *ch)
     strcpy(buf2 + sizeof(buf2) - strlen(overflow) - 1, overflow); /* strcpy: OK */
 
   page_string(ch->desc, buf2, TRUE);
+}
+
+static int spit_social;
+
+/* The merged command table is rebuilt from scratch whenever a social is
+ * added or removed, and every index into it moves with it. The values
+ * below are indices into that table, handed straight to do_action(), so
+ * they have to be taken again each time it is rebuilt rather than once at
+ * boot. create_command_list() calls this; see the note there. */
+void assign_spec_command_indices(void)
+{
+  spit_social = find_command("spit");
 }
 
 SPECIAL(guild)
@@ -155,7 +177,7 @@ SPECIAL(guild)
   GET_PRACTICES(ch)--;
 
   percent = GET_SKILL(ch, skill_num);
-  percent += MIN(MAXGAIN(ch), MAX(MINGAIN(ch), int_app[GET_INT(ch)].learn));
+  percent += practice_gain_percent(ch);
 
   SET_SKILL(ch, skill_num, MIN(LEARNED(ch), percent));
 
@@ -574,8 +596,6 @@ SPECIAL(cityguard)
 
   /* Reward the socially inept. */
   if (spittle && !rand_number(0, 9)) {
-    static int spit_social;
-
     if (!spit_social)
       spit_social = find_command("spit");
 
@@ -593,12 +613,20 @@ SPECIAL(cityguard)
 #define PET_PRICE(pet) (GET_LEVEL(pet) * 300)
 SPECIAL(pet_shops)
 {
-  char buf[MAX_STRING_LENGTH], pet_name[256];
+  /* one_argument() and two_arguments() copy a whole word with nothing
+   * bounding them, so a destination has to hold what one input line can
+   * carry.  MAX_INPUT_LENGTH is the contract every other caller keeps;
+   * this one was 256, and a line is 511 usable characters. */
+  char buf[MAX_STRING_LENGTH], pet_name[MAX_INPUT_LENGTH];
   room_rnum pet_room;
   struct char_data *pet;
 
-  /* Gross. */
+  /* Gross.  And unchecked: a pet shop on the last room of the world
+   * table sends every lookup below one past the end of it. */
   pet_room = IN_ROOM(ch) + 1;
+
+  if (pet_room > top_of_world)
+    return (FALSE);
 
   if (CMD_IS("list")) {
     send_to_char(ch, "Available pets are:\r\n");

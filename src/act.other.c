@@ -48,6 +48,11 @@ ACMD(do_quit)
     send_to_char(ch, "You die before your time...\r\n");
     die(ch, NULL);
   } else {
+    if (CONFIG_FREE_RENT && !Crash_rentsave(ch, 0)) {
+      send_to_char(ch, "Unable to save your belongings. Please try again.\r\n");
+      return;
+    }
+
     act("$n has left the game.", TRUE, ch, 0, 0, TO_ROOM);
     mudlog(NRM, MAX(LVL_IMMORT, GET_INVIS_LEV(ch)), TRUE, "%s has quit tbaMUD.", GET_NAME(ch));
 
@@ -59,9 +64,6 @@ ACMD(do_quit)
     /* We used to check here for duping attempts, but we may as well do it right
      * in extract_char(), since there is no check if a player rents out and it
      * can leave them in an equally screwy situation. */
-
-    if (CONFIG_FREE_RENT)
-      Crash_rentsave(ch, 0);
 
     GET_LOADROOM(ch) = GET_ROOM_VNUM(IN_ROOM(ch));
 
@@ -361,7 +363,7 @@ static void display_group_list(struct char_data * ch)
 			if (IS_SET(GROUP_FLAGS(group), GROUP_NPC))
 			  continue;
       if (GROUP_LEADER(group) && !IS_SET(GROUP_FLAGS(group), GROUP_ANON))
-        send_to_char(ch, "%-2d) %s%-12s     %-2d              %s%s\r\n", 
+        send_to_char(ch, "%-2d) %s%-12s     %-2zu              %s%s\r\n",
           ++count,
           IS_SET(GROUP_FLAGS(group), GROUP_OPEN) ? CCGRN(ch, C_NRM) : CCRED(ch, C_NRM), 
           GET_NAME(GROUP_LEADER(group)), group->members->iSize, zone_table[world[IN_ROOM(GROUP_LEADER(group))].zone].name,

@@ -64,7 +64,11 @@ ACMD(do_oasis_redit)
       if ((zlok = real_zone(GET_OLC_ZONE(ch))) == NOWHERE)
         number = NOWHERE;
       else
-        number = genolc_zone_bottom(zlok);
+        /* The lookup below resolves this as a zone NUMBER, so that is what
+         * the builder's assigned zone has to become here.  Handing it
+         * genolc_zone_bottom()'s vnum made every argument-less save fail
+         * with "Sorry, there is no zone for that number!". */
+        number = zone_table[zlok].number;
     }
 
     if (number == NOWHERE) {
@@ -125,10 +129,15 @@ ACMD(do_oasis_redit)
 
   if (save) {
     send_to_char(ch, "Saving all rooms in zone %d.\r\n", zone_table[OLC_ZNUM(d)].number);
-    mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE, "OLC: %s saves room info for zone %d.", GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
 
     /* Save the rooms. */
-    save_rooms(OLC_ZNUM(d));
+    if (save_rooms(OLC_ZNUM(d)))
+      mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE, "OLC: %s saves room info for zone %d.", GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
+    else {
+      send_to_char(ch, "Unable to save all rooms in zone %d. The change is "
+                       "still in memory.\r\n", zone_table[OLC_ZNUM(d)].number);
+      mudlog(BRF, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE, "SYSERR: OLC: %s failed to save room info for zone %d.", GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
+    }
 
     /* Free the olc data from the descriptor. */
     free(d->olc);
@@ -169,6 +178,20 @@ void redit_setup_existing(struct descriptor_data *d, int real_num)
 {
   struct room_data *room;
   int counter;
+
+  /* The W) Copy menu item calls this again on a descriptor that already
+   * holds a working copy, and what follows assigns over it.  Release it
+   * first, the way cleanup_olc() does on the way out of the editor;
+   * OLC_SCRIPT is a separate list that dg_olc_script_copy() below is about
+   * to replace, so it goes too.  On the way in there is nothing here yet
+   * and both tests are false. */
+  if (OLC_ROOM(d))
+    free_room(OLC_ROOM(d));
+  while (OLC_SCRIPT(d)) {
+    struct trig_proto_list *next_proto = OLC_SCRIPT(d)->next;
+    free(OLC_SCRIPT(d));
+    OLC_SCRIPT(d) = next_proto;
+  }
 
   /* Build a copy of the room for editing. */
   CREATE(room, struct room_data, 1);
@@ -231,17 +254,66 @@ void redit_setup_existing(struct descriptor_data *d, int real_num)
   SCRIPT(room) = NULL;
 }
 
+/* redit records "the builder never filled this in" three different ways.
+ * A field never visited is NULL.  One visited and left blank comes back
+ * from str_udup() (genolc.c) as the literal string "undefined", because
+ * that is what it substitutes for empty input.  The string editor can
+ * leave an empty string.  All three mean the same thing to the exit
+ * pruning below, and only the first of them is a null pointer. */
+static int exit_field_unset(const char *text)
+{
+  return text == NULL || *text == '\0' || !strcmp(text, "undefined");
+}
+
 void redit_save_internally(struct descriptor_data *d)
 {
   int j, room_num, new_room = FALSE;
   struct descriptor_data *dsc;
 
-  if (OLC_ROOM(d)->number == NOWHERE)
+  /* Ask whether the vnum exists rather than reading a field the working
+   * copy may have brought with it.  redit_setup_new() sets number to
+   * NOWHERE, but redit_setup_existing() does *room = world[real_num],
+   * which brings the source room's vnum along -- so redit on a fresh vnum
+   * followed by W) Copy saved a genuinely new room with new_room false,
+   * skipping the loop at the foot of this function that shifts every other
+   * builder's zedit and redit rnums up past the insertion.  Their next save
+   * wrote rnums one short.  oedit and medit ask real_object() and
+   * real_mobile() the same way. */
+  if (real_room(OLC_NUM(d)) == NOWHERE)
     new_room = TRUE;
 
   OLC_ROOM(d)->number = OLC_NUM(d); 
   /* FIXME: Why is this not set elsewhere? */
   OLC_ROOM(d)->zone = OLC_ZNUM(d);
+
+  /* redit_disp_exit_menu() allocates an exit as soon as its menu is shown,
+   * so that the submenu has something to edit.  Merely looking at a
+   * direction therefore leaves a room_direction_data behind, and save_rooms()
+   * writes every non-NULL exit -- browsing a room's exits and saving used to
+   * bake "0 0 -1" into the world file.  Drop the ones the builder never
+   * filled in.  An exit with a description, a keyword or door flags is kept
+   * even when it leads nowhere: that is the idiom for a direction you can
+   * look at but not walk through.
+   *
+   * The fields are tested with exit_field_unset() rather than against NULL,
+   * because opening the keyword prompt and pressing return does not leave a
+   * null pointer -- str_udup() turns empty input into the string
+   * "undefined", which is not a keyword anybody typed and not one the
+   * builder wants written to the world file.  Testing NULL alone kept the
+   * exit in the commonest way of creating a blank one. */
+  for (j = 0; j < DIR_COUNT; j++) {
+    struct room_direction_data *exit = OLC_ROOM(d)->dir_option[j];
+
+    if (exit && exit->to_room == NOWHERE && exit->exit_info == 0 &&
+        exit_field_unset(exit->keyword) &&
+        exit_field_unset(exit->general_description)) {
+      /* Now that a dropped exit can carry strings, they go with it. */
+      free(exit->keyword);
+      free(exit->general_description);
+      free(exit);
+      OLC_ROOM(d)->dir_option[j] = NULL;
+    }
+  }
 
   if ((room_num = add_room(OLC_ROOM(d))) == NOWHERE) {
     write_to_output(d, "Something went wrong...\r\n");
@@ -256,6 +328,16 @@ void redit_save_internally(struct descriptor_data *d)
 
   world[room_num].proto_script = OLC_SCRIPT(d);
   assign_triggers(&world[room_num], WLD_TRIGGER);
+
+  /* add_room() keeps the room's script across a save so its variables
+   * survive, and assign_triggers() has just put the builder's list on it.
+   * If that list is empty and the room has no variables either, there is
+   * nothing left to keep.  Every other path that takes a room's last
+   * trigger away extracts the script behind it rather than leaving an
+   * empty one standing; do the same here. */
+  if (SCRIPT(&world[room_num]) && !TRIGGERS(SCRIPT(&world[room_num])) &&
+      !SCRIPT(&world[room_num])->global_vars)
+    extract_script(&world[room_num], WLD_TRIGGER);
   /* end trigger update */
 
   /* Don't adjust numbers on a room update. */
@@ -292,9 +374,9 @@ void redit_save_internally(struct descriptor_data *d)
   }
 }
 
-void redit_save_to_disk(zone_vnum zone_num)
+int redit_save_to_disk(zone_vnum zone_num)
 {
-  save_rooms(zone_num);		/* :) */
+  return save_rooms(zone_num);	/* :) */
 }
 
 void free_room(struct room_data *room)
@@ -316,6 +398,12 @@ static void redit_disp_extradesc_menu(struct descriptor_data *d)
 {
   struct extra_descr_data *extra_desc = OLC_DESC(d);
 
+  /* This menu prints grn/nrm/yel directly, and those are file-scope
+   * globals shared by every builder.  Without this call it renders with
+   * whichever builder displayed a menu last: a builder with colour off
+   * blanks it for everyone, and a builder with colour on hands raw escape
+   * sequences to someone who turned colour off on purpose. */
+  get_char_colors(d->character);
   clear_screen(d);
   write_to_output(d,
 	  "%s1%s) Keywords: %s%s\r\n"
@@ -528,8 +616,11 @@ void redit_parse(struct descriptor_data *d, char *arg)
       redit_save_internally(d);
       mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(d->character)), TRUE, "OLC: %s edits room %d.", GET_NAME(d->character), OLC_NUM(d));
       if (CONFIG_OLC_SAVE) {
-        redit_save_to_disk(real_zone_by_thing(OLC_NUM(d)));
-        write_to_output(d, "Room saved to disk.\r\n");
+        if (redit_save_to_disk(real_zone_by_thing(OLC_NUM(d))))
+          write_to_output(d, "Room saved to disk.\r\n");
+        else
+          write_to_output(d, "Unable to save room %d to disk. The change is "
+                             "still in memory.\r\n", OLC_NUM(d));
       } else
         write_to_output(d, "Room saved to memory.\r\n");
       /* Free everything. */
@@ -894,9 +985,16 @@ void redit_parse(struct descriptor_data *d, char *arg)
   
   case REDIT_DELETE:
     if (*arg == 'y' || *arg == 'Y') {
-      if (delete_room(real_room(OLC_ROOM(d)->number)))
+      if (delete_room(real_room(OLC_ROOM(d)->number))) {
         write_to_output(d, "Room deleted.\r\n");
-     else
+        /* Same toggle the save path honours.  save_all() writes the room
+         * file and every zone file delete_room() just flagged -- and
+         * whatever else is on the save list, which is why the answer
+         * below is not about this delete alone. */
+        if (CONFIG_OLC_SAVE && !save_all())
+          write_to_output(d, "Not every world file that was waiting to be "
+                             "saved could be written; see the syslog.\r\n");
+      } else
         write_to_output(d, "Couldn't delete the room!.\r\n");
 
       cleanup_olc(d, CLEANUP_ALL);
@@ -908,7 +1006,7 @@ void redit_parse(struct descriptor_data *d, char *arg)
     } else
       write_to_output(d, "Please answer 'Y' or 'N': ");
 
-    break;
+    return;
 
   default:
     /* We should never get here. */

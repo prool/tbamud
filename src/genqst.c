@@ -79,40 +79,116 @@ void free_quest(struct aq_data *quest)
 
 /*-------------------------------------------------------------------*/
 
+static SPECIAL (*questmaster_secondary(mob_vnum qm))
+{
+  qst_rnum i;
+
+  for (i = 0; i < total_quests; i++)
+    if (QST_MASTER(i) == qm && QST_FUNC(i))
+      return QST_FUNC(i);
+
+  return NULL;
+}
+
+static void questmaster_set_secondary(mob_vnum qm, SPECIAL (*func))
+{
+  qst_rnum i;
+
+  for (i = 0; i < total_quests; i++)
+    if (QST_MASTER(i) == qm)
+      QST_FUNC(i) = func;
+}
+
+static int questmaster_quest_count(mob_vnum qm)
+{
+  qst_rnum i;
+  int count = 0;
+
+  for (i = 0; i < total_quests; i++)
+    if (QST_MASTER(i) == qm)
+      count++;
+
+  return count;
+}
+
 int add_quest(struct aq_data *nqst)
 {
   qst_rnum rnum;
-  mob_rnum qmrnum;
+  mob_rnum qmrnum, old_qmrnum;
+  mob_vnum old_qm = NOBODY;
   zone_rnum rznum = real_zone_by_thing(nqst->vnum);
+  SPECIAL (*old_func) = NULL;
+  SPECIAL (*secondary) = NULL;
 
-  /* The quest already exists, just update it.  */
+  /* The quest already exists, just update it. */
   if ((rnum = real_quest(nqst->vnum)) != NOWHERE) {
+    old_qm = QST_MASTER(rnum);
+    old_func = QST_FUNC(rnum);
+
+    if (!old_func && old_qm != NOBODY)
+      old_func = questmaster_secondary(old_qm);
+
     copy_quest(&aquest_table[rnum], nqst, TRUE);
+
+    /*
+     * func is runtime questmaster state, not authored quest data.  Recompute
+     * it below instead of carrying the old master's value through an edit.
+     */
+    QST_FUNC(rnum) = NULL;
   } else {
     /* increase the number of quest table entries */
     total_quests++;
-    RECREATE(aquest_table, struct aq_data, total_quests );
+    RECREATE(aquest_table, struct aq_data, total_quests);
     /* Initialise top quest strings to null */
     QST_NAME(total_quests - 1) = NULL;
     QST_DESC(total_quests - 1) = NULL;
     QST_INFO(total_quests - 1) = NULL;
     QST_DONE(total_quests - 1) = NULL;
     QST_QUIT(total_quests - 1) = NULL;
-    /* Now process enties from the top down to see where the new one goes */
+    /* Process entries from the top down to see where the new one goes. */
     for (rnum = total_quests - 1; rnum > 0; rnum--) {
       if (nqst->vnum > QST_NUM(rnum - 1))
-        break; //found the place
-      aquest_table[rnum] = aquest_table[rnum - 1]; //shift quest up one
+        break;
+      aquest_table[rnum] = aquest_table[rnum - 1];
     }
     copy_quest(&aquest_table[rnum], nqst, FALSE);
+    QST_FUNC(rnum) = NULL;
   }
+
+  /*
+   * If an edited quest moved away from its previous master, restore that
+   * mob's original special when it no longer has quests.
+   */
+  if (old_qm != NOBODY && old_qm != QST_MASTER(rnum)) {
+    if (questmaster_quest_count(old_qm) == 0) {
+      old_qmrnum = real_mobile(old_qm);
+      if (old_qmrnum != NOBODY)
+        mob_index[old_qmrnum].func = old_func;
+    } else {
+      questmaster_set_secondary(old_qm, old_func);
+    }
+  }
+
   qmrnum = real_mobile(QST_MASTER(rnum));
-  /* Make sure we assign spec procs to the questmaster */
-  if (qmrnum != NOBODY && mob_index[qmrnum].func &&
-     mob_index[qmrnum].func != questmaster)
-     QST_FUNC(rnum) = mob_index[qmrnum].func;
-  if(qmrnum != NOBODY) 
+
+  if (qmrnum != NOBODY) {
+    /*
+     * Reuse the established secondary proc when this mob already has quests.
+     * If this is its first quest, preserve the mob's current special instead.
+     */
+    if (old_qm == QST_MASTER(rnum))
+      secondary = old_func;
+    else
+      secondary = questmaster_secondary(QST_MASTER(rnum));
+
+    if (!secondary && mob_index[qmrnum].func != questmaster)
+      secondary = mob_index[qmrnum].func;
+
+    questmaster_set_secondary(QST_MASTER(rnum), secondary);
     mob_index[qmrnum].func = questmaster;
+  } else {
+    QST_FUNC(rnum) = NULL;
+  }
 
   /* And make sure we save the updated quest information to disk */
   if (rznum != NOWHERE)
@@ -130,44 +206,66 @@ int delete_quest(qst_rnum rnum)
 {
   qst_rnum i;
   zone_rnum rznum;
-  mob_vnum qm = QST_MASTER(rnum);
+  mob_vnum qm;
+  mob_rnum qmrnum;
   SPECIAL (*tempfunc);
-  int  quests_remaining = 0;
+  int quests_remaining = 0;
 
-  if (rnum >= total_quests)
+  if (rnum == NOTHING || rnum >= total_quests)
     return FALSE;
-  rznum = real_zone_by_thing(QST_NUM(rnum)); 
+
+  /* Read the questmaster only after the bounds check above -- and note the
+   * check names NOTHING itself rather than trusting the wrap to catch it.
+   * (IDXTYPE)-1 lands above total_quests while indexes are unsigned but
+   * below it when they are signed, so the comparison alone would let the
+   * sentinel through; delete_object() names it the same way.  qedit hands
+   * us real_quest()'s NOTHING when a builder deletes a quest that was
+   * never added, and as an initialiser this read indexed
+   * aquest_table[65535] before the check had a chance to reject it. */
+  qm = QST_MASTER(rnum);
+  rznum = real_zone_by_thing(QST_NUM(rnum));
+
   log("GenOLC: delete_quest: Deleting quest #%d (%s).",
        QST_NUM(rnum), QST_NAME(rnum));
-  /* make a note of the quest master's secondary spec proc */
-  tempfunc = QST_FUNC(rnum);
 
+  /* Remember the questmaster's original secondary spec proc. */
+  tempfunc = QST_FUNC(rnum);
+  if (!tempfunc && qm != NOBODY)
+    tempfunc = questmaster_secondary(qm);
 
   free_quest_strings(&aquest_table[rnum]);
-  for (i = rnum; i < total_quests - 1; i++) {
+
+  for (i = rnum; i < total_quests - 1; i++)
     aquest_table[i] = aquest_table[i + 1];
-  }
+
   total_quests--;
+
   if (total_quests > 0)
     RECREATE(aquest_table, struct aq_data, total_quests);
   else {
     free(aquest_table);
-    aquest_table = NULL; 
-   }
+    aquest_table = NULL;
+  }
+
   if (rznum != NOWHERE)
-     add_to_save_list(zone_table[rznum].number, SL_QST);
+    add_to_save_list(zone_table[rznum].number, SL_QST);
   else
     mudlog(BRF, LVL_BUILDER, TRUE,
            "SYSERR: GenOLC: Cannot determine quest zone.");
-  /* does the questmaster mob have any quests left? */
+
   if (qm != NOBODY) {
-    for (i = 0; i < total_quests; i++) {
-      if (QST_MASTER(i) == qm)
-        quests_remaining++;
+    quests_remaining = questmaster_quest_count(qm);
+
+    if ((qmrnum = real_mobile(qm)) != NOBODY) {
+      if (quests_remaining == 0)
+        mob_index[qmrnum].func = tempfunc;
+      else {
+        questmaster_set_secondary(qm, tempfunc);
+        mob_index[qmrnum].func = questmaster;
+      }
     }
-    if (quests_remaining == 0)
-      mob_index[qm].func = tempfunc; // point back to original spec proc
   }
+
   return TRUE;
 }
 
@@ -196,24 +294,28 @@ int save_quests(zone_rnum zone_num)
         zone_table[zone_num].number,
  genolc_zone_bottom(zone_num), zone_table[zone_num].top);
 
-  snprintf(filename, sizeof(filename), "%s/%d.new",
+  snprintf(filename, sizeof(filename), "%s%d.new",
  QST_PREFIX, zone_table[zone_num].number);
   if (!(sf = fopen(filename, "w"))) {
-    perror("SYSERR: save_quests");
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: save_quests: Cannot open the quest file %s: %s",
+           filename, strerror(errno));
     return FALSE;
   }
   for (i = genolc_zone_bottom(zone_num); i <= zone_table[zone_num].top; i++) {
     qst_rnum rnum;
     if ((rnum = real_quest(i)) != NOTHING) {
-      /* Copy the text strings and strip off trailing newlines. */
-      strncpy(quest_desc, QST_DESC(rnum) ? QST_DESC(rnum) : "undefined",
-              sizeof(quest_desc)-1 );
-      strncpy(quest_info, QST_INFO(rnum) ? QST_INFO(rnum) : "undefined",
-              sizeof(quest_info)-1 );
-      strncpy(quest_done, QST_DONE(rnum) ? QST_DONE(rnum) : "undefined",
-              sizeof(quest_done)-1 );
-      strncpy(quest_quit, QST_QUIT(rnum) ? QST_QUIT(rnum) : "undefined",
-              sizeof(quest_quit)-1 );
+      /* Copy the text strings and strip off trailing newlines.  strlcpy()
+       * always terminates; the strncpy() this replaces did not when the
+       * string filled the buffer, and strip_cr() then read past it. */
+      strlcpy(quest_desc, QST_DESC(rnum) ? QST_DESC(rnum) : "undefined",
+              sizeof(quest_desc));
+      strlcpy(quest_info, QST_INFO(rnum) ? QST_INFO(rnum) : "undefined",
+              sizeof(quest_info));
+      strlcpy(quest_done, QST_DONE(rnum) ? QST_DONE(rnum) : "undefined",
+              sizeof(quest_done));
+      strlcpy(quest_quit, QST_QUIT(rnum) ? QST_QUIT(rnum) : "undefined",
+              sizeof(quest_quit));
       strip_cr(quest_desc);
       strip_cr(quest_info);
       strip_cr(quest_done);
@@ -250,25 +352,69 @@ int save_quests(zone_rnum zone_num)
         QST_QUANTITY(rnum), QST_GOLD(rnum), QST_EXP(rnum), QST_OBJ(rnum)
       );
       
-      if(n < MAX_STRING_LENGTH) {
-        fprintf(sf, "%s", convert_from_tabs(buf));
-        num_quests++;
-      } else {
-        mudlog(BRF,LVL_BUILDER,TRUE, 
-               "SYSERR: Could not save quest #%d due to size (%d > maximum of %d).", 
-               QST_NUM(rnum), n, MAX_STRING_LENGTH);
+      if (n < 0) {
+        mudlog(BRF, LVL_BUILDER, TRUE,
+               "SYSERR: Could not format quest #%d for saving.",
+               QST_NUM(rnum));
+        fclose(sf);
+        if (!CONFIG_DEBUG_MODE)
+          remove(filename);
+        return FALSE;
       }
+
+      if (n >= MAX_STRING_LENGTH) {
+        mudlog(BRF, LVL_BUILDER, TRUE,
+               "SYSERR: Could not save quest #%d due to size (%d >= maximum of %d).",
+               QST_NUM(rnum), n, MAX_STRING_LENGTH);
+        fclose(sf);
+        if (!CONFIG_DEBUG_MODE)
+          remove(filename);
+        return FALSE;
+      }
+
+      if (fprintf(sf, "%s", convert_from_tabs(buf)) < 0) {
+        mudlog(BRF, LVL_BUILDER, TRUE,
+               "SYSERR: Error writing quest #%d to %s: %s",
+               QST_NUM(rnum), filename, strerror(errno));
+        fclose(sf);
+        if (!CONFIG_DEBUG_MODE)
+          remove(filename);
+        return FALSE;
+      }
+
+      num_quests++;
     }
   }
-  /* Write the final line and close it.  */
-  fprintf(sf, "$~\n");
-  fclose(sf);
+  /* Write the final line and verify the temporary file is complete. */
+  if (fprintf(sf, "$~\n") < 0 || fflush(sf) == EOF || ferror(sf)) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: Error finalizing quest file %s: %s",
+           filename, strerror(errno));
+    fclose(sf);
+    if (!CONFIG_DEBUG_MODE)
+      remove(filename);
+    return FALSE;
+  }
+
+  if (fclose(sf) == EOF) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: Error closing quest file %s: %s",
+           filename, strerror(errno));
+    if (!CONFIG_DEBUG_MODE)
+      remove(filename);
+    return FALSE;
+  }
 
   /* Old file we're replacing. */
-  snprintf(oldname, sizeof(oldname), "%s/%d.qst",
+  snprintf(oldname, sizeof(oldname), "%s%d.qst",
            QST_PREFIX, zone_table[zone_num].number);
-  remove(oldname);
-  rename(filename, oldname);
+
+  if (!genolc_install_file(filename, oldname)) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: Could not put the quest file %s in place: %s",
+           oldname, strerror(errno));
+    return FALSE;
+  }
 
   /* Do we need to update the index file? */
   if (num_quests > 0)

@@ -1,3 +1,4 @@
+# @configure_input@
 # tests/Makefile.in
 # Autoconf template — processed by configure to produce tests/Makefile.
 #
@@ -33,11 +34,21 @@ STUBS_SRC  = test_stubs.c
 UTILS_SRC  = $(SRCDIR)/utils.c $(SRCDIR)/random.c
 
 # All test binaries
-TESTS = test_utils test_random test_interpreter test_class
-
+TESTS = test_utils test_random test_interpreter test_class test_lists test_mud_event test_handler_prefix test_improved_edit test_obj_walk test_trigger_save test_genolc_savers test_ibt
 .PHONY: all test clean
 
 all: $(TESTS)
+
+# Link only the deletion/writer/save-list paths; the full editors depend on
+# the running game. This harness uses POSIX temporary directories.
+ifeq ($(shell uname -s),Darwin)
+TRIGGER_GC_LDFLAGS = -Wl,-dead_strip
+else
+TRIGGER_GC_LDFLAGS = -Wl,--gc-sections
+endif
+test_trigger_save: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
+                   $(SRCDIR)/dg_olc.c $(SRCDIR)/genolc.c test_trigger_save.c
+	$(COMPILE) -ffunction-sections -fdata-sections $(TRIGGER_GC_LDFLAGS) -o $@ $^ $(LIBS)
 
 # ---------------------------------------------------------------------------
 # test_utils — covers src/utils.c
@@ -52,6 +63,12 @@ test_random: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) test_random.c
 	$(COMPILE) -o $@ $^ $(LIBS)
 
 # ---------------------------------------------------------------------------
+# test_ibt — covers the IBT_DATA structure in src/ibt.h
+# ---------------------------------------------------------------------------
+test_ibt: $(UNITY_SRC) test_ibt.c
+	$(COMPILE) -o $@ $^ $(LIBS)
+
+# ---------------------------------------------------------------------------
 # test_interpreter — covers string helpers in src/interpreter.c
 # ---------------------------------------------------------------------------
 test_interpreter: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
@@ -63,6 +80,44 @@ test_interpreter: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
 # ---------------------------------------------------------------------------
 test_class: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
             $(SRCDIR)/class.c test_class.c
+	$(COMPILE) -o $@ $^ $(LIBS)
+
+# ---------------------------------------------------------------------------
+# test_lists — covers src/lists.c
+# ---------------------------------------------------------------------------
+test_lists: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
+            $(SRCDIR)/lists.c test_lists.c
+	$(COMPILE) -o $@ $^ $(LIBS)
+
+# ---------------------------------------------------------------------------
+# test_mud_event — covers char_has_mud_event() in src/mud_event.c
+# ---------------------------------------------------------------------------
+test_mud_event: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
+                $(SRCDIR)/lists.c $(SRCDIR)/dg_event.c $(SRCDIR)/mud_event.c \
+                test_mud_event.c
+	$(COMPILE) -o $@ $^ $(LIBS)
+
+# ---------------------------------------------------------------------------
+# test_handler_prefix — covers the keyword helpers in src/handler.c
+# interpreter.c is here for one_argument, lists.c for the group list.
+# ---------------------------------------------------------------------------
+test_handler_prefix: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
+                     $(SRCDIR)/handler.c $(SRCDIR)/interpreter.c $(SRCDIR)/lists.c \
+                     test_handler_prefix.c
+	$(COMPILE) -o $@ $^ $(LIBS)
+
+# ---------------------------------------------------------------------------
+# test_improved_edit - covers format_text() and replace_str() in src/improved-edit.c
+# ---------------------------------------------------------------------------
+test_improved_edit: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
+                    $(SRCDIR)/improved-edit.c test_improved_edit.c
+	$(COMPILE) -o $@ $^ $(LIBS)
+
+# ---------------------------------------------------------------------------
+# test_obj_walk - covers extraction during object-list iteration
+# ---------------------------------------------------------------------------
+test_obj_walk: $(UNITY_SRC) $(STUBS_SRC) $(UTILS_SRC) \
+               $(SRCDIR)/handler.c $(SRCDIR)/lists.c test_obj_walk.c
 	$(COMPILE) -o $@ $^ $(LIBS)
 
 # ---------------------------------------------------------------------------
@@ -94,3 +149,14 @@ test: $(TESTS)
 clean:
 	rm -f $(TESTS)
 	rm -rf test-results
+
+# Link only the saver call paths, without unrelated editor/game dependencies.
+# The fixture provides its own small set of stubs instead of test_stubs.c.
+SAVER_LDFLAGS = -Wl,--gc-sections
+ifeq ($(shell uname -s),Darwin)
+SAVER_LDFLAGS = -Wl,-dead_strip
+endif
+test_genolc_savers: $(UNITY_SRC) test_genolc_savers.c \
+                    $(SRCDIR)/genmob.c $(SRCDIR)/genobj.c $(SRCDIR)/genwld.c \
+                    $(SRCDIR)/genolc.c $(SRCDIR)/genzon.c
+	$(COMPILE) -ffunction-sections -fdata-sections -o $@ $^ $(SAVER_LDFLAGS) $(LIBS)

@@ -131,7 +131,7 @@ void parse_quest(FILE *quest_f, int nr)
   static char line[256];
   static int i = 0, j;
   int retval = 0, t[7];
-  char f1[128], buf2[MAX_STRING_LENGTH];
+  char f1[WORLD_FLAG_FIELD + 1], buf2[MAX_STRING_LENGTH];
   aquest_table[i].vnum = nr;
   aquest_table[i].qm = NOBODY;
   aquest_table[i].name = NULL;
@@ -159,8 +159,8 @@ void parse_quest(FILE *quest_f, int nr)
   aquest_table[i].info = fread_string(quest_f, buf2);
   aquest_table[i].done = fread_string(quest_f, buf2);
   aquest_table[i].quit = fread_string(quest_f, buf2);
-  if (!get_line(quest_f, line) ||
-      (retval = sscanf(line, " %d %d %s %d %d %d %d",
+  if (!get_line(quest_f, line, sizeof(line)) ||
+      (retval = sscanf(line, " %d %d " FLAG_FIELD_FMT " %d %d %d %d",
              t, t+1, f1, t+2, t+3, t + 4, t + 5)) != 7) {
     log("Format error in numeric line (expected 7, got %d), %s\n",
         retval, line);
@@ -173,7 +173,7 @@ void parse_quest(FILE *quest_f, int nr)
   aquest_table[i].prev_quest = (t[3] == -1) ? NOTHING : t[3];
   aquest_table[i].next_quest = (t[4] == -1) ? NOTHING : t[4];
   aquest_table[i].prereq     = (t[5] == -1) ? NOTHING : t[5];
-  if (!get_line(quest_f, line) ||
+  if (!get_line(quest_f, line, sizeof(line)) ||
       (retval = sscanf(line, " %d %d %d %d %d %d %d",
           t, t+1, t+2, t+3, t+4, t + 5, t + 6)) != 7) {
     log("Format error in numeric line (expected 7, got %d), %s\n",
@@ -183,7 +183,7 @@ void parse_quest(FILE *quest_f, int nr)
   for (j = 0; j < 7; j++)
     aquest_table[i].value[j] = t[j];
 
-  if (!get_line(quest_f, line) ||
+  if (!get_line(quest_f, line, sizeof(line)) ||
       (retval = sscanf(line, " %d %d %d",
              t, t+1, t+2)) != 3) {
     log("Format error in numeric (rewards) line (expected 3, got %d), %s\n",
@@ -196,7 +196,7 @@ void parse_quest(FILE *quest_f, int nr)
   aquest_table[i].obj_reward  = (t[2] == -1) ? NOTHING : t[2];
 
   for (;;) {
-    if (!get_line(quest_f, line)) {
+    if (!get_line(quest_f, line, sizeof(line))) {
       log("Format error in %s\n", line);
       exit(1);
     }
@@ -208,12 +208,23 @@ void parse_quest(FILE *quest_f, int nr)
   }
 } /* parse_quest */
 
+/* The merged command table is rebuilt from scratch whenever a social is
+ * added or removed, and every index into it moves with it. The values
+ * below are indices into that table, handed straight to do_action(), so
+ * they have to be taken again each time it is rebuilt rather than once at
+ * boot. create_command_list() calls this; see the note there. */
+void assign_quest_command_indices(void)
+{
+  cmd_tell = find_command("tell");
+}
+
 void assign_the_quests(void)
 {
-  qst_rnum rnum;
+  qst_rnum i, rnum;
   mob_rnum mrnum;
+  SPECIAL (*secondary);
 
-  cmd_tell = find_command("tell");
+  assign_quest_command_indices();
 
   for (rnum = 0; rnum < total_quests; rnum ++) {
     if (QST_MASTER(rnum) == NOBODY) {
@@ -224,10 +235,21 @@ void assign_the_quests(void)
       log("SYSERR: Quest #%d has an invalid questmaster.", QST_NUM(rnum));
       continue;
     }
-    if (mob_index[(mrnum)].func &&
- mob_index[(mrnum)].func != questmaster)
-      QST_FUNC(rnum) = mob_index[(mrnum)].func;
-    mob_index[(mrnum)].func = questmaster;
+
+    /*
+     * The questmaster special replaces the mob's original special proc.
+     * Give every quest for this master the same secondary proc so runtime
+     * behavior does not depend on quest ordering or which quest is deleted.
+     */
+    if (mob_index[mrnum].func != questmaster) {
+      secondary = mob_index[mrnum].func;
+
+      for (i = 0; i < total_quests; i++)
+        if (QST_MASTER(i) == QST_MASTER(rnum))
+          QST_FUNC(i) = secondary;
+
+      mob_index[mrnum].func = questmaster;
+    }
   }
 }
 
@@ -293,8 +315,25 @@ void generic_complete_quest(struct char_data *ch)
   struct obj_data *new_obj;
   int happy_qp, happy_gold, happy_exp;
 
+  /* AQ_MOB_FIND calls this once per matching mob in the room, and the first
+   * call clears the quest -- so a second copy of the target mob arrives
+   * here with GET_QUEST(ch) already NOTHING, and real_quest() answers
+   * NOTHING for it.  Every QST_ macro below is a bare aquest_table[rnum].
+   *
+   * The test belongs above the decrement, not after it.  clear_quest()
+   * leaves the counter at 0, so by the line below it has already gone to
+   * -1, and returning from inside the block would leave it there: the
+   * only thing that puts it back is the clear_quest() at the far end of
+   * the same block.  There is nothing to complete, so nothing here should
+   * run at all -- not the decrement and not the save_char() below.
+   *
+   * A quest deleted while a player was on it lands here too, and is left
+   * alone rather than completed out of whatever aquest_table[65535] held.
+   * The player can still 'quest quit'. */
+  if ((rnum = real_quest(vnum)) == NOTHING)
+    return;
+
   if (--GET_QUEST_COUNTER(ch) <= 0) {
-    rnum = real_quest(vnum);
     if (IS_HAPPYHOUR && IS_HAPPYQP) {
       happy_qp = (int)(QST_POINTS(rnum) * (((float)(100+HAPPY_QP))/(float)100));
       happy_qp = MAX(happy_qp, 0);
@@ -324,14 +363,15 @@ void generic_complete_quest(struct char_data *ch)
       }
     }
     if (QST_EXP(rnum)) {
-      gain_exp(ch, QST_EXP(rnum));
       if ((IS_HAPPYHOUR) && (IS_HAPPYEXP)) {
         happy_exp = (int)(QST_EXP(rnum) * (((float)(100+HAPPY_EXP))/(float)100));
         happy_exp = MAX(happy_exp, 0);
+        gain_exp(ch, happy_exp);
         send_to_char(ch,
               "You have been awarded %d experience for your service.\r\n",
               happy_exp);
       } else {
+        gain_exp(ch, QST_EXP(rnum));
         send_to_char(ch,
               "You have been awarded %d experience points for your service.\r\n",
               QST_EXP(rnum));
@@ -444,7 +484,7 @@ void check_timed_quests(void)
 
   for (ch = character_list; ch; ch = ch->next)
     if (!IS_NPC(ch) && (GET_QUEST(ch) != NOTHING) && (GET_QUEST_TIME(ch) != -1))
-      if (--GET_QUEST_TIME(ch) == 0)
+      if (GET_QUEST_TIME(ch) <= 0 || --GET_QUEST_TIME(ch) == 0)
         quest_timeout(ch);
 }
 
@@ -559,7 +599,7 @@ static void quest_join(struct char_data *ch, struct char_data *qm, char argument
 void quest_list(struct char_data *ch, struct char_data *qm, char argument[MAX_INPUT_LENGTH])
 {
   qst_vnum vnum;
-  qst_rnum rnum;
+  qst_rnum rnum, prev;
 
   if ((vnum = find_quest_by_qmnum(ch, GET_MOB_VNUM(qm), atoi(argument))) == NOTHING)
     send_to_char(ch, "That is not a valid quest!\r\n");
@@ -570,9 +610,19 @@ void quest_list(struct char_data *ch, struct char_data *qm, char argument[MAX_IN
                       vnum,
          QST_DESC(rnum),
          QST_INFO(rnum));
-    if (QST_PREV(rnum) != NOTHING)
-      send_to_char(ch, "You have to have completed quest %s first.\r\n",
-          QST_NAME(real_quest(QST_PREV(rnum))));
+    if (QST_PREV(rnum) != NOTHING) {
+      /* Holding a vnum and that vnum still resolving are two different
+       * things.  Deleting a quest leaves every quest that named it as a
+       * prerequisite holding a link real_quest() now answers NOTHING for,
+       * and QST_NAME() is a bare aquest_table[i], so the read is
+       * aquest_table[65535].name.  quest_stat() guards the same dangling
+       * link on the immortal side; this is the one a mortal reaches. */
+      if ((prev = real_quest(QST_PREV(rnum))) == NOTHING)
+        send_to_char(ch, "You have to have completed an unknown quest first.\r\n");
+      else
+        send_to_char(ch, "You have to have completed quest %s first.\r\n",
+            QST_NAME(prev));
+    }
     if (QST_TIME(rnum) != -1)
       send_to_char(ch,
          "There is a time limit of %d turn%s to complete the quest.\r\n",
@@ -710,7 +760,7 @@ static void quest_stat(struct char_data *ch, char *argument)
  (QST_QUIT(rnum) &&
   (str_cmp(QST_QUIT(rnum), "undefined") != 0)
           ? QST_QUIT(rnum) : "Nothing\r\n"),
-     quest_types[QST_TYPE(rnum)],
+     QST_TYPE_NAME(QST_TYPE(rnum)),
  QST_TARGET(rnum) == NOBODY ? -1 : QST_TARGET(rnum),
  targetname,
  QST_QUANTITY(rnum),
@@ -733,18 +783,23 @@ static void quest_stat(struct char_data *ch, char *argument)
    QST_TIME(rnum) == 1 ? "" : "s");
     else
       send_to_char(ch, "Limit : There is no time limit on this quest.\r\n");
+    /* A chain link can outlive what it points at: deleting a quest leaves
+     * every quest that named it holding a vnum real_quest() answers NOTHING
+     * for, and QST_DESC(NOTHING) reads aquest_table[65535]. */
     send_to_char(ch, "Prior :");
     if (QST_PREV(rnum) == NOTHING)
       send_to_char(ch, " \tyNone.\tn\r\n");
     else
       send_to_char(ch, " [\ty%5d\tn] \tc%s\tn\r\n",
-        QST_PREV(rnum), QST_DESC(real_quest(QST_PREV(rnum))));
+        QST_PREV(rnum), real_quest(QST_PREV(rnum)) == NOTHING ?
+          "an unknown quest" : QST_DESC(real_quest(QST_PREV(rnum))));
     send_to_char(ch, "Next  :");
     if (QST_NEXT(rnum) == NOTHING)
       send_to_char(ch, " \tyNone.\tn\r\n");
     else
       send_to_char(ch, " [\ty%5d\tn] \tc%s\tn\r\n",
-        QST_NEXT(rnum), QST_DESC(real_quest(QST_NEXT(rnum))));
+        QST_NEXT(rnum), real_quest(QST_NEXT(rnum)) == NOTHING ?
+          "an unknown quest" : QST_DESC(real_quest(QST_NEXT(rnum))));
   }
 }
 

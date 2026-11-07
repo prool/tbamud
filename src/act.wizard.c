@@ -33,6 +33,7 @@
 #include "modify.h"
 #include "quest.h"
 #include "ban.h"
+#include "protocol.h" /* for ReportBugFlush */
 #include "screen.h"
 
 /* local utility functions with file scope */
@@ -1544,17 +1545,11 @@ ACMD(do_advance)
 
   if (oldlevel >= LVL_IMMORT && newlevel < LVL_IMMORT) {
     /* If they are no longer an immortal, remove the immortal only flags. */
-    REMOVE_BIT_AR(PRF_FLAGS(victim), PRF_LOG1);
-    REMOVE_BIT_AR(PRF_FLAGS(victim), PRF_LOG2);
-    REMOVE_BIT_AR(PRF_FLAGS(victim), PRF_NOHASSLE);
-    REMOVE_BIT_AR(PRF_FLAGS(victim), PRF_HOLYLIGHT);
-    REMOVE_BIT_AR(PRF_FLAGS(victim), PRF_SHOWVNUMS);
+    remove_rank_prefs(PRF_FLAGS(victim));
     if (!PLR_FLAGGED(victim, PLR_NOWIZLIST))
       run_autowiz();
   } else if (oldlevel < LVL_IMMORT && newlevel >= LVL_IMMORT) {
-    SET_BIT_AR(PRF_FLAGS(victim), PRF_LOG2);
-    SET_BIT_AR(PRF_FLAGS(victim), PRF_HOLYLIGHT);
-    SET_BIT_AR(PRF_FLAGS(victim), PRF_SHOWVNUMS);
+    set_rank_prefs(PRF_FLAGS(victim));
     SET_BIT_AR(PRF_FLAGS(victim), PRF_AUTOEXIT);
         for (i = 1; i <= MAX_SKILLS; i++)
           SET_SKILL(victim, i, 100);
@@ -1852,10 +1847,16 @@ struct last_entry *find_llog_entry(int punique, long idnum) {
   recs = size/sizeof(struct last_entry);
   /* we'll search last to first, since it's faster than any thing else we can
    * do (like searching for the last shutdown/etc..) */
-  for(tmp=recs-1; tmp > 0; tmp--) {
+  /* One iteration per record.  Starting at recs-1 gave one fewer, and the
+   * one it dropped was the last to be reached: the oldest entry in the
+   * file was never compared.  mod_llog_entry(), which walks the file the
+   * same way, has always counted from recs. */
+  for(tmp=recs; tmp > 0; tmp--) {
     fseek(fp,-1*((long)sizeof(struct last_entry)),SEEK_CUR);
-    if (fread(&mlast,sizeof(struct last_entry),1,fp) != 1)
+    if (fread(&mlast,sizeof(struct last_entry),1,fp) != 1) {
+      fclose(fp);
       return NULL;
+    }
         /*another one to keep that stepback */
     fseek(fp,-1*((long)sizeof(struct last_entry)),SEEK_CUR);
 
@@ -1894,7 +1895,13 @@ static void mod_llog_entry(struct last_entry *llast,int type) {
   for(tmp=recs; tmp > 0; tmp--) {
     fseek(fp,-1*((long)sizeof(struct last_entry)),SEEK_CUR);
     if(fread(&mlast,sizeof(struct last_entry),1,fp) != 1) {
-      log("mod_llog_entry: read error or unexpected end of file.");
+      if (feof(fp))
+        log("SYSERR: mod_llog_entry: unexpected end of file reading %s.", LAST_FILE);
+      else if (ferror(fp))
+        log("SYSERR: mod_llog_entry: error reading %s: %s", LAST_FILE, strerror(errno));
+      else
+        log("SYSERR: mod_llog_entry: error reading %s.", LAST_FILE);
+      fclose(fp);
       return;
     }
     /* Another one to keep that stepback. */
@@ -1939,10 +1946,21 @@ void add_llog_entry(struct char_data *ch, int type) {
   /* we didn't - make a new one */
   if(llast == NULL) {  /* no entry found, add ..error if close! */
     CREATE(llast,struct last_entry,1);
-    strncpy(llast->username,GET_NAME(ch),15);
-    strncpy(llast->hostname,GET_HOST(ch),127);
-    llast->username[15]='\0';
-    llast->hostname[127]='\0';
+    /* Four numbers, none of which came from the array being written: 15 and
+     * 127 against a username[16] and a hostname[256].  The username pair
+     * happens to line up; the hostname pair does not, and has been filling
+     * half the field for as long as it has been that size.  Nothing overruns
+     * -- GET_HOST() is strdup'd from a char[HOST_LENGTH + 1] -- so this
+     * changes no stored byte, and the record is a fixed-size struct written
+     * whole, so the file format does not move either.  It just stops being
+     * four numbers that have to be checked against a header in another file.
+     * strncpy() still does not terminate when the source fills the field, so
+     * each copy keeps its own terminator, next to it rather than two lines
+     * down. */
+    strncpy(llast->username, GET_NAME(ch), sizeof(llast->username) - 1);
+    llast->username[sizeof(llast->username) - 1] = '\0';
+    strncpy(llast->hostname, GET_HOST(ch), sizeof(llast->hostname) - 1);
+    llast->hostname[sizeof(llast->hostname) - 1] = '\0';
     llast->idnum=GET_IDNUM(ch);
     llast->punique=GET_PREF(ch);
     llast->time=time(0);
@@ -1989,19 +2007,45 @@ void clean_llog_entries(void) {
   /* skip first entries */
   fseek(ofp,(recs-MAX_LAST_ENTRIES)* (sizeof(struct last_entry)),SEEK_CUR);
 
-  /* copy the rest */
-  while (!feof(ofp)) {
-    if(fread(&mlast,sizeof(struct last_entry),1,ofp) != 1 ) {
-      log("clean_llog_entries: read error or unexpected end of file.");
-      return;
-    }
+  /* Copy the rest.  Reaching the end of the file is how this loop is
+   * meant to finish: feof() is not set until a read has already run out
+   * of file, so testing it first sends the last, successful iteration
+   * round once more, and the read that then fails is not an error --
+   * it is the end.  Reporting it as one returned past the rename that is
+   * the point of the whole function.  A real read error is a different
+   * thing and has to keep the file it could not read. */
+  while (fread(&mlast,sizeof(struct last_entry),1,ofp) == 1)
     fwrite(&mlast,sizeof(struct last_entry),1,nfp);
+
+  if (ferror(ofp)) {
+    log("SYSERR: clean_llog_entries: error reading %s: %s", LAST_FILE, strerror(errno));
+    fclose(ofp);
+    fclose(nfp);
+    remove("etc/nlast");
+    return;
   }
   fclose(ofp);
-  fclose(nfp);
 
-  remove(LAST_FILE);
-  rename("etc/nlast", LAST_FILE);
+  /* The copy is only worth swapping in if all of it reached the disk.
+   * Ask the stream first -- fclose() answers for the final flush, so a
+   * write that failed earlier and left nothing pending would not show up
+   * there -- and then ask the close. */
+  if (ferror(nfp)) {
+    log("SYSERR: clean_llog_entries: error writing etc/nlast.");
+    fclose(nfp);
+    remove("etc/nlast");
+    return;
+  }
+  if (fclose(nfp)) {
+    log("SYSERR: clean_llog_entries: error writing etc/nlast: %s", strerror(errno));
+    remove("etc/nlast");
+    return;
+  }
+
+  if (!genolc_install_file("etc/nlast", LAST_FILE)) {
+    log("SYSERR: clean_llog_entries: cannot put etc/nlast in place as %s: %s",
+        LAST_FILE, strerror(errno));
+  }
 }
 
 /* debugging stuff, if you wanna see the whole file */
@@ -2012,8 +2056,9 @@ static void list_llog_entries(struct char_data *ch)
   char timestr[25];
 
   if(!(fp=fopen(LAST_FILE,"r"))) {
-    log("llist_log_entries: could not open last log file %s.", LAST_FILE);
-    send_to_char(ch, "Error! - no last log");
+    log("SYSERR: list_llog_entries: could not open %s: %s", LAST_FILE, strerror(errno));
+    send_to_char(ch, "Error! - no last log\r\n");
+    return;
   }
   send_to_char(ch, "Last log\r\n");
 
@@ -2025,9 +2070,11 @@ static void list_llog_entries(struct char_data *ch)
   }
 
   if(ferror(fp)) {
-    log("llist_log_entries: error reading %s.", LAST_FILE);
-    send_to_char(ch, "Error reading last_log file.");
+    log("SYSERR: list_llog_entries: error reading %s: %s", LAST_FILE, strerror(errno));
+    send_to_char(ch, "Error reading last_log file.\r\n");
   }
+
+  fclose(fp);
 }
 
 static struct char_data *is_in_game(long idnum) {
@@ -2110,7 +2157,8 @@ ACMD(do_last)
   while(num > 0 && recs > 0) {
     fseek(fp,-1* ((long)sizeof(struct last_entry)),SEEK_CUR);
     if(fread(&mlast,sizeof(struct last_entry),1,fp) != 1) {
-      send_to_char(ch, "Error reading log file.");
+      send_to_char(ch, "Error reading log file.\r\n");
+      fclose(fp);
       return;
     }
     fseek(fp,-1*((long)sizeof(struct last_entry)),SEEK_CUR);
@@ -2441,15 +2489,15 @@ static size_t print_zone_to_buf(char *bufptr, size_t left, zone_rnum zone, int l
 	zone_table[zone].bot, zone_table[zone].top);
         j = k = l = m = n = o = 0;
 
-        for (i = 0; i < top_of_world; i++)
+        for (i = 0; i <= top_of_world; i++)
           if (world[i].number >= zone_table[zone].bot && world[i].number <= zone_table[zone].top)
             j++;
 
-        for (i = 0; i < top_of_objt; i++)
+        for (i = 0; i <= top_of_objt; i++)
           if (obj_index[i].vnum >= zone_table[zone].bot && obj_index[i].vnum <= zone_table[zone].top)
             k++;
 
-        for (i = 0; i < top_of_mobt; i++)
+        for (i = 0; i <= top_of_mobt; i++)
           if (mob_index[i].vnum >= zone_table[zone].bot && mob_index[i].vnum <= zone_table[zone].top)
             l++;
 
@@ -2555,7 +2603,10 @@ ACMD(do_show)
     if (self)
       print_zone_to_buf(buf, sizeof(buf), world[IN_ROOM(ch)].zone, 1);
     else if (*value && is_number(value)) {
-      for (zvn = atoi(value), zrn = 0; zone_table[zrn].number != zvn && zrn <= top_of_zone_table; zrn++);
+      /* The bound has to be tested before the table is read: on a number no
+       * zone has, the old order read zone_table[top_of_zone_table + 1] and
+       * only then noticed it had run off the end. */
+      for (zvn = atoi(value), zrn = 0; zrn <= top_of_zone_table && zone_table[zrn].number != zvn; zrn++);
       if (zrn <= top_of_zone_table)
 	print_zone_to_buf(buf, sizeof(buf), zrn, 1);
       else {
@@ -2568,17 +2619,32 @@ ACMD(do_show)
         builder = 1;
       for (len = zrn = 0; zrn <= top_of_zone_table; zrn++) {
         if (*value) {
-          buf2 = strtok(strdup(zone_table[zrn].builders), " ");
-          while (buf2) {
+          /* strtok() writes into the string it is given, so the builder list
+           * has to be copied -- and the copy has to be freed again, which the
+           * strtok(strdup(...)) this replaces never did. */
+          char *builders = strdup(zone_table[zrn].builders);
+          bool found = FALSE;
+
+          /* strtok(NULL, ...) means "carry on with the last string I gave
+           * you", so entering the loop with a failed strdup would resume
+           * the walk through the copy the previous zone has just freed. */
+          if (builders == NULL) {
+            log("SYSERR: do_show: cannot copy the builder list of zone %d.",
+                zone_table[zrn].number);
+            continue;
+          }
+
+          for (buf2 = strtok(builders, " "); buf2; buf2 = strtok(NULL, " "))
             if (!str_cmp(buf2, value)) {
-              if (builder == 1)
-                builder++;
+              found = TRUE;
               break;
-          }
-            buf2 = strtok(NULL, " ");
-          }
-          if (!buf2)
-	    continue;
+            }
+          free(builders);
+
+          if (!found)
+            continue;
+          if (builder == 1)
+            builder++;
 	}
 	nlen = print_zone_to_buf(buf + len, sizeof(buf) - len, zrn, 0);
         if (len + nlen >= sizeof(buf))
@@ -2665,7 +2731,7 @@ ACMD(do_show)
   "  %5d triggers         %5d shops\r\n"
   "  %5d large bufs       %5d autoquests\r\n"
 	"  %5d buf switches     %5d overflows\r\n"
-	"  %5d lists\r\n",
+	"  %5zu lists\r\n",
 	i, con,
 	top_of_p_table + 1,
 	j, top_of_mobt + 1,
@@ -3135,6 +3201,12 @@ static int perform_set(struct char_data *ch, struct char_data *vict, int mode, c
         send_to_char(ch, "Name has not been changed!\r\n");
         return (0);
       }
+      /* The wizlist and the immlist are both built from player names, so a
+       * rename leaves whichever list the player is on showing the old name
+       * until something unrelated regenerates it.  run_autowiz() already
+       * decides who belongs on each list, and honours use_autowiz, so there
+       * is no test worth duplicating here. */
+      run_autowiz();
       break;
     case 33: /* nodelete */
       SET_OR_REMOVE(PLR_FLAGS(vict), PLR_NODELETE);
@@ -3438,9 +3510,23 @@ ACMD(do_saveall)
  if (GET_LEVEL(ch) < LVL_BUILDER)
     send_to_char (ch, "You are not holy enough to use this privelege.\n\r");
  else {
-    save_all();
+    /* save_all() answers for the queued world files.  A queued social or
+     * help entry is not one of those: SL_ACT and SL_HLP are past SL_MAX
+     * and their save_types[] rows carry no function, so the entry is
+     * logged and dropped without changing the answer.  Only the aedit and
+     * hedit editors write those two files, by either of the routes their
+     * own log line names.  The savers name the file that failed in the
+     * syslog, which is
+     * gated on level and on the builder's PRF_LOG channel, so the command
+     * has to say that something did not. */
+    int saved = save_all();
+
     House_save_all();
-    send_to_char(ch, "World and house files saved.\n\r");
+    if (saved)
+      send_to_char(ch, "World and house files saved.\n\r");
+    else
+      send_to_char(ch, "House files saved. Some world files could not be "
+                       "written; see the syslog.\n\r");
  }
 }
 
@@ -3604,7 +3690,7 @@ ACMD (do_zcheck)
 
   send_to_char(ch, "Checking Mobs for limits...\r\n");
   /*check mobs first*/
-  for (i=0; i<top_of_mobt;i++) {
+  for (i=0; i<=top_of_mobt;i++) {
       if (real_zone_by_thing(mob_index[i].vnum) == zrnum) {  /*is mob in this zone?*/
         mob = &mob_proto[i];
         if (!strcmp(mob->player.name, "mob unfinished") && (found=1))
@@ -3704,7 +3790,7 @@ ACMD (do_zcheck)
 
  /* Check objects */
   send_to_char(ch, "\r\nChecking Objects for limits...\r\n");
-  for (i=0; i<top_of_objt; i++) {
+  for (i=0; i<=top_of_objt; i++) {
     if (real_zone_by_thing(obj_index[i].vnum) == zrnum) { /*is object in this zone?*/
       obj = &obj_proto[i];
       switch (GET_OBJ_TYPE(obj)) {
@@ -3744,7 +3830,7 @@ ACMD (do_zcheck)
                           "- is NO_TAKE, but has cost (%d) weight (%d) or rent (%d) set.\r\n",
                           GET_OBJ_COST(obj), GET_OBJ_WEIGHT(obj), GET_OBJ_RENT(obj));
       } else {
-        if (GET_OBJ_COST(obj) == 0 && (found=1) && GET_OBJ_TYPE(obj) != ITEM_TRASH)
+        if (GET_OBJ_TYPE(obj) != ITEM_TRASH && GET_OBJ_COST(obj) == 0 && (found=1))
           len += snprintf(buf + len, sizeof(buf) - len,
                           "- has 0 cost (min. 1).\r\n");
 
@@ -3836,7 +3922,7 @@ ACMD (do_zcheck)
 
   /* Check rooms */
   send_to_char(ch, "\r\nChecking Rooms for limits...\r\n");
-  for (i=0; i<top_of_world;i++) {
+  for (i=0; i<=top_of_world;i++) {
     if (world[i].zone==zrnum) {
       for (j = 0; j < DIR_COUNT; j++) {
         /*check for exit, but ignore off limits if you're in an offlimit zone*/
@@ -3858,7 +3944,7 @@ ACMD (do_zcheck)
         } /* for (k.. */
       } /* cycle directions */
 
-     if (ROOM_FLAGGED(i, ROOM_ATRIUM) || ROOM_FLAGGED(i, ROOM_HOUSE) || ROOM_FLAGGED(i, ROOM_HOUSE_CRASH) || ROOM_FLAGGED(i, ROOM_OLC) || ROOM_FLAGGED(i, ROOM_BFS_MARK))
+     if ((ROOM_FLAGGED(i, ROOM_ATRIUM) || ROOM_FLAGGED(i, ROOM_HOUSE) || ROOM_FLAGGED(i, ROOM_HOUSE_CRASH) || ROOM_FLAGGED(i, ROOM_OLC) || ROOM_FLAGGED(i, ROOM_BFS_MARK)) && (found = 1))
          len += snprintf(buf + len, sizeof(buf) - len,
          "- Has illegal affection bits set (%s %s %s %s %s)\r\n",
                             ROOM_FLAGGED(i, ROOM_ATRIUM) ? "ATRIUM" : "",
@@ -3894,14 +3980,14 @@ ACMD (do_zcheck)
         send_to_char(ch, "[%5d] %-30s: \r\n",
                        world[i].number, world[i].name ? world[i].name : "An unnamed room");
         send_to_char(ch, "%s", buf);
-        strcpy(buf, "");
-        len = 0;
-        found = 0;
       }
+      strcpy(buf, "");
+      len = 0;
+      found = 0;
     } /*is room in this zone?*/
   } /*checking rooms*/
 
-  for (i=0; i<top_of_world;i++) {
+  for (i=0; i<=top_of_world;i++) {
     if (world[i].zone==zrnum) {
       m++;
       for (j = 0, k = 0; j < DIR_COUNT; j++)
@@ -4093,7 +4179,7 @@ static void trg_checkload(struct char_data *ch, trig_vnum tvnum)
     } /*for cmd_no......*/
   }  /*for zone...*/
 
-  for (i = 0; i < top_of_mobt; i++) {
+  for (i = 0; i <= top_of_mobt; i++) {
     if (!mob_proto[i].proto_script)
       continue;
 
@@ -4106,7 +4192,7 @@ static void trg_checkload(struct char_data *ch, trig_vnum tvnum)
       }
   }
 
-  for (j = 0; j < top_of_objt; j++) {
+  for (j = 0; j <= top_of_objt; j++) {
     if (!obj_proto[j].proto_script)
       continue;
 
@@ -4119,7 +4205,7 @@ static void trg_checkload(struct char_data *ch, trig_vnum tvnum)
       }
   }
 
-  for (k = 0;k < top_of_world; k++) {
+  for (k = 0;k <= top_of_world; k++) {
     if (!world[k].proto_script)
       continue;
 
@@ -4168,67 +4254,141 @@ ACMD(do_checkloadstatus)
 ACMD(do_copyover)
 {
   FILE *fp;
-  struct descriptor_data *d, *d_next;
-  char buf [100], buf2[100];
+  struct descriptor_data *d, *d_next, *initiator;
+  struct char_data *och;
+  char buf[100], buf2[100];
+  int file_ok = TRUE;
 
-  fp = fopen (COPYOVER_FILE, "w");
-    if (!fp) {
-      send_to_char (ch, "Copyover file not writeable, aborted.\n\r");
+  initiator = ch->desc;
+
+  /*
+   * First return switched descriptors to their real characters and save every
+   * playing character without removing objects from the live game.
+   */
+  for (d = descriptor_list; d; d = d->next) {
+    och = d->character;
+
+    if (och && d->original) {
+      return_to_char(och);
+      och = d->character;
+    }
+
+    if (!och || d->connected > CON_PLAYING)
+      continue;
+
+    GET_LOADROOM(och) = GET_ROOM_VNUM(IN_ROOM(och));
+
+    /* A crash save, not a rent: nothing is taken off the character, no
+     * rent is charged, and keys and norent items come through the reboot
+     * with everything else. */
+    if (!Crash_crashsave(och)) {
+      if (initiator && initiator->character)
+        ch = initiator->character;
+
+      send_to_char(ch,
+          "Copyover aborted: unable to save %s's belongings.\r\n",
+          GET_NAME(och));
+      mudlog(BRF, MAX(LVL_GOD, GET_INVIS_LEV(ch)), TRUE,
+          "Copyover aborted: failed to save %s's belongings.",
+          GET_NAME(och));
       return;
     }
 
-   sprintf (buf, "\n\r *** COPYOVER by %s - please remain seated!\n\r", GET_NAME(ch));
+    save_char(och);
+  }
 
-   /* write boot_time as first line in file */
-   fprintf(fp, "%ld\n", (long)boot_time);
+  /*
+   * return_to_char() may have changed the character associated with the
+   * descriptor that issued the command.
+   */
+  if (initiator && initiator->character)
+    ch = initiator->character;
 
-   /* For each playing descriptor, save its state */
-   for (d = descriptor_list; d ; d = d_next) {
-     struct char_data * och = d->character;
-   
-   /* If d is currently in someone else's body, return them. */  
-   if (och && d->original)
-     return_to_char(och);
-        
-   /* We delete from the list , so need to save this */
-     d_next = d->next;
+  /*
+   * Only create the recovery file once every character has been persisted
+   * successfully.
+   */
+  fp = fopen(COPYOVER_FILE, "w");
+  if (!fp) {
+    send_to_char(ch, "Copyover file not writeable, aborted.\n\r");
+    return;
+  }
 
-  /* drop those logging on */
-   if (!d->character || d->connected > CON_PLAYING) {
-     write_to_descriptor (d->descriptor, "\n\rSorry, we are rebooting. Come back in a few minutes.\n\r");
-     close_socket (d); /* throw'em out */
-   } else {
-      fprintf (fp, "%d %ld %s %s %s\n", d->descriptor, GET_PREF(och), GET_NAME(och), d->host, CopyoverGet(d));
-      /* save och */
-      GET_LOADROOM(och) = GET_ROOM_VNUM(IN_ROOM(och));
-      Crash_rentsave(och,0);
-      save_char(och);
-      write_to_descriptor (d->descriptor, buf);
+  snprintf(buf, sizeof(buf),
+      "\n\r *** COPYOVER by %s - please remain seated!\n\r",
+      GET_NAME(ch));
+
+  if (fprintf(fp, "%ld\n", (long)boot_time) < 0)
+    file_ok = FALSE;
+
+  for (d = descriptor_list; d && file_ok; d = d->next) {
+    och = d->character;
+
+    if (!och || d->connected > CON_PLAYING)
+      continue;
+
+    if (fprintf(fp, "%d %ld %s %s %s\n",
+            d->descriptor, GET_PREF(och), GET_NAME(och),
+            d->host, CopyoverGet(d)) < 0)
+      file_ok = FALSE;
+  }
+
+  if (file_ok && fprintf(fp, "-1\n") < 0)
+    file_ok = FALSE;
+  if (file_ok && fflush(fp) == EOF)
+    file_ok = FALSE;
+  if (ferror(fp))
+    file_ok = FALSE;
+  if (fclose(fp) == EOF)
+    file_ok = FALSE;
+
+  if (!file_ok) {
+    send_to_char(ch, "Copyover file write failed, aborted.\r\n");
+    mudlog(BRF, MAX(LVL_GOD, GET_INVIS_LEV(ch)), TRUE,
+        "Copyover aborted: recovery file could not be completed.");
+    return;
+  }
+
+  /*
+   * Persistence and recovery metadata are complete.  Only now close sockets
+   * that cannot survive copyover and notify the players that remain.
+   */
+  for (d = descriptor_list; d; d = d_next) {
+    d_next = d->next;
+
+    if (!d->character || d->connected > CON_PLAYING) {
+      write_to_descriptor(d->descriptor,
+          "\n\rSorry, we are rebooting. Come back in a few minutes.\n\r");
+      close_socket(d);
+    } else {
+      write_to_descriptor(d->descriptor, buf);
     }
   }
 
-  fprintf (fp, "-1\n");
-  fclose (fp);
+  snprintf(buf, sizeof(buf), "%d", port);
+  snprintf(buf2, sizeof(buf2), "-C%d", mother_desc);
 
-  /* exec - descriptors are inherited */
-  sprintf (buf, "%d", port);
-  sprintf (buf2, "-C%d", mother_desc);
+  /* This process is about to be replaced, so anything the protocol bug
+   * throttle is still holding goes out now or not at all -- and before the
+   * chdir below, because log_to_topic_files() opens its files by a path
+   * relative to lib, so after it a topic line lands outside the tree. */
+  ReportBugFlush();
 
   /* Ugh, seems it is expected we are 1 step above lib - this may be dangerous! */
-  if(chdir ("..") != 0) {
+  if (chdir("..") != 0) {
     log("Error changing working directory: %s", strerror(errno));
     send_to_char(ch, "Error changing working directory: %s.", strerror(errno));
     exit(1);
   }
 
   /* Close reserve and other always-open files and release other resources */
-  execl (EXE_FILE, "circle", buf2, buf, (char *) NULL);
+  execl(EXE_FILE, "circle", buf2, buf, (char *) NULL);
 
   /* Failed - successful exec will not return */
-  perror ("do_copyover: execl");
-  send_to_char (ch, "Copyover FAILED!\n\r");
+  perror("do_copyover: execl");
+  send_to_char(ch, "Copyover FAILED!\n\r");
 
-  exit (1); /* too much trouble to try to recover! */
+  exit(1); /* too much trouble to try to recover! */
 }
 
 ACMD(do_peace)
@@ -4465,6 +4625,9 @@ ACMD(do_changelog)
   char timestr[12], line[READ_SIZE], last_buf[READ_SIZE],
       buf[READ_SIZE];
   FILE *fl, *new;
+  int found_header = FALSE, bad;
+
+  *last_buf = '\0';
 
   skip_spaces(&argument);
 
@@ -4473,30 +4636,77 @@ ACMD(do_changelog)
     return;
   }
 
-  sprintf(buf, "%s.bak", CHANGE_LOG_FILE);
+  snprintf(buf, sizeof(buf), "%s.bak", CHANGE_LOG_FILE);
+
+  /* Set the changelog aside under the backup name.  rename() replaces an
+   * existing destination on POSIX, so the backup every successful
+   * changelog leaves behind is simply overwritten and the remove below
+   * never runs; the Windows C runtime refuses a name that already exists,
+   * which is what the second attempt is for.  objsave.c:548-556 installs
+   * rent files with the same three steps; the errno test narrowing the
+   * remove to that one case is this function's own.
+   *
+   * Clearing the backup up front instead would delete it before knowing
+   * there is a changelog to put in its place, and a changelog that is
+   * missing while its backup is present is precisely the state a refused
+   * open below used to leave behind -- so on ENOENT the backup is the
+   * last copy of the history and is left alone. */
   if (rename(CHANGE_LOG_FILE, buf)) {
-    mudlog(BRF, LVL_IMPL, TRUE,
-           "SYSERR: Error making backup changelog file (%s)", buf);
-    return;
+    int err = errno;
+
+    if (err == EEXIST && remove(buf) == 0)
+      err = rename(CHANGE_LOG_FILE, buf) ? errno : 0;
+
+    if (err) {
+      mudlog(BRF, LVL_IMPL, TRUE,
+             "SYSERR: Error making backup changelog file (%s): %s",
+             buf, strerror(err));
+      send_to_char(ch, "Could not set the changelog aside; nothing was changed.\r\n");
+      return;
+    }
   }
 
   if (!(fl = fopen(buf, "r"))) {
     mudlog(BRF, LVL_IMPL, TRUE,
            "SYSERR: Error opening backup changelog file (%s)", buf);
+    /* The rename above has already moved the changelog, so this returns
+     * with nothing under its own name -- the same loss as the branch
+     * below, one open earlier. */
+    if (rename(buf, CHANGE_LOG_FILE)) {
+      mudlog(BRF, LVL_IMPL, TRUE,
+             "SYSERR: Changelog left as %s; could not restore it", buf);
+      send_to_char(ch, "Could not read the changelog, and it is left as %s.\r\n", buf);
+      return;
+    }
+    send_to_char(ch, "Could not read the changelog; your entry was not "
+                     "added.\r\n");
     return;
   }
 
   if (!(new = fopen(CHANGE_LOG_FILE, "w"))) {
     mudlog(BRF, LVL_IMPL, TRUE,
            "SYSERR: Error opening new changelog file (%s)", CHANGE_LOG_FILE);
+    /* The changelog was renamed to the backup above, so returning here
+     * leaves nothing under its own name at all.  Put it back. */
+    fclose(fl);
+    if (rename(buf, CHANGE_LOG_FILE)) {
+      mudlog(BRF, LVL_IMPL, TRUE,
+             "SYSERR: Changelog left as %s; could not restore it", buf);
+      send_to_char(ch, "Could not open the changelog for writing; it is left as %s.\r\n",
+                   buf);
+      return;
+    }
+    send_to_char(ch, "Could not open the changelog for writing; your entry "
+                     "was not added.\r\n");
     return;
   }
 
-  while (get_line(fl, line)) {
+  while (get_line(fl, line, sizeof(line))) {
     if (*line != '[')
       fprintf(new, "%s\n", line);
     else {
       strcpy(last_buf, line);
+      found_header = TRUE;
       break;
     }
   }
@@ -4509,14 +4719,58 @@ ACMD(do_changelog)
   fprintf(new, "%s\n", buf);
   fprintf(new, "  %s\n", argument);
 
-  if (strcmp(buf, last_buf))
+  if (found_header && strcmp(buf, last_buf))
     fprintf(new, "%s\n", line);
 
-  while (get_line(fl, line))
+  while (get_line(fl, line, sizeof(line)))
     fprintf(new, "%s\n", line);
 
   fclose(fl);
-  fclose(new);
+
+  /* A write that fails reports itself at the flush or the close, and what
+   * the failing write had already handed to the kernel stays on disk.
+   * Neither was looked at, so a full disk left the changelog truncated at
+   * whatever had reached it -- for the shipped file, thousands of bytes --
+   * and the immortal was told the change had been added.  Which of the two
+   * reports it depends on how much is still in the stream's buffer: for a
+   * changelog smaller than the buffer that is all of it, and for the
+   * shipped one most has already gone to the kernel and failed there,
+   * which is why ferror() is consulted as well as the flush.
+   *
+   * fclose() is tested on its own rather than as the third arm of an ||,
+   * because || stops at the first arm that is true: a failing fflush --
+   * the ordinary full-disk case, and the one this exists for -- would
+   * skip it and leak the stream.
+   *
+   * buf held the backup's name until the header was built into it above,
+   * so build it again.  Put the backup back rather than only naming it:
+   * the rename needs no free space, and leaving the truncation in place
+   * means the next changelog renames it over the backup and reports
+   * success, taking the history with it. */
+  bad = (fflush(new) == EOF || ferror(new));
+  if (fclose(new) == EOF)
+    bad = TRUE;
+
+  if (bad) {
+    snprintf(buf, sizeof(buf), "%s.bak", CHANGE_LOG_FILE);
+    mudlog(BRF, LVL_IMPL, TRUE,
+           "SYSERR: Error writing changelog (%s); restoring it from %s",
+           CHANGE_LOG_FILE, buf);
+    if (rename(buf, CHANGE_LOG_FILE)) {
+      remove(CHANGE_LOG_FILE);
+      if (rename(buf, CHANGE_LOG_FILE)) {
+        mudlog(BRF, LVL_IMPL, TRUE,
+               "SYSERR: Changelog left as %s; could not restore it", buf);
+        send_to_char(ch, "The changelog could not be written, and the previous "
+                         "one is left as %s.\r\n", buf);
+        return;
+      }
+    }
+    send_to_char(ch, "The changelog could not be written. The previous one has "
+                     "been put back, and your entry was not added.\r\n");
+    return;
+  }
+
   send_to_char(ch, "Change added.\r\n");
 }
 
@@ -4526,7 +4780,10 @@ ACMD(do_changelog)
 ACMD(do_plist)
 {
   int i, len = 0, count = 0;
-  char mode, buf[MAX_STRING_LENGTH * 20], name_search[MAX_NAME_LENGTH], timestr[MAX_STRING_LENGTH];
+  /* name_search is filled by half_chop(), which does not bound its
+   * destination, so it has to hold what an input line can carry rather than
+   * what a name can.  MAX_NAME_LENGTH + 1 would still be one token short. */
+  char mode, buf[MAX_STRING_LENGTH * 20], name_search[MAX_INPUT_LENGTH], timestr[MAX_STRING_LENGTH];
   struct time_info_data time_away;
   int low = 0, high = LVL_IMPL, low_day = 0, high_day = 10000, low_hr = 0, high_hr = 24;
 
@@ -4622,7 +4879,11 @@ bool change_player_name(struct char_data *ch, struct char_data *vict, char *new_
 {
   struct char_data *temp_ch=NULL;
   int plr_i = 0, i, k;
-  char old_name[MAX_NAME_LENGTH], old_pfile[50], new_pfile[50], buf[MAX_STRING_LENGTH];
+  /* MAX_NAME_LENGTH + 1, as every other name field in the tree has it: a name
+   * of exactly MAX_NAME_LENGTH characters is legal -- creation and the check
+   * below both reject only what is longer -- so the terminator needs a byte
+   * of its own before sprintf() puts GET_NAME here. */
+  char old_name[MAX_NAME_LENGTH + 1], old_pfile[50], new_pfile[50], buf[MAX_STRING_LENGTH];
 
   if (!ch)
   {
@@ -4973,8 +5234,17 @@ bool AddRecentPlayer(char *chname, char *chhost, bool newplr, bool cpyplr)
   this->time = ct;
   this->new_player = newplr;
   this->copyover_player = cpyplr;
-  strcpy(this->host, chhost);
-  strcpy(this->name, chname);
+  /* Both destinations are fixed fields of struct recent_player: host is
+   * HOST_LENGTH+1 and name is MAX_NAME_LENGTH+1, and neither argument is
+   * bounded to them.  chname is GET_NAME(), which load_char() takes off the
+   * Name tag with strdup() and never bounds.  chhost is d->host, which
+   * new_descriptor() caps at HOST_LENGTH -- but only for the two callers
+   * that log a player in.  The copyover caller never goes through it:
+   * copyover_recover() fills d->host from the copyover file instead, with
+   * an unbounded scan and an unbounded copy of its own.  Sizing each copy
+   * to its own destination relies on neither. */
+  strlcpy(this->host, chhost, sizeof(this->host)); /* strlcpy: OK */
+  strlcpy(this->name, chname, sizeof(this->name)); /* strlcpy: OK */
   max_vnum = get_max_recent();
   this->vnum = max_vnum;   /* Possibly should be +1 ? */
 

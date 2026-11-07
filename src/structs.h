@@ -362,6 +362,7 @@
 
 /* object-related defines */
 /* Item types: used by obj_data.obj_flags.type_flag */
+#define ITEM_UNDEFINED  0		/**< No type, or one we do not know	*/
 #define ITEM_LIGHT      1		/**< Item is a light source	*/
 #define ITEM_SCROLL     2		/**< Item is a scroll		*/
 #define ITEM_WAND       3		/**< Item is a wand		*/
@@ -624,7 +625,9 @@ typedef unsigned char ubyte;        /**< 1 byte; vals = 0 to 255 */
 typedef signed short int sh_int;    /**< 2 bytes; vals = -32,768 to 32,767 */
 typedef unsigned short int ush_int; /**< 2 bytes; vals = 0 to 65,535 */
 #if !defined(__cplusplus)	/* Anyone know a portable method? */
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L
 typedef char bool; /**< Technically 1 signed byte; vals should only = TRUE or FALSE. */
+#endif /* C23 and later provide bool as a keyword. */
 #endif
 
 #if !defined(CIRCLE_WINDOWS) || defined(LCC_WIN32)	/* Hm, sysdep.h? */
@@ -989,6 +992,7 @@ struct mob_special_data
   byte default_pos;   /**< Default position (standing, sleeping, etc.) */
   byte damnodice;     /**< The number of dice to roll for damage */
   byte damsizedice;   /**< The size of each die rolled for damage. */
+  int innate_aff[AF_ARRAY_MAX]; /**< AFF flags this mob was created with */
 };
 
 /** An affect structure. */

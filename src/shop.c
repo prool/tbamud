@@ -336,7 +336,7 @@ static int transaction_amt(char *arg)
    * that if we only have one argument, like 'buy 5', buy #5. By Andrey Fidrya */
   buywhat = one_argument(arg, buf);
   if (*buywhat && *buf && is_number(buf)) {
-    strcpy(arg, arg + strlen(buf) + 1);	/* strcpy: OK (always smaller) */
+    memmove(arg, arg + strlen(buf) + 1, strlen(arg + strlen(buf) + 1) + 1);	/* memmove: the copy overlaps */
     return (atoi(buf));
   }
   return (1);
@@ -614,7 +614,7 @@ static void shopping_buy(char *arg, struct char_data *ch, struct char_data *keep
       snprintf(buf, sizeof(buf), "%s Something screwy only gave you %d.", GET_NAME(ch), bought);
     do_tell(keeper, buf, cmd_tell, 0);
   }
-  if (!IS_GOD(ch) && obj && !OBJ_FLAGGED(obj, ITEM_QUEST)) {
+  if (!IS_GOD(ch) && last_obj && !OBJ_FLAGGED(last_obj, ITEM_QUEST)) {
     increase_gold(keeper, goldamt);
     if (SHOP_USES_BANK(shop_nr))
       if (GET_GOLD(keeper) > MAX_OUTSIDE_BANK) {
@@ -625,9 +625,9 @@ static void shopping_buy(char *arg, struct char_data *ch, struct char_data *keep
   strlcpy(tempstr, times_message(ch->carrying, 0, bought), sizeof(tempstr));
 
   snprintf(tempbuf, sizeof(tempbuf), "$n buys %s.", tempstr);
-  act(tempbuf, FALSE, ch, obj, 0, TO_ROOM);
+  act(tempbuf, FALSE, ch, last_obj, 0, TO_ROOM);
 
-  if (obj && OBJ_FLAGGED(obj, ITEM_QUEST))
+  if (last_obj && OBJ_FLAGGED(last_obj, ITEM_QUEST))
     snprintf(tempbuf, sizeof(tempbuf), "%s That has cost you %d quest points.", GET_NAME(ch), goldamt);
   else
     snprintf(tempbuf, sizeof(tempbuf), shop_index[shop_nr].message_buy, GET_NAME(ch), goldamt);
@@ -849,7 +849,12 @@ static char *list_object(struct obj_data *obj, int cnt, int aindex, int shop_nr,
   switch (GET_OBJ_TYPE(obj)) {
   case ITEM_DRINKCON:
     if (GET_OBJ_VAL(obj, 1))
-      snprintf(itemname, sizeof(itemname), "%s of %s", obj->short_description, drinks[GET_OBJ_VAL(obj, 2)]);
+      /* Indexing drinks[] directly, so its "\n" sentinel does not apply --
+       * that is for sprinttype(), which walks to it.  The liquid type has
+       * not been bounded on the way here. */
+      snprintf(itemname, sizeof(itemname), "%s of %s", obj->short_description,
+               drinks[GET_OBJ_VAL(obj, 2) < 0 || GET_OBJ_VAL(obj, 2) >= NUM_LIQ_TYPES ?
+                      LIQ_WATER : GET_OBJ_VAL(obj, 2)]);
     else
       strlcpy(itemname, obj->short_description, sizeof(itemname));
     break;
@@ -1027,6 +1032,20 @@ static int add_to_shop_list(struct shop_buy_data *list, int type, int *len, int 
     if (*len < MAX_SHOP_OBJ) {
       if (type == LIST_PRODUCE)
 	*val = real_object(*val);
+      else if (type == LIST_TRADE && (*val < 0 || *val >= NUM_ITEM_TYPES)) {
+	/* A trade entry names an item type, but both readers fall through to a
+	 * bare %d when the line does not match one of the names, so a .shp file
+	 * can put any number here -- a negative one included: read_type_list()
+	 * hands the terminating value to this function before it tests it, and
+	 * the old-format reader never tests it at all.  list_detailed_shop() and
+	 * sedit's trade menu then index item_types[] with it, and with unsigned
+	 * NOTHING a negative type reads before the table rather than past it.
+	 * Drop the entry rather than keep a
+	 * type nothing can be: NOTHING is what the loop below already does with
+	 * a value it cannot use. */
+	log("SYSERR: Shop file lists unknown item type %d, dropping it.", *val);
+	*val = NOTHING;
+      }
       if (*val != NOTHING) {
 	BUY_TYPE(list[*len]) = *val;
 	BUY_WORD(list[(*len)++]) = NULL;
@@ -1052,7 +1071,7 @@ static void read_line(FILE *shop_f, const char *string, void *data)
 {
   char buf[READ_SIZE];
 
-  if (!get_line(shop_f, buf) || sscanf(buf, string, data) != 1) {
+  if (!get_line(shop_f, buf, sizeof(buf)) || sscanf(buf, string, data) != 1) {
     log("SYSERR: Error in shop #%d, near '%s' with '%s'", SHOP_NUM(top_shop), buf, string);
     exit(1);
   }
@@ -1124,6 +1143,12 @@ static int read_type_list(FILE *shop_f, struct shop_buy_data *list,
       ptr++;
     while (isspace(*(END_OF(ptr) - 1)))
       *(END_OF(ptr) - 1) = '\0';
+    /* The -1 terminator is not an entry.  It used to be handed to
+     * add_to_shop_list() regardless, which with unsigned NOTHING stored it
+     * as a trade type of -1; add_to_shop_list() now rejects a negative
+     * type, so stop here instead of logging the terminator as an error. */
+    if (num < 0)
+      break;
     error += add_to_shop_list(list, LIST_TRADE, &len, &num);
     if (*ptr)
       BUY_WORD(list[len - 1]) = strdup(ptr);
@@ -1163,8 +1188,14 @@ static char *read_shop_message(int mnum, room_vnum shr, FILE *shop_f, const char
   }
 
   if (err) {
+    /* Every caller stores this straight into shop_index[] and every
+     * consumer hands it to snprintf() as the FORMAT, so returning NULL
+     * turns a rejected message into a crash the first time a player
+     * reaches it.  Give back a message carrying no specifiers at all, so
+     * the arguments the callers pass are simply unused and no consumer can
+     * be left reading a vararg that is not there. */
     free(tbuf);
-    return (NULL);
+    return (strdup("Something is wrong with this shop's messages."));
   }
   return (tbuf);
 }
@@ -1240,15 +1271,25 @@ void boot_the_shops(FILE *shop_f, char *filename, int rec_count)
   }
 }
 
-void assign_the_shopkeepers(void)
+/* The merged command table is rebuilt from scratch whenever a social is
+ * added or removed, and every index into it moves with it. The values
+ * below are indices into that table, handed straight to do_action(), so
+ * they have to be taken again each time it is rebuilt rather than once at
+ * boot. create_command_list() calls this; see the note there. */
+void assign_shop_command_indices(void)
 {
-  int cindex;
-
   cmd_say = find_command("say");
   cmd_tell = find_command("tell");
   cmd_emote = find_command("emote");
   cmd_slap = find_command("slap");
   cmd_puke = find_command("puke");
+}
+
+void assign_the_shopkeepers(void)
+{
+  int cindex;
+
+  assign_shop_command_indices();
 
   for (cindex = 0; cindex <= top_shop; cindex++) {
     if (SHOP_KEEPER(cindex) == NOBODY)
@@ -1376,7 +1417,7 @@ static void list_detailed_shop(struct char_data *ch, int shop_nr)
     column += linelen;
   }
   if (!sindex)
-    send_to_char(ch, "Rooms:      None!");
+    send_to_char(ch, "None!");
 
   send_to_char(ch, "\r\nShopkeeper: ");
   if (SHOP_KEEPER(shop_nr) != NOBODY) {
@@ -1399,7 +1440,7 @@ static void list_detailed_shop(struct char_data *ch, int shop_nr)
     int linelen;
 
     if (!IS_SET(flag, SHOP_TRADE_WITH(shop_nr))){
-      if (sindex) {
+      if (found) {
         send_to_char(ch, ", ");
         column += 2;
       }
@@ -1445,7 +1486,7 @@ static void list_detailed_shop(struct char_data *ch, int shop_nr)
     column += linelen;
   }
   if (!sindex)
-    send_to_char(ch, "Produces:   Nothing!");
+    send_to_char(ch, "Nothing!");
 
   send_to_char(ch, "\r\nBuys:       ");
   column = 12;	/* ^^^ strlen ^^^ */
@@ -1475,7 +1516,7 @@ static void list_detailed_shop(struct char_data *ch, int shop_nr)
     column += linelen;
   }
   if (!sindex)
-    send_to_char(ch, "Buys:       Nothing!");
+    send_to_char(ch, "Nothing!");
 
   send_to_char(ch, "\r\nBuy at:     [%4.2f], Sell at: [%4.2f], Open: [%d-%d, %d-%d]\r\n",
 	SHOP_SELLPROFIT(shop_nr), SHOP_BUYPROFIT(shop_nr), SHOP_OPEN1(shop_nr),

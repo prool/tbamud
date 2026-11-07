@@ -188,12 +188,69 @@ int strn_cmp(const char *arg1, const char *arg2, int n)
  * @param format The message to log. Standard printf formatting and variable
  * arguments are allowed.
  * @param args The comma delimited, variable substitutions to make in str. */
+/* The per-topic files under log/ that the file command reads.  The autorun
+ * script used to fill them by grepping the syslog when the game exited, so
+ * between restarts they were stale, and a copyover never exits, so on a game
+ * that only ever copyovers they never changed at all.  The game appends each
+ * matching line itself now, as it is logged.  autorun still rotates the
+ * syslog and trims these files to their length; it no longer greps.
+ *
+ * The patterns are autorun's, matched as fgrep matched them: anywhere in the
+ * line, case-sensitively. */
+static const struct {
+  const char *pattern;
+  const char *file;
+} topic_logs[] = {
+  { "self-delete",    DELETES_LOGFILE    },
+  { "PCLEAN",         DELETES_LOGFILE    },
+  { "death trap",     DTS_LOGFILE        },
+  { "killed",         RIP_LOGFILE        },
+  { "Running",        RESTARTS_LOGFILE   },
+  { "advanced",       LEVELS_LOGFILE     },
+  { "equipment lost", RENTGONE_LOGFILE   },
+  { "usage",          USAGE_LOGFILE      },
+  { "new player",     NEWPLAYERS_LOGFILE },
+  { "SYSERR",         ERRORS_LOGFILE     },
+  { "(GC)",           GODCMDS_LOGFILE    },
+  { "Bad PW",         BADPWS_LOGFILE     },
+  { "OLC",            OLC_LOGFILE        },
+  { "get help on",    HELP_LOGFILE       },
+  { "trigger",        TRIGGER_LOGFILE    },
+  { NULL, NULL }
+};
+
+/* Append one already-formatted syslog line to every topic file it matches.
+ * Nothing in here may call log(): it would recurse.  A topic file that
+ * cannot be opened (no log/ directory, say) is simply not kept.  Several
+ * patterns can share a file; a line matching more than one of them is
+ * written to that file once. */
+static void log_to_topic_files(const char *timestr, const char *line)
+{
+  FILE *fl;
+  int i, j;
+
+  for (i = 0; topic_logs[i].pattern; i++) {
+    if (!strstr(line, topic_logs[i].pattern))
+      continue;
+    for (j = 0; j < i; j++)
+      if (!strcmp(topic_logs[j].file, topic_logs[i].file) &&
+          strstr(line, topic_logs[j].pattern))
+        break;
+    if (j < i)
+      continue;
+    if ((fl = fopen(topic_logs[i].file, "a")) == NULL)
+      continue;
+    fprintf(fl, "%-20.20s :: %s\n", timestr, line);
+    fclose(fl);
+  }
+}
+
 void basic_mud_vlog(const char *format, va_list args)
 {
   time_t ct = time(0);
-  char timestr[21];
+  char timestr[21], line[MAX_STRING_LENGTH];
   int i;
-  
+
   if (logfile == NULL) {
     puts("SYSERR: Using log() before stream was initialized!");
     return;
@@ -205,10 +262,12 @@ void basic_mud_vlog(const char *format, va_list args)
   for (i=0;i<21;i++) timestr[i]=0;
   strftime(timestr, sizeof(timestr), "%b %d %H:%M:%S %Y", localtime(&ct));
 
-  fprintf(logfile, "%-20.20s :: ", timestr);
-  vfprintf(logfile, format, args);
-  fputc('\n', logfile);
+  if (vsnprintf(line, sizeof(line), format, args) < 0)
+    strcpy(line, "SYSERR: log() could not format its message.");	/* strcpy: OK (literal < MAX_STRING_LENGTH) */
+  fprintf(logfile, "%-20.20s :: %s\n", timestr, line);
   fflush(logfile);
+
+  log_to_topic_files(timestr, line);
 }
 
 /** Log messages directly to syslog on disk, no display to in game immortals.
@@ -624,31 +683,46 @@ void add_follower(struct char_data *ch, struct char_data *leader)
 /** Reads the next non-blank line off of the input stream. Empty lines are
  * skipped. Lines which begin with '*' are considered to be comments and are
  * skipped.
- * @pre Caller must allocate memory for buf.
- * @post If a there is a line to be read, the newline character is removed from
- * the file line ending and the string is returned. Else a null string is
- * returned in buf.
+ * @pre Caller must allocate memory for buf, and bufsize must be its real size.
+ * @post If there is a line to be read, the line ending is removed and the
+ * result is placed in buf. A line too long for buf is truncated to fit and the
+ * rest of that line is discarded, so the next call always resumes on the
+ * following line of the file rather than on a fragment of this one.
  * @param[in] fl The file to be read from.
- * @param[out] buf The next non-blank line read from the file. Buffer given must
- * be at least READ_SIZE (256) characters large. */
-int get_line(FILE *fl, char *buf)
+ * @param[out] buf The next non-blank line read from the file.
+ * @param[in] bufsize The size of buf in bytes, including room for the
+ * terminating null. Must be at least 2.
+ * @retval 0 No line could be read; the contents of buf are unspecified.
+ * @retval >0 The number of lines advanced in the file, counting any comment or
+ * blank lines skipped to reach the one returned. */
+int get_line(FILE *fl, char *buf, size_t bufsize)
 {
-  char temp[READ_SIZE];
   int lines = 0;
-  int sl;
+  size_t sl = 0;
+
+  if (bufsize < 2)
+    return (0);
 
   do {
-    if (!fgets(temp, READ_SIZE, fl))
+    if (!fgets(buf, bufsize, fl))
       return (0);
     lines++;
-  } while (*temp == '*' || *temp == '\n' || *temp == '\r');
+    /* If the line was longer than the caller's buffer, discard the tail.  A
+     * fragment left in the stream is read as a line of its own by the next
+     * call, which desynchronises every record-oriented parser that reads a
+     * fixed number of lines per record. */
+    sl = strlen(buf);
+    if (sl > 0 && buf[sl - 1] != '\n') {
+      int c;
+      while ((c = getc(fl)) != EOF && c != '\n')
+        ;
+    }
+  } while (*buf == '*' || *buf == '\n' || *buf == '\r');
 
   /* Last line of file doesn't always have a \n, but it should. */
-  sl = strlen(temp);
-  while (sl > 0 && (temp[sl - 1] == '\n' || temp[sl - 1] == '\r'))
-    temp[--sl] = '\0';
+  while (sl > 0 && (buf[sl - 1] == '\n' || buf[sl - 1] == '\r'))
+    buf[--sl] = '\0';
 
-  strcpy(buf, temp); /* strcpy: OK, if buf >= READ_SIZE (256) */
   return (lines);
 }
 
@@ -1076,11 +1150,23 @@ int file_head( FILE *file, char *buf, size_t bufsize, int lines_to_read )
   {
     /* Don't use get_line to set lines_read because get_line will return
      * the number of comments skipped during reading. */
-    readstatus = get_line( file, line );
+    readstatus = get_line(file, line, sizeof(line));
 
     if (readstatus > 0)
     {
       n = snprintf( buf + buflen, bufsize - buflen, "%s\r\n", line);
+      /* snprintf() returns the length it WANTED to write.  Adding that
+       * unconditionally takes buflen past bufsize once the buffer fills,
+       * and the overflow marker below is then placed at buf + buflen -
+       * strlen(overflow) - 1, which is off the end of the caller's array.
+       * On truncation, say the buffer is exactly full instead. */
+      if (n < 0)
+        break;
+      if ((size_t) n >= bufsize - buflen)
+      {
+        buflen = bufsize;
+        break;
+      }
       buflen += n;
       lines_read++;
     }
@@ -1167,11 +1253,23 @@ int file_tail( FILE *file, char *buf, size_t bufsize, int lines_to_read )
   {
     /* Don't use get_line to set lines_read because get_line will return
      * the number of comments skipped during reading. */
-    readstatus = get_line( file, line );
+    readstatus = get_line(file, line, sizeof(line));
 
     if (readstatus > 0)
     {
       n = snprintf( buf + buflen, bufsize - buflen, "%s\r\n", line);
+      /* snprintf() returns the length it WANTED to write.  Adding that
+       * unconditionally takes buflen past bufsize once the buffer fills,
+       * and the overflow marker below is then placed at buf + buflen -
+       * strlen(overflow) - 1, which is off the end of the caller's array.
+       * On truncation, say the buffer is exactly full instead. */
+      if (n < 0)
+        break;
+      if ((size_t) n >= bufsize - buflen)
+      {
+        buflen = bufsize;
+        break;
+      }
       buflen += n;
       lines_read++;
     }
@@ -1281,6 +1379,17 @@ IDXTYPE atoidx( const char *str_to_conv )
 
 #define isspace_ignoretabs(c) ((c)!='\t' && isspace(c))
 
+/* Copy src to dst, stopping at end so the result stays inside the buffer,
+ * and answer the new write point.  strfrmt() assembled its output with
+ * sprintf() and a pointer nothing bounded. */
+static char *strfrmt_append(char *dst, const char *end, const char *src)
+{
+  while (*src && dst < end)
+    *dst++ = *src++;
+  *dst = '\0';
+  return dst;
+}
+
 /*
    strfrmt (String Format) function
    Used by automap/map system
@@ -1297,9 +1406,31 @@ char *strfrmt(char *str, int w, int h, int justify, int hpad, int vpad)
   char *lp = line;
   char *rp = ret;
   char *wp;
+  /* Where a word, a space or a pad may be written to.  line stops five
+   * bytes short of its end to keep room for the longest sequence that
+   * closes a line -- "\tn\r\n" and the terminator -- so the writes that
+   * close one need no bound of their own.  That holds because every other
+   * write through lp below is guarded by this, bar the colour restore,
+   * which runs on a line just reset to empty.  Without the reservation a
+   * full line would lose its newline to the same guards that stop the
+   * overflow, and two lines of the box would run together. */
+  const char *lend = line + sizeof(line) - 5;
+  const char *rend = ret + sizeof(ret) - 1;
   int wlen = 0, llen = 0, lcount = 0;
   char last_color='n';
   bool new_line_started = FALSE;
+
+  /* w is the width of the box, and it drives the padding fills below.  It
+   * arrives as the player's screen width less the width of the map beside
+   * it, and str_and_map() does not clamp CONFIG_MINIMAP_SIZE, so a large
+   * minimap on a forty-column screen makes it negative -- which the
+   * memset() at the foot of this function turned into a size_t of about
+   * eighteen quintillion.  Wider than a line can hold is meaningless too,
+   * and only spins the fills. */
+  if (w < 0)
+    w = 0;
+  if (w > (int)sizeof(line) - 5)
+    w = (int)sizeof(line) - 5;
 
   memset(line, '\0', MAX_INPUT_LENGTH);
   /* Nomalize spaces and newlines */
@@ -1321,18 +1452,22 @@ char *strfrmt(char *str, int w, int h, int justify, int hpad, int vpad)
         /* Start a new line */
         if(hpad)
           for(; llen < w; llen++)
-            *lp++ = ' ';
+            if (lp < lend) *lp++ = ' ';
         *lp++ = '\r';
         *lp++ = '\n';
-        *lp++ = '\0';
-        rp += sprintf(rp, "%s", line);
+        *lp = '\0';
+        rp = strfrmt_append(rp, rend, line);
         llen = 0;
         lcount++;
         lp = line;
       } else if (*sp=='`'||*sp=='$'||*sp=='#') {
         if (sp[1] && (sp[1]==*sp))
           wlen++; /* One printable char here */
-        sp += 2; /* Eat the whole code regardless */
+        /* Eat the whole code, but not the terminator.  A description whose
+         * last character is one of these has nothing after it, and stepping
+         * two would carry the scan below past the end of the string.  redit
+         * takes any text, so that is a builder's typo away. */
+        sp += sp[1] ? 2 : 1;
       } else if (*sp=='\t'&&sp[1]) {
         char MXPcode = sp[1]=='[' ? ']' : sp[1]=='<' ? '>' : '\0';
 	
@@ -1354,14 +1489,13 @@ char *strfrmt(char *str, int w, int h, int justify, int hpad, int vpad)
       /* Start a new line */
       if(hpad)
         for(; llen < w; llen++)
-          *lp++ = ' ';
+          if (lp < lend) *lp++ = ' ';
       *lp++ = '\t';  /* 'normal' color */
       *lp++ = 'n';
       *lp++ = '\r'; /* New line */
       *lp++ = '\n';
-      *lp++ = '\0';
-      sprintf(rp, "%s", line);
-      rp += strlen(line);
+      *lp = '\0';
+      rp = strfrmt_append(rp, rend, line);
       llen = 0;
       lcount++;
       lp = line;
@@ -1373,33 +1507,40 @@ char *strfrmt(char *str, int w, int h, int justify, int hpad, int vpad)
     }
     /* add word to line */
     if (lp!=line && new_line_started!=TRUE) {
-      *lp++ = ' ';
+      if (lp < lend) *lp++ = ' ';
       llen++;
     }
     new_line_started = FALSE;
     llen += wlen ;
-    for( ; wp!=sp ; *lp++ = *wp++);
+    /* wlen counts printable width and this copies bytes, so the two part
+     * company over colour codes -- and a word with no space in it is not
+     * broken at all, whatever its length.  Neither of those is a reason
+     * to write past the end of line. */
+    for( ; wp!=sp && lp<lend ; *lp++ = *wp++);
   }
   /* Copy over the last line */
   if(lp!=line) {
     if(hpad)
       for(; llen < w; llen++)
-        *lp++ = ' ';
+        if (lp < lend) *lp++ = ' ';
     *lp++ = '\r';
     *lp++ = '\n';
-    *lp++ = '\0';
-    sprintf(rp, "%s", line);
-    rp += strlen(line);
+    *lp = '\0';
+    rp = strfrmt_append(rp, rend, line);
     lcount++;
   }
   if(vpad) {
     while(lcount < h) {
       if(hpad) {
-        memset(rp, ' ', w);
-        rp += w;
+        int pad = w < rend - rp ? w : (int)(rend - rp);
+
+        if (pad > 0) {
+          memset(rp, ' ', pad);
+          rp += pad;
+        }
       }
-      *rp++ = '\r';
-      *rp++ = '\n';
+      if (rp < rend) *rp++ = '\r';
+      if (rp < rend) *rp++ = '\n';
       lcount++;
     }
     *rp = '\0';
@@ -1496,9 +1637,14 @@ char *right_trim_whitespace(const char *string)
   char *r = strdup(string);
   if (r != NULL)
   {
-    char *fr = r + strlen(string) - 1;
-    while( (isspace(*fr) || !isprint(*fr) || *fr == 0) && fr >= r) --fr;
-    *++fr = 0;
+    /* Walk back from the NUL, not from the last character: on an empty or
+     * all-blank string the old loop stepped to r[-1] and read it, because
+     * the `fr >= r' guard was the second half of the condition. */
+    char *fr = r + strlen(string);
+    while (fr > r && (isspace((unsigned char) fr[-1]) ||
+                      !isprint((unsigned char) fr[-1])))
+      --fr;
+    *fr = 0;
   }
 
   return r;

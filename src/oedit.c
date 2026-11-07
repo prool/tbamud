@@ -43,7 +43,7 @@ static void oedit_disp_extra_menu(struct descriptor_data *d);
 static void oedit_disp_wear_menu(struct descriptor_data *d);
 static void oedit_disp_menu(struct descriptor_data *d);
 static void oedit_disp_perm_menu(struct descriptor_data *d);
-static void oedit_save_to_disk(int zone_num);
+static int oedit_save_to_disk(int zone_num);
 
 /* handy macro */
 #define S_PRODUCT(s, i) ((s)->producing[(i)])
@@ -83,7 +83,11 @@ ACMD(do_oasis_oedit)
       if ((zlok = real_zone(GET_OLC_ZONE(ch))) == NOWHERE)
         number = NOWHERE;
       else
-        number = genolc_zone_bottom(zlok);
+        /* The lookup below resolves this as a zone NUMBER, so that is what
+         * the builder's assigned zone has to become here.  Handing it
+         * genolc_zone_bottom()'s vnum made every argument-less save fail
+         * with "Sorry, there is no zone for that number!". */
+        number = zone_table[zlok].number;
     }
 
     if (number == NOWHERE) {
@@ -148,12 +152,19 @@ ACMD(do_oasis_oedit)
   if (save) {
     send_to_char(ch, "Saving all objects in zone %d.\r\n",
       zone_table[OLC_ZNUM(d)].number);
-    mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
-      "OLC: %s saves object info for zone %d.", GET_NAME(ch),
-      zone_table[OLC_ZNUM(d)].number);
 
     /* Save the objects in this zone. */
-    save_objects(OLC_ZNUM(d));
+    if (save_objects(OLC_ZNUM(d)))
+      mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
+        "OLC: %s saves object info for zone %d.", GET_NAME(ch),
+        zone_table[OLC_ZNUM(d)].number);
+    else {
+      send_to_char(ch, "Unable to save all objects in zone %d. The changes are "
+        "still in memory.\r\n", zone_table[OLC_ZNUM(d)].number);
+      mudlog(BRF, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
+        "SYSERR: OLC: %s failed to save object info for zone %d.", GET_NAME(ch),
+        zone_table[OLC_ZNUM(d)].number);
+    }
 
     /* Free the descriptor's OLC structure. */
     free(d->olc);
@@ -200,6 +211,23 @@ static void oedit_setup_new(struct descriptor_data *d)
 void oedit_setup_existing(struct descriptor_data *d, int real_num)
 {
   struct obj_data *obj;
+
+  /* The W) Copy menu item calls this again on a descriptor that already
+   * holds a working copy, and what follows assigns over it.  Release it
+   * first, the way cleanup_olc() does on the way out of the editor;
+   * OLC_SCRIPT is a separate list that dg_olc_script_copy() below is about
+   * to replace, so it goes too.  On the way in there is nothing here yet
+   * and both tests are false. */
+  if (OLC_OBJ(d)) {
+    free_object_strings(OLC_OBJ(d));
+    free(OLC_OBJ(d));
+    OLC_OBJ(d) = NULL;
+  }
+  while (OLC_SCRIPT(d)) {
+    struct trig_proto_list *next_proto = OLC_SCRIPT(d)->next;
+    free(OLC_SCRIPT(d));
+    OLC_SCRIPT(d) = next_proto;
+  }
 
   /* Allocate object in memory. */
   CREATE(obj, struct obj_data, 1);
@@ -283,9 +311,9 @@ void oedit_save_internally(struct descriptor_data *d)
         }
 }
 
-static void oedit_save_to_disk(int zone_num)
+static int oedit_save_to_disk(int zone_num)
 {
-  save_objects(zone_num);
+  return save_objects(zone_num);
 }
 
 /* Menu functions */
@@ -704,8 +732,11 @@ void oedit_parse(struct descriptor_data *d, char *arg)
       mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(d->character)), TRUE,
               "OLC: %s edits obj %d", GET_NAME(d->character), OLC_NUM(d));
       if (CONFIG_OLC_SAVE) {
-        oedit_save_to_disk(real_zone_by_thing(OLC_NUM(d)));
-        write_to_output(d, "Object saved to disk.\r\n");
+        if (oedit_save_to_disk(real_zone_by_thing(OLC_NUM(d))))
+          write_to_output(d, "Object saved to disk.\r\n");
+        else
+          write_to_output(d, "Unable to save object %d to disk. The change is "
+                             "still in memory.\r\n", OLC_NUM(d));
       } else
         write_to_output(d, "Object saved to memory.\r\n");
       cleanup_olc(d, CLEANUP_ALL);
@@ -1190,9 +1221,15 @@ void oedit_parse(struct descriptor_data *d, char *arg)
 
   case OEDIT_DELETE:
     if (*arg == 'y' || *arg == 'Y') {
-      if (delete_object(GET_OBJ_RNUM(OLC_OBJ(d))) != NOTHING)
+      if (delete_object(GET_OBJ_RNUM(OLC_OBJ(d))) != NOTHING) {
         write_to_output(d, "Object deleted.\r\n");
-      else
+        /* save_all() writes the object file and every zone file the
+         * delete just flagged -- and whatever else is on the save list,
+         * which is why the answer below is not about this delete alone. */
+        if (CONFIG_OLC_SAVE && !save_all())
+          write_to_output(d, "Not every world file that was waiting to be "
+                             "saved could be written; see the syslog.\r\n");
+      } else
         write_to_output(d, "Couldn't delete the object!\r\n");
 
       cleanup_olc(d, CLEANUP_ALL);

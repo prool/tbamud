@@ -28,6 +28,16 @@
 
 #define NUM_OF_DIRS    10
 
+/* This builds without utils.h, so it carries its own two-step stringify and
+ * flag-field width, the same way it already carries its own get_line().  The
+ * value matches db.h's WORLD_FLAG_FIELD deliberately: this reads the same
+ * .wld files, through the same parser shape, and had the same unbounded %s
+ * into a 128-byte buffer from a 256-byte line. */
+#define WLD_STRINGIFY_(x)  #x
+#define WLD_STRINGIFY(x)   WLD_STRINGIFY_(x)
+#define WLD_FLAG_FIELD     127
+#define WLD_FLAG_FMT       "%" WLD_STRINGIFY(WLD_FLAG_FIELD) "s"
+
 #define CREATE(result, type, number)  do {\
 	if (!((result) = (type *) calloc ((number), sizeof(type))))\
 		{ perror("malloc failure"); abort(); } } while(0)
@@ -44,7 +54,9 @@ typedef signed char sbyte;
 typedef unsigned char ubyte;
 typedef signed short int sh_int;
 typedef unsigned short int ush_int;
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L
 typedef char bool;
+#endif
 typedef char byte;
 
 typedef int room_num;
@@ -56,7 +68,7 @@ char buf1[MAX_STRING_LENGTH];
 char buf2[MAX_STRING_LENGTH];
 char arg[MAX_STRING_LENGTH];
 
-int get_line(FILE * fl, char *buf);
+int get_line(FILE * fl, char *buf, size_t bufsize);
 int real_room(int virtual, int reference);
 
 /* room-related structures *********************************************** */
@@ -300,7 +312,7 @@ void discrete_load(FILE * fl)
   char line[256];
 
   for (;;) {
-    if (!get_line(fl, line)) {
+    if (!get_line(fl, line, sizeof(line))) {
       fprintf(stderr, "Format error after room #%d\n", nr);
       exit(1);
     }
@@ -355,7 +367,7 @@ void parse_room(FILE * fl, int virtual_nr)
 {
   static int room_nr = 0, zone = 0;
   int t[10], i;
-  char line[256], flags[128];
+  char line[256], flags[WLD_FLAG_FIELD + 1];
   struct extra_descr_data *new_descr;
 
   sprintf(buf2, "room #%d", virtual_nr);
@@ -365,7 +377,7 @@ void parse_room(FILE * fl, int virtual_nr)
   world[room_nr].name = fread_string(fl, buf2);
   world[room_nr].description = fread_string(fl, buf2);
 
-  if (!get_line(fl, line) || sscanf(line, " %d %s %d ", t, flags, t + 2) != 3) {
+  if (!get_line(fl, line, sizeof(line)) || sscanf(line, " %d " WLD_FLAG_FMT " %d ", t, flags, t + 2) != 3) {
     fprintf(stderr, "Format error in room #%d\n", virtual_nr);
     exit(1);
   }
@@ -383,7 +395,7 @@ void parse_room(FILE * fl, int virtual_nr)
   sprintf(buf, "Format error in room #%d (expecting D/E/S)", virtual_nr);
 
   for (;;) {
-    if (!get_line(fl, line)) {
+    if (!get_line(fl, line, sizeof(line))) {
       fprintf(stderr, "%s\n", buf);
       exit(1);
     }
@@ -417,14 +429,19 @@ void setup_dir(FILE * fl, int room, int dir)
 {
   int t[5];
   char line[256];
+  char *general_description, *keyword;
 
   sprintf(buf2, "room #%d, direction D%d", world[room].number, dir);
 
-  CREATE(world[room].dir_option[dir], struct room_direction_data, 1);
-  world[room].dir_option[dir]->general_description = fread_string(fl, buf2);
-  world[room].dir_option[dir]->keyword = fread_string(fl, buf2);
+  /* Read the block before deciding what to do with it: a direction this
+   * program cannot store still occupies two ~-terminated strings and a
+   * numeric line, and leaving them in the stream would make the next pass
+   * round parse_room()'s loop read the exit's description as a directive.
+   * db.c's setup_dir() was corrected the same way. */
+  general_description = fread_string(fl, buf2);
+  keyword = fread_string(fl, buf2);
 
-  if (!get_line(fl, line)) {
+  if (!get_line(fl, line, sizeof(line))) {
     fprintf(stderr, "Format error, %s\n", buf2);
     exit(1);
   }
@@ -432,6 +449,20 @@ void setup_dir(FILE * fl, int room, int dir)
     fprintf(stderr, "Format error, %s\n", buf2);
     exit(1);
   }
+
+  /* dir indexes dir_option[NUM_OF_DIRS] and comes from atoi() on the D
+   * line, so nothing has established that it is a direction at all. */
+  if (dir < 0 || dir >= NUM_OF_DIRS) {
+    fprintf(stderr, "Direction out of range, %s (0-%d), ignored\n",
+            buf2, NUM_OF_DIRS - 1);
+    free(general_description);
+    free(keyword);
+    return;
+  }
+
+  CREATE(world[room].dir_option[dir], struct room_direction_data, 1);
+  world[room].dir_option[dir]->general_description = general_description;
+  world[room].dir_option[dir]->keyword = keyword;
   if (t[0] == 1)
     world[room].dir_option[dir]->exit_info = EX_ISDOOR;
   else if (t[0] == 2)
@@ -502,20 +533,34 @@ char *fread_string(FILE * fl, char *error)
  * The newline character is removed from the input.  Lines which begin
  * with '*' are considered to be comments.
  */
-int get_line(FILE * fl, char *buf)
+int get_line(FILE * fl, char *buf, size_t bufsize)
 {
-  char temp[256], *buf2;
+  int lines = 0;
+  size_t sl = 0;
+
+  if (bufsize < 2)
+    return (0);
 
   do {
-    buf2 = fgets(temp, 256, fl);
-    if (*temp)
-      temp[strlen(temp) - 1] = '\0';
-  } while (!feof(fl) && (*temp == '*' || !*temp));
+    if (!fgets(buf, bufsize, fl)) {
+      if (ferror(fl))
+        perror("reading world file");
+      return (0);
+    }
+    lines++;
+    /* Discard the tail of a line that did not fit; a fragment left in the
+     * stream is read as a line of its own by the next call. */
+    sl = strlen(buf);
+    if (sl > 0 && buf[sl - 1] != '\n') {
+      int c;
+      while ((c = getc(fl)) != EOF && c != '\n')
+        ;
+    }
+  } while (*buf == '*' || *buf == '\n' || *buf == '\r');
 
-  if (feof(fl))
-    return (0);
-  else {
-    strcpy(buf, temp);
-    return (1);
-  }
+  /* Last line of file does not always end in a newline, but it should. */
+  while (sl > 0 && (buf[sl - 1] == '\n' || buf[sl - 1] == '\r'))
+    buf[--sl] = '\0';
+
+  return (lines);
 }

@@ -65,11 +65,14 @@ ACMD(do_oasis_cedit)
     return;
   }
 
-  send_to_char(ch, "Saving the game configuration.\r\n");
   mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
     "OLC: %s saves the game configuration.", GET_NAME(ch));
 
-  cedit_save_to_disk();
+  if (cedit_save_to_disk())
+    send_to_char(ch, "Game configuration saved.\r\n");
+  else
+    send_to_char(ch, "The game configuration could not be written; see the "
+                     "syslog.\r\n");
 }
 
 static void cedit_setup(struct descriptor_data *d)
@@ -308,19 +311,34 @@ static void cedit_save_internally(struct descriptor_data *d)
   add_to_save_list(NOWHERE, SL_CFG);
 }
 
-void cedit_save_to_disk( void )
+int cedit_save_to_disk( void )
 {
   /* Just call save_config and get it over with. */
-  save_config( NOWHERE );
+  return save_config( NOWHERE );
 }
 
 int save_config( IDXTYPE nowhere )
 {
   FILE *fl;
   char buf[MAX_STRING_LENGTH];
+  char *tmp_name;
 
-  if (!(fl = fopen(CONFIG_CONFFILE, "w"))) {
-    perror("SYSERR: save_config");
+  /* Build the new file beside the old one and put it in place only once
+   * it is whole.  Opening CONFIG_CONFFILE with "w" truncated the live
+   * configuration before a single line had been written, and neither the
+   * writes nor the close were looked at -- so a save that failed part way
+   * returned TRUE over a config file the next boot would read as far as
+   * the damage and no further. */
+  /* CONFIG_CONFFILE is whatever was passed to -f, so it has no length known
+   * here.  Sizing the scratch name from a fixed buffer would refuse a save
+   * that the plain open would have managed, so take it from the name. */
+  CREATE(tmp_name, char, strlen(CONFIG_CONFFILE) + 5);
+  sprintf(tmp_name, "%s.tmp", CONFIG_CONFFILE); /* sprintf: OK, sized above */
+
+  if (!(fl = fopen(tmp_name, "w"))) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: save_config: could not open %s: %s", tmp_name, strerror(errno));
+    free(tmp_name);
     return (FALSE);
   }
 
@@ -371,7 +389,7 @@ int save_config( IDXTYPE nowhere )
   fprintf(fl, "* Should players who reach enough exp be prevented from automatically levelling to immortal?\n"
               "no_mort_to_immort = %d\n\n", CONFIG_NO_MORT_TO_IMMORT);
   fprintf(fl, "* Should closed doors be shown on autoexit / exit?\n"
-              "disp_closed_doors = %d\n\n", CONFIG_DISP_CLOSED_DOORS);
+              "display_closed_doors = %d\n\n", CONFIG_DISP_CLOSED_DOORS);
   fprintf(fl, "* Are diagonal directions enabled?\n"
               "diagonal_dirs = %d\n\n", CONFIG_DIAGONAL_DIRS);
   fprintf(fl, "* Who can use the map functions? 0=off, 1=on, 2=imm_only\n"
@@ -417,6 +435,9 @@ int save_config( IDXTYPE nowhere )
 
   fprintf(fl, "* Maximum number of items players are allowed to rent.\n"
    	      "max_obj_save = %d\n\n", CONFIG_MAX_OBJ_SAVE);
+
+  fprintf(fl, "* Surcharge added on top of item costs when renting.\n"
+              "min_rent_cost = %d\n\n", CONFIG_MIN_RENT_COST);
 
   fprintf(fl, "* Should the game automatically save people?\n"
               "auto_save = %d\n\n", CONFIG_AUTO_SAVE);
@@ -569,10 +590,73 @@ int save_config( IDXTYPE nowhere )
               "debug_mode = %d\n\n",
               CONFIG_DEBUG_MODE);
 
-  fclose(fl);
+  /* ferror() reports a flag the stream has been carrying, possibly from a
+   * write several lines back, and errno is not required to still describe
+   * it -- printing strerror(0) says "Success" in the middle of a failure
+   * message.  Say nothing rather than something untrue. */
+  if (fflush(fl) == EOF || ferror(fl)) {
+    int err = errno;
+
+    if (err)
+      mudlog(BRF, LVL_BUILDER, TRUE,
+             "SYSERR: save_config: error writing %s: %s", tmp_name, strerror(err));
+    else
+      mudlog(BRF, LVL_BUILDER, TRUE,
+             "SYSERR: save_config: error writing %s", tmp_name);
+    fclose(fl);
+    if (!CONFIG_DEBUG_MODE)
+      remove(tmp_name);
+    free(tmp_name);
+    return (FALSE);
+  }
+
+  if (fclose(fl) == EOF) {
+    int err = errno;
+
+    if (err)
+      mudlog(BRF, LVL_BUILDER, TRUE,
+             "SYSERR: save_config: error closing %s: %s", tmp_name, strerror(err));
+    else
+      mudlog(BRF, LVL_BUILDER, TRUE,
+             "SYSERR: save_config: error closing %s", tmp_name);
+    if (!CONFIG_DEBUG_MODE)
+      remove(tmp_name);
+    free(tmp_name);
+    return (FALSE);
+  }
+
+  /* rename() replaces an existing destination in place on POSIX, so the
+   * ordinary case never leaves the config file missing.  The Windows C
+   * runtime refuses a name that already exists, which is what the remove
+   * and retry are for -- and only for that, because a remove taken on
+   * every refusal would destroy the live configuration over a failure
+   * that had nothing to do with the destination existing.
+   *
+   * The scratch file stays where it is if the install fails.  It is a
+   * complete configuration by this point, and it is the only copy of what
+   * the builder just did that is not in the memory of a process that may
+   * not survive the night; the earlier failures remove it because what
+   * they leave behind is a fragment. */
+  if (rename(tmp_name, CONFIG_CONFFILE)) {
+    int err = errno;
+
+    if (err == EEXIST && remove(CONFIG_CONFFILE) == 0)
+      err = rename(tmp_name, CONFIG_CONFFILE) ? errno : 0;
+
+    if (err) {
+      mudlog(BRF, LVL_BUILDER, TRUE,
+             "SYSERR: save_config: could not put %s in place: %s; the new "
+             "configuration is complete and is left as %s",
+             CONFIG_CONFFILE, strerror(err), tmp_name);
+      free(tmp_name);
+      return (FALSE);
+    }
+  }
 
   if (in_save_list(NOWHERE, SL_CFG))
     remove_from_save_list(NOWHERE, SL_CFG);
+
+  free(tmp_name);
 
   return (TRUE);
 }
@@ -820,8 +904,11 @@ void cedit_parse(struct descriptor_data *d, char *arg)
                  "OLC: %s modifies the game configuration.", GET_NAME(d->character));
           cleanup_olc(d, CLEANUP_CONFIG);
 	  if (CONFIG_AUTO_SAVE) {
-	    cedit_save_to_disk();
-	    write_to_output(d, "Game configuration saved to disk.\r\n");
+	    if (cedit_save_to_disk())
+	      write_to_output(d, "Game configuration saved to disk.\r\n");
+	    else
+	      write_to_output(d, "Game configuration saved to memory; it could "
+	                         "not be written to disk.\r\n");
 	  } else
             write_to_output(d, "Game configuration saved to memory.\r\n");
           return;
@@ -1039,7 +1126,6 @@ void cedit_parse(struct descriptor_data *d, char *arg)
 
         default:
           write_to_output(d, "\r\nThat is an invalid choice!\r\n");
-          cedit_disp_game_play_options(d);
       }
 
       cedit_disp_game_play_options(d);
@@ -1224,7 +1310,7 @@ void cedit_parse(struct descriptor_data *d, char *arg)
              oldtext = strdup(OLC_CONFIG(d)->operation.MENU);
            }
 
-           string_write(d, &OLC_CONFIG(d)->operation.MENU, MAX_INPUT_LENGTH, 0, oldtext);
+           string_write(d, &OLC_CONFIG(d)->operation.MENU, MAX_CONFIG_TEXT, 0, oldtext);
            return;
 
          case 'm':
@@ -1239,7 +1325,7 @@ void cedit_parse(struct descriptor_data *d, char *arg)
              oldtext = str_udup(OLC_CONFIG(d)->operation.WELC_MESSG);
            }
 
-           string_write(d, &OLC_CONFIG(d)->operation.WELC_MESSG, MAX_INPUT_LENGTH, 0, oldtext);
+           string_write(d, &OLC_CONFIG(d)->operation.WELC_MESSG, MAX_CONFIG_TEXT, 0, oldtext);
            return;
 
          case 'n':
@@ -1254,7 +1340,7 @@ void cedit_parse(struct descriptor_data *d, char *arg)
              oldtext = strdup(OLC_CONFIG(d)->operation.START_MESSG);
            }
 
-           string_write(d, &OLC_CONFIG(d)->operation.START_MESSG, MAX_INPUT_LENGTH, 0, oldtext);
+           string_write(d, &OLC_CONFIG(d)->operation.START_MESSG, MAX_CONFIG_TEXT, 0, oldtext);
            return;
 
          case 'o':
@@ -1756,7 +1842,7 @@ static void reassign_rooms(void)
   int i;
 
   /* remove old funcs */
-  for (i = 0; i < top_of_world; i++)
+  for (i = 0; i <= top_of_world; i++)
     world[i].func = NULL;
 
   /* reassign spec_procs */

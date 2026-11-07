@@ -66,13 +66,13 @@ void read_file(void)
 {
   void add_name(byte level, char *name);
   char *CAP(char *txt);
-  int get_line(FILE * fl, char *buf);
+  int get_line(FILE * fl, char *buf, size_t bufsize);
   bitvector_t asciiflag_conv(char *flag);
 
   FILE *fl;
   int recs, i, last = 0, level = 0, flags = 0;
-  char index_name[40], line[256], bits[64];
-  char name[MAX_NAME_LENGTH];
+  char index_name[40], line[256], bits[WORLD_FLAG_FIELD + 1];
+  char name[PLR_INDEX_NAME_FIELD + 1];
   long id = 0;
 
   sprintf(index_name, "%s%s", LIB_PLRFILES, INDEX_FILE);
@@ -82,14 +82,23 @@ void read_file(void)
   }
   /* count the number of players in the index */
   recs = 0;
-  while (get_line(fl, line))
+  while (get_line(fl, line, sizeof(line)))
     if (*line != '~')
       recs++;
   rewind(fl);
 
   for (i = 0; i < recs; i++) {
-    get_line(fl, line);
-    sscanf(line, "%ld %s %d %s %d", &id, name, &level, bits, &last);
+    get_line(fl, line, sizeof(line));
+    /* Same file, same reason as build_player_index(): name and bits outlive
+     * the iteration, so a short count would put the previous player's level
+     * and flags on this one.  A wizlist is not worth aborting over, so skip
+     * the record rather than exit. */
+    if (sscanf(line, "%ld " PLR_INDEX_NAME_FMT " %d " FLAG_FIELD_FMT " %d",
+               &id, name, &level, bits, &last) != 5) {
+      fprintf(stderr, "Skipping malformed record %d in player index %s: %s\n",
+              i, index_name, line);
+      continue;
+    }
     CAP(name);
     flags = asciiflag_conv(bits);
     if (level >= MIN_LEVEL &&
@@ -257,20 +266,35 @@ char *CAP(char *txt)
  * character is removed from the input.  Lines which begin with '*' are 
  * considered to be comments. Returns the number of lines advanced in the 
  * file. */
-int get_line(FILE * fl, char *buf)
+int get_line(FILE * fl, char *buf, size_t bufsize)
 {
-  char temp[256], *buf2;
   int lines = 0;
+  size_t sl = 0;
+
+  if (bufsize < 2)
+    return (0);
 
   do {
-    buf2 = fgets(temp, 256, fl);
-    if (feof(fl))
+    if (!fgets(buf, bufsize, fl)) {
+      if (ferror(fl))
+        perror("reading player index");
       return (0);
+    }
     lines++;
-  } while (*temp == '*' || *temp == '\n');
+    /* Discard the tail of a line that did not fit; a fragment left in the
+     * stream is read as a line of its own by the next call. */
+    sl = strlen(buf);
+    if (sl > 0 && buf[sl - 1] != '\n') {
+      int c;
+      while ((c = getc(fl)) != EOF && c != '\n')
+        ;
+    }
+  } while (*buf == '*' || *buf == '\n' || *buf == '\r');
 
-  temp[strlen(temp) - 1] = '\0';
-  strcpy(buf, temp);
+  /* Last line of file doesn't always have a \n, but it should. */
+  while (sl > 0 && (buf[sl - 1] == '\n' || buf[sl - 1] == '\r'))
+    buf[--sl] = '\0';
+
   return (lines);
 }
 

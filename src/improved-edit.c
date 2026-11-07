@@ -122,7 +122,10 @@ void parse_edit_action(int command, char *string, struct descriptor_data *d)
             "/ra 'a' 'b'-  replace all occurences of text <a> within buffer with text <b>\r\n"
             "              usage: /r[a] 'pattern' 'replacement'\r\n"
             "/t         -  toggles '@' and tabs\r\n"
-            "/s         -  saves text\r\n");
+            "/s         -  saves text\r\n"
+            "\r\n"
+            "A line number or range narrows /d, /f, /fi, /l and /n to those lines:\r\n"
+            "              usage: /fi 5  (line 5)   /fi 5-9  (lines 5 through 9)\r\n");
     break;
   case PARSE_TOGGLE:
     if (!*d->str) {
@@ -169,7 +172,7 @@ void parse_edit_action(int command, char *string, struct descriptor_data *d)
       break;
     case 2:
       if (line_high < line_low) {
-        write_to_output(d, "That range is invalid.\\r\\n");
+        write_to_output(d, "That range is invalid.\r\n");
         return;
       }
     break;
@@ -200,18 +203,18 @@ void parse_edit_action(int command, char *string, struct descriptor_data *d)
       /*wb's fix for empty buffer replacement crashing */
     } else if ((!*d->str)) {
       return;
-    } else if ((total_len = ((strlen(t) - strlen(s)) + strlen(*d->str))) <= d->max_str) {
+    } else {
       if ((replaced = replace_str(d->str, s, t, rep_all, d->max_str)) > 0) {
         write_to_output(d, "Replaced %d occurence%sof '%s' with '%s'.\r\n", replaced, ((replaced != 1) ? "s " : " "), s, t);
       } else if (replaced == 0) {
         write_to_output(d, "String '%s' not found.\r\n", s);
       } else
         write_to_output(d, "ERROR: Replacement string causes buffer overflow, aborted replace.\r\n");
-    } else
-      write_to_output(d, "Not enough space left in buffer.\r\n");
+    }
     break;
   case PARSE_DELETE:
     switch (sscanf(string, " %d - %d ", &line_low, &line_high)) {
+    case -1:
     case 0:
       write_to_output(d, "You must specify a line number or range to delete.\r\n");
       return;
@@ -268,6 +271,7 @@ void parse_edit_action(int command, char *string, struct descriptor_data *d)
     *buf = '\0';
     if (*string)
       switch (sscanf(string, " %d - %d ", &line_low, &line_high)) {
+      case -1:
       case 0:
         line_low = 1;
         line_high = 999999;
@@ -326,6 +330,7 @@ void parse_edit_action(int command, char *string, struct descriptor_data *d)
     *buf = '\0';
     if (*string)
       switch (sscanf(string, " %d - %d ", &line_low, &line_high)) {
+      case -1:
       case 0:
         line_low = 1;
         line_high = 999999;
@@ -367,8 +372,18 @@ void parse_edit_action(int command, char *string, struct descriptor_data *d)
         s++;
         temp = *s;
         *s = '\0';
-        char buf3[13];
-        sprintf(buf3, "%4d: ", (i - 1));
+        /* %4d is a minimum width, not a maximum: the widest int prints as
+         * eleven characters, and ": " and the terminator want three more, so
+         * the format can write fourteen bytes into thirteen.  Nothing reaches
+         * that today -- i counts the newlines in *d->str, string_write() caps
+         * that buffer at d->max_str and string_add() holds it there, and the
+         * largest any caller asks for is MAX_CMD_LENGTH, so the number is five
+         * digits at the most -- but that bound is two files away and sprintf()
+         * does not consult it.  Sized clear of the widest int rather than
+         * exactly to it, and written with snprintf so the bound comes from the
+         * array either way. */
+        char buf3[32];
+        snprintf(buf3, sizeof(buf3), "%4d: ", (i - 1));
         strncat(buf, buf3, sizeof(buf) - strlen(buf) - 1);
         strncat(buf, t, sizeof(buf) - strlen(buf) - 1);
         *s = temp;
@@ -529,7 +544,15 @@ int format_text(char **ptr_string, int mode, struct descriptor_data *d, unsigned
       return 0;
     }
     strncat(formatted, strcat(start, "\n"), sizeof(formatted) - strlen(formatted) - 1);
-    flow = strstr(flow, "\n");
+    /* strtok() answers the whole of what is left when there is no newline in
+     * it, so reaching here does not mean another line follows.  On the last
+     * line of a string that does not end in one, strstr() answers NULL and
+     * ++flow read from address 1.  The line asked for is past the end, which
+     * is what the strtok() test above already reports. */
+    if ((flow = strstr(flow, "\n")) == NULL) {
+      write_to_output(d, "There aren't that many lines!\r\n");
+      return 0;
+    }
     strncpy(str, ++flow, sizeof(str) - 1);
   }
 
@@ -570,9 +593,11 @@ int format_text(char **ptr_string, int mode, struct descriptor_data *d, unsigned
         cap_next = TRUE;
       }
 
-      /* This is so that if we stopped on a sentence, we move off the sentence 
-       * delimiter. */
-      while (strchr(".!?", *flow)) {
+      /* This is so that if we stopped on a sentence, we move off the sentence
+       * delimiter.  The *flow test is not redundant: strchr() answers a match
+       * for the terminator too -- strchr(s, 0) points at s own NUL -- so at
+       * the end of the string this walked off the end of it. */
+      while (*flow && strchr(".!?", *flow)) {
         cap_next_next = TRUE;
         flow++;
       }
@@ -582,7 +607,10 @@ int format_text(char **ptr_string, int mode, struct descriptor_data *d, unsigned
        * to the \r (or \n) character after the delimiter. Thus *flow will be 
        * non-null, and an extra (blank) line might be added erroneously. We 
        * fix it by skipping the newline characters in between. - Welcor */
-      if (strchr("\n\r", *flow)) {
+      /* Same again: without the *flow test the end of the string reads as a
+       * delimiter, and then the flow++ below -- which is safe only because a
+       * real \r or \n has something after it -- steps past the terminator. */
+      if (*flow && strchr("\n\r", *flow)) {
         *flow = '\0';  /* terminate 'start' string */
         flow++;        /* we know this is safe     */
         if (*flow == '\n' && i++ >= high)
@@ -653,55 +681,53 @@ int format_text(char **ptr_string, int mode, struct descriptor_data *d, unsigned
 
 int replace_str(char **string, char *pattern, char *replacement, int rep_all, unsigned int max_size)
 {
-  char *replace_buffer = NULL;
-  char *flow, *jetsam, temp;
-  int len, i;
+  char *replace_buffer, *out;
+  const char *flow, *match;
+  size_t pattern_len = strlen(pattern), replacement_len = strlen(replacement);
+  size_t result_len, prefix_len;
+  int count = 0, i;
 
-  if ((strlen(*string) - strlen(pattern)) + strlen(replacement) > max_size)
+  if (max_size == 0)
     return -1;
-
-  CREATE(replace_buffer, char, max_size);
-  i = 0;
-  jetsam = *string;
-  flow = *string;
-  *replace_buffer = '\0';
-
-  if (rep_all) {
-    while ((flow = (char *)strstr(flow, pattern)) != NULL) {
-      i++;
-      temp = *flow;
-      *flow = '\0';
-      if ((strlen(replace_buffer) + strlen(jetsam) + strlen(replacement)) > max_size) {
-        i = -1;
-        break;
-      }
-      strncat(replace_buffer, jetsam, max_size - strlen(replace_buffer) -1);
-      strncat(replace_buffer, replacement, max_size - strlen(replace_buffer) - 1);
-      *flow = temp;
-      flow += strlen(pattern);
-      jetsam = flow;
-    }
-    strncat(replace_buffer, jetsam, max_size - strlen(replace_buffer) - 1);
-  } else {
-    if ((flow = (char *)strstr(*string, pattern)) != NULL) {
-      i++;
-      flow += strlen(pattern);
-      len = ((char *)flow - (char *)*string) - strlen(pattern);
-      strncpy(replace_buffer, *string, len < max_size - 1 ? len : max_size - 1);
-      replace_buffer[max_size - 1] = '\0';
-      strncat(replace_buffer, replacement, max_size - strlen(replace_buffer) - 1);
-      strncat(replace_buffer, flow, max_size - strlen(replace_buffer) - 1);
-    }
-  }
-
-  if (i <= 0)
+  if (pattern_len == 0)
     return 0;
-  else {
-    RECREATE(*string, char, strlen(replace_buffer) + 3);
-    strcpy(*string, replace_buffer);
+
+  /* Count non-overlapping matches without modifying the original buffer. */
+  flow = *string;
+  while ((match = strstr(flow, pattern)) != NULL) {
+    count++;
+    flow = match + pattern_len;
+    if (!rep_all)
+      break;
   }
-  free(replace_buffer);
-  return i;
+  if (count == 0)
+    return 0;
+
+  /* Include the untouched suffix and the terminator. Check before adding
+   * replacement bytes so that the size arithmetic cannot wrap. */
+  result_len = strlen(*string) - (size_t) count * pattern_len;
+  if (result_len >= max_size ||
+      replacement_len > (max_size - 1 - result_len) / (size_t) count)
+    return -1;
+  result_len += (size_t) count * replacement_len;
+
+  CREATE(replace_buffer, char, result_len + 1);
+  out = replace_buffer;
+  flow = *string;
+  for (i = 0; i < count; i++) {
+    match = strstr(flow, pattern);
+    prefix_len = (size_t) (match - flow);
+    memcpy(out, flow, prefix_len);
+    out += prefix_len;
+    memcpy(out, replacement, replacement_len);
+    out += replacement_len;
+    flow = match + pattern_len;
+  }
+  strcpy(out, flow);
+
+  free(*string);
+  *string = replace_buffer;
+  return count;
 }
 
 #endif

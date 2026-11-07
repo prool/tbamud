@@ -60,7 +60,13 @@ static void perform_put(struct char_data *ch, struct obj_data *obj, struct obj_d
   if (!has_obj_by_uid_in_lookup_table(object_id)) /* object might be extracted by drop_otrigger */
     return;
 
-  if ((GET_OBJ_VAL(cont, 0) > 0) &&
+  /* A corpse tracks its contents but has no capacity of its own, so the
+   * test below would refuse it with "won't fit" -- true, but not the reason.
+   * Say the reason: nothing goes into a corpse, which is what make_corpse()
+   * has always meant by giving it no capacity. */
+  if (IS_CORPSE(cont))
+    act("You can't put anything in $P.", FALSE, ch, obj, cont, TO_CHAR);
+  else if (TRACKS_CONTENT_WEIGHT(cont) &&
       (GET_OBJ_WEIGHT(cont) + GET_OBJ_WEIGHT(obj) > GET_OBJ_VAL(cont, 0)))
     act("$p won't fit in $P.", FALSE, ch, obj, cont, TO_CHAR);
   else if (OBJ_FLAGGED(obj, ITEM_NODROP) && IN_ROOM(cont) != NOWHERE)
@@ -119,7 +125,7 @@ ACMD(do_put)
   } else {
     generic_find(thecont, FIND_OBJ_INV | FIND_OBJ_ROOM, ch, &tmp_char, &cont);
     if (!cont)
-      send_to_char(ch, "You don't see %s %s here.\r\n", AN(thecont), thecont);
+      send_to_char(ch, "You don't see %s %s here.\r\n", AN(skip_number(thecont)), skip_number(thecont));
     else if (GET_OBJ_TYPE(cont) != ITEM_CONTAINER)
       act("$p is not a container.", FALSE, ch, cont, 0, TO_CHAR);
     else if (OBJVAL_FLAGGED(cont, CONT_CLOSED) && (GET_LEVEL(ch) < LVL_IMMORT || !PRF_FLAGGED(ch, PRF_NOHASSLE)))
@@ -355,7 +361,7 @@ ACMD(do_get)
     if (cont_dotmode == FIND_INDIV) {
       mode = generic_find(arg2, FIND_OBJ_INV | FIND_OBJ_ROOM, ch, &tmp_char, &cont);
       if (!cont)
-	send_to_char(ch, "You don't have %s %s.\r\n", AN(arg2), arg2);
+	send_to_char(ch, "You don't have %s %s.\r\n", AN(skip_number(arg2)), skip_number(arg2));
       else if (GET_OBJ_TYPE(cont) != ITEM_CONTAINER)
 	act("$p is not a container.", FALSE, ch, cont, 0, TO_CHAR);
       else
@@ -780,6 +786,27 @@ void weight_change_object(struct obj_data *obj, int weight)
 #define DRINK_CON_MAX(cont) (GET_OBJ_VAL((cont), 0))
 #define DRINK_CON_NOW(cont) (GET_OBJ_VAL((cont), 1))
 #define DRINK_CON_TYPE(cont) (GET_OBJ_VAL((cont), 2))
+/* The same value, bounded to something that can index drinks[],
+ * drinknames[] and drink_aff[] -- the three tables this file indexes
+ * directly.  drinks[] and drinknames[] do end in a "\n" sentinel, but that
+ * only helps sprinttype(), which walks to it; indexing them directly does
+ * not touch it.  drink_aff[] is an int table with no sentinel to have.
+ * color_liquid[] is read only through sprinttype(), in act.informative.c,
+ * where the sentinel is what keeps it in bounds -- so it is not one of
+ * these, and is left alone.
+ *
+ * oedit does clamp this one, to 0..NUM_LIQ_TYPES-1 (its VALUE_3 arm) -- it
+ * is the capacity and the contents it leaves open.  What arrives unchecked
+ * is everything that does not come through oedit: parse_object() stores
+ * what the .obj file says, check_object() tests the last keyword and the
+ * contents but never the type, %osetval% sets any value to any integer,
+ * and rent and house files restore all four raw.
+ *
+ * DRINK_CON_TYPE itself has to stay an lvalue -- do_drink and do_pour
+ * assign through it. */
+#define DRINK_CON_LIQ(cont) (GET_OBJ_VAL((cont), 2) < 0 || \
+                             GET_OBJ_VAL((cont), 2) >= NUM_LIQ_TYPES ? \
+                             LIQ_WATER : GET_OBJ_VAL((cont), 2))
 #define DRINK_CON_POISON(cont) (GET_OBJ_VAL((cont), 3))
 
 #define LIMITED_DRINK_CONTAINER(cont) (DRINK_CON_MAX((cont)) >= 0 && DRINK_CON_NOW((cont)) >= 0)
@@ -797,7 +824,7 @@ void name_from_drinkcon(struct obj_data *obj)
   if (obj->name == obj_proto[GET_OBJ_RNUM(obj)].name)
     obj->name = strdup(obj_proto[GET_OBJ_RNUM(obj)].name);
 
-  liqname = drinknames[DRINK_CON_TYPE(obj)];
+  liqname = drinknames[DRINK_CON_LIQ(obj)];
  
   remove_from_string(obj->name, liqname);
   new_name = right_trim_whitespace(obj->name);
@@ -811,6 +838,9 @@ void name_to_drinkcon(struct obj_data *obj, int type)
 
   if (!obj || (GET_OBJ_TYPE(obj) != ITEM_DRINKCON && GET_OBJ_TYPE(obj) != ITEM_FOUNTAIN))
     return;
+
+  if (type < 0 || type >= NUM_LIQ_TYPES)
+    type = LIQ_WATER;
 
   CREATE(new_name, char, strlen(obj->name) + strlen(drinknames[type]) + 2);
   sprintf(new_name, "%s %s", obj->name, drinknames[type]); /* sprintf: OK */
@@ -829,6 +859,8 @@ ACMD(do_drink)
   struct affected_type af;
   int amount, weight;
   int on_ground = 0;
+  char *name;
+  int number;
 
   one_argument(argument, arg);
 
@@ -856,8 +888,13 @@ ACMD(do_drink)
     return;
     }
   }
-  if (!(temp = get_obj_in_list_vis(ch, arg, NULL, ch->carrying))) {
-    if (!(temp = get_obj_in_list_vis(ch, arg, NULL, world[IN_ROOM(ch)].contents))) {
+  /* As in do_sac(): read the prefix once so the second list is searched for
+   * the same thing as the first. */
+  name = arg;
+  number = get_number(&name);
+
+  if (!(temp = get_obj_in_list_vis(ch, name, &number, ch->carrying))) {
+    if (!(temp = get_obj_in_list_vis(ch, name, &number, world[IN_ROOM(ch)].contents))) {
       send_to_char(ch, "You can't find it!\r\n");
       return;
     } else
@@ -893,19 +930,19 @@ ACMD(do_drink)
   if (subcmd == SCMD_DRINK) {
     char buf[MAX_STRING_LENGTH];
 
-    snprintf(buf, sizeof(buf), "$n drinks %s from $p.", drinks[DRINK_CON_TYPE(temp)]);
+    snprintf(buf, sizeof(buf), "$n drinks %s from $p.", drinks[DRINK_CON_LIQ(temp)]);
     act(buf, TRUE, ch, temp, 0, TO_ROOM);
 
-    send_to_char(ch, "You drink the %s.\r\n", drinks[DRINK_CON_TYPE(temp)]);
+    send_to_char(ch, "You drink the %s.\r\n", drinks[DRINK_CON_LIQ(temp)]);
 
-    if (drink_aff[DRINK_CON_TYPE(temp)][DRUNK] > 0)
-      amount = (25 - GET_COND(ch, THIRST)) / drink_aff[DRINK_CON_TYPE(temp)][DRUNK];
+    if (drink_aff[DRINK_CON_LIQ(temp)][DRUNK] > 0)
+      amount = (25 - GET_COND(ch, THIRST)) / drink_aff[DRINK_CON_LIQ(temp)][DRUNK];
     else
       amount = rand_number(3, 10);
 
   } else {
     act("$n sips from $p.", TRUE, ch, temp, 0, TO_ROOM);
-    send_to_char(ch, "It tastes like %s.\r\n", drinks[DRINK_CON_TYPE(temp)]);
+    send_to_char(ch, "It tastes like %s.\r\n", drinks[DRINK_CON_LIQ(temp)]);
     amount = 1;
   }
 
@@ -922,9 +959,9 @@ ACMD(do_drink)
     weight_change_object(temp, -weight); /* Subtract amount */
   }
 
-  gain_condition(ch, DRUNK,  drink_aff[DRINK_CON_TYPE(temp)][DRUNK]  * amount / 4);
-  gain_condition(ch, HUNGER,   drink_aff[DRINK_CON_TYPE(temp)][HUNGER]   * amount / 4);
-  gain_condition(ch, THIRST, drink_aff[DRINK_CON_TYPE(temp)][THIRST] * amount / 4);
+  gain_condition(ch, DRUNK,  drink_aff[DRINK_CON_LIQ(temp)][DRUNK]  * amount / 4);
+  gain_condition(ch, HUNGER,   drink_aff[DRINK_CON_LIQ(temp)][HUNGER]   * amount / 4);
+  gain_condition(ch, THIRST, drink_aff[DRINK_CON_LIQ(temp)][THIRST] * amount / 4);
 
   if (GET_COND(ch, DRUNK) > 10)
     send_to_char(ch, "You feel drunk.\r\n");
@@ -1131,7 +1168,7 @@ ACMD(do_pour)
     return;
   }
   if (subcmd == SCMD_POUR)
-    send_to_char(ch, "You pour the %s into the %s.\r\n", drinks[DRINK_CON_TYPE(from_obj)], arg2);
+    send_to_char(ch, "You pour the %s into the %s.\r\n", drinks[DRINK_CON_LIQ(from_obj)], arg2);
 
   if (subcmd == SCMD_FILL) {
     act("You gently fill $p from $P.", FALSE, ch, to_obj, from_obj, TO_CHAR);
@@ -1172,6 +1209,7 @@ ACMD(do_pour)
 #undef DRINK_CON_MAX
 #undef DRINK_CON_NOW
 #undef DRINK_CON_TYPE
+#undef DRINK_CON_LIQ
 #undef DRINK_CON_POISON
 
 #undef LIMITED_DRINK_CONTAINER
@@ -1530,6 +1568,8 @@ ACMD(do_sac)
 {
   char arg[MAX_INPUT_LENGTH];
   struct obj_data *j, *jj, *next_thing2;
+  char *name;
+  int number;
 
   one_argument(argument, arg);
 
@@ -1537,8 +1577,14 @@ ACMD(do_sac)
     send_to_char(ch, "Sacrifice what?\n\r");
     return;
   }
-    
-  if (!(j = get_obj_in_list_vis(ch, arg, NULL, world[IN_ROOM(ch)].contents)) && (!(j = get_obj_in_list_vis(ch, arg, NULL, ch->carrying)))) {
+
+  /* Read the number. or last. once and count across both lists.  Left to
+   * itself, get_obj_in_list_vis() strips the prefix from arg on the first
+   * call, and the second would search for the bare keyword. */
+  name = arg;
+  number = get_number(&name);
+
+  if (!(j = get_obj_in_list_vis(ch, name, &number, world[IN_ROOM(ch)].contents)) && (!(j = get_obj_in_list_vis(ch, name, &number, ch->carrying)))) {
     send_to_char(ch, "It doesn't seem to be here.\n\r");
     return;
   }
@@ -1584,7 +1630,7 @@ ACMD(do_sac)
     obj_from_obj(jj);
 
     if (j->carried_by)
-      obj_to_room(jj, IN_ROOM(j));
+      obj_to_room(jj, IN_ROOM(j->carried_by));
     else if (IN_ROOM(j) != NOWHERE)
       obj_to_room(jj, IN_ROOM(j));
     else

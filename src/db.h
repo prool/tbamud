@@ -115,6 +115,7 @@
 #define PREFIX_LOGFILE     "../log/"
 #define LEVELS_LOGFILE     PREFIX_LOGFILE"levels"
 #define RIP_LOGFILE        PREFIX_LOGFILE"rip"
+#define DTS_LOGFILE        PREFIX_LOGFILE"dts"
 #define NEWPLAYERS_LOGFILE PREFIX_LOGFILE"newplayers"
 #define RENTGONE_LOGFILE   PREFIX_LOGFILE"rentgone"
 #define ERRORS_LOGFILE     PREFIX_LOGFILE"errors"
@@ -130,6 +131,76 @@
 /* END: Assumed default locations for logfiles, mainly used in do_file. */
 
 #define CONFIG_FILE	LIB_ETC"config"    /* OasisOLC * GAME CONFIG FL */
+
+/** Longest single flag field a world file may carry.  The arrays that
+ * receive these fields are sized from it, and so are the scanf widths that
+ * bound them -- see SCANF_WIDTH in utils.h. */
+#define WORLD_FLAG_FIELD  127
+/** One bounded flag field, for the world-file parsers. */
+#define FLAG_FIELD_FMT    "%" SCANF_WIDTH(WORLD_FLAG_FIELD) "s"
+
+/** Longest single whitespace-separated token the social reader will accept.
+ * Unlike the flag fields above, these land in buffers that are also used to
+ * read whole lines, so the bound cannot be derived from the array: it is a
+ * deliberate ceiling under every one of them, and it truncates rather than
+ * overflows.  Both of them, so the claim can be checked rather than taken:
+ * next_soc[MAX_STRING_LENGTH] and sorted[MAX_INPUT_LENGTH], 49152 and 512,
+ * on every platform.
+ *
+ * The index-file entries were bounded by this as well, and for them the claim
+ * was false.  Their buffer was PATH_MAX - 100, and PATH_MAX is 4096 on Linux
+ * but MAX_PATH under CIRCLE_WINDOWS -- 260, making the buffer 160 bytes while
+ * this writes up to 256.  A ceiling nothing can be measured against is not
+ * one, so they have their own width below, taken from their own array. */
+#define BOOT_TOKEN_FIELD  255
+/** One bounded token, for the readers that scan straight out of a FILE. */
+#define BOOT_TOKEN_FMT    "%" SCANF_WIDTH(BOOT_TOKEN_FIELD) "s"
+
+/** Longest entry an index file may carry -- a world filename such as
+ * "30.wld", or the "$" that ends the list.  Sized in its own right rather
+ * than as PATH_MAX less room for a prefix: that expression named two
+ * different sizes on two platforms without saying so, and a bound written
+ * against one of them was 96 bytes past the other. */
+#define INDEX_ENTRY_FIELD 127
+/** One bounded index-file entry. */
+#define INDEX_ENTRY_FMT   "%" SCANF_WIDTH(INDEX_ENTRY_FIELD) "s"
+
+/** The leading tag on a trigger-assignment line -- the "T" in "T 1234".  Both
+ * trigger readers scan it into an eight-byte buffer, and one of them already
+ * bounded it with a literal 7.  Named so the buffer and the width move
+ * together, which a literal pair cannot. */
+#define TRIG_TAG_FIELD    7
+/** One bounded trigger tag. */
+#define TRIG_TAG_FMT      "%" SCANF_WIDTH(TRIG_TAG_FIELD) "s"
+
+/** How much of a line fread_string() and fread_clean_string() take per pass.
+ * Their buffer is this plus TWO, not plus one: fgets() can leave the NUL at
+ * FREAD_CHUNK - 1, and the code then writes a CR, an LF and a NUL starting
+ * there. Written as 512 against a [513] array, those two facts drifted apart
+ * and the last of the three bytes landed off the end. */
+#define FREAD_CHUNK       512
+
+/** The two string arguments of a 'V' zone command, scanned into a pair of
+ * arrays sized from the same constant rather than from a matching literal. */
+#define ZCMD_STR_FIELD    79
+/** The 'V' command's name argument. */
+#define ZCMD_STR_FMT      "%" SCANF_WIDTH(ZCMD_STR_FIELD) "s"
+/** Its value argument, which runs to the end of the line. */
+#define ZCMD_TXT_FMT      "%" SCANF_WIDTH(ZCMD_STR_FIELD) "[^\f\n\r\t\v]"
+
+/** Longest name the player index will read back.  Deliberately not
+ * MAX_NAME_LENGTH: that bounds what this MUD will *create*, and this bounds
+ * what it will *accept*, which are not the same number.  An index written by
+ * a MUD with a larger MAX_NAME_LENGTH -- or carried across a merge, which is
+ * how player files move between forks -- has to keep loading.  Narrowing the
+ * read to MAX_NAME_LENGTH would not truncate the name and stop: the following
+ * %d would fail on the remainder, the conversion count would come up short,
+ * and the record would keep the level, flags and last-login of the record
+ * before it.  79 is the width the reader has always had. */
+#define PLR_INDEX_NAME_FIELD  79
+/** One bounded player-index name. */
+#define PLR_INDEX_NAME_FMT    "%" SCANF_WIDTH(PLR_INDEX_NAME_FIELD) "s"
+
 #define PLAYER_FILE	LIB_ETC"players"   /* the player database	*/
 #define MAIL_FILE	LIB_ETC"plrmail"   /* for the mudmail system	*/
 #define MAIL_FILE_TMP	LIB_ETC"plrmail_tmp"   /* for the mudmail system	*/
@@ -265,16 +336,18 @@ obj_rnum real_object(obj_vnum vnum);
 
 /* Public Procedures from objsave.c */
 void  Crash_save_all(void);
-void  Crash_idlesave(struct char_data *ch);
-void  Crash_crashsave(struct char_data *ch);
+int   Crash_idlesave(struct char_data *ch);
+int   Crash_crashsave(struct char_data *ch);
 int Crash_load(struct char_data *ch);
 void  Crash_listrent(struct char_data *ch, char *name);
 int Crash_clean_file(char *name);
 int Crash_delete_crashfile(struct char_data *ch);
 int Crash_delete_file(char *name);
 void update_obj_file(void);
-void Crash_rentsave(struct char_data *ch, int cost);
+int Crash_rentsave(struct char_data *ch, int cost);
 obj_save_data *objsave_parse_objects(FILE *fl);
+void objsave_reassemble(obj_save_data *loaded,
+                        void (*place)(struct obj_data *obj, void *dest), void *dest);
 int objsave_save_obj_record(struct obj_data *obj, FILE *fl, int location);
 /* Special functions */
 SPECIAL(receptionist);
@@ -320,6 +393,16 @@ int count_hash_records(FILE *fl);
 bitvector_t asciiflag_conv(char *flag);
 void renum_world(void);
 void load_config( void );
+/** Write the default preference toggles for ch into flags.  The one
+ * definition of what "default" means: init_char() applies it to a new
+ * character and prefedit's restore applies it to an existing one, so the two
+ * cannot answer differently. */
+void set_default_prefs(struct char_data *ch, int flags[]);
+/** Set, and clear, the preference flags a character holds by rank.  The one
+ * definition of which flags those are: set_default_prefs() applies it to an
+ * immortal and do_advance() applies it on the way up and down. */
+void set_rank_prefs(int flags[]);
+void remove_rank_prefs(int flags[]);
 
 /* Various Files */
 extern char *credits;
@@ -341,6 +424,7 @@ extern char *ideas;
 
 /* The ingame helpfile */
 extern int top_of_helpt;
+extern long help_table_version;
 extern struct help_index_element *help_table;
 
 /* Mud configurable variables */

@@ -16,10 +16,15 @@
 /* Functions available through class.c */
 int backstab_mult(int level);
 void do_start(struct char_data *ch);
+/* find_class_bitvector(): the bit a letter naming no class contributes.  No
+ * real class uses it, so a bad letter matches nobody. */
+#define CLASS_BIT_UNKNOWN ((bitvector_t)1 << 31)
+
 bitvector_t find_class_bitvector(const char *arg);
 int invalid_class(struct char_data *ch, struct obj_data *obj);
 int level_exp(int chclass, int level);
 int parse_class(char arg);
+int practices_per_level(struct char_data *ch);
 void roll_real_abils(struct char_data *ch);
 byte saving_throws(int class_num, int type, int level);
 int thaco(int class_num, int level);

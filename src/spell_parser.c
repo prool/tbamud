@@ -145,7 +145,11 @@ const char *skill_name(int num) {
 int find_skill_num(char *name) {
   int skindex, ok;
   char *temp, *temp2;
-  char first[256], first2[256], tempbuf[256];
+  /* first and tempbuf only ever hold a spell_info[].name.  first2 holds a
+   * token taken from name, and the callers that matter pass typed input --
+   * do_cast hands over the text between the quotes -- so it has to be able to
+   * hold what one input line can carry. */
+  char first[256], first2[MAX_INPUT_LENGTH], tempbuf[256];
 
   for (skindex = 1; skindex <= TOP_SPELL_DEFINE; skindex++) {
     if (is_abbrev(name, spell_info[skindex].name))
@@ -906,8 +910,6 @@ void mag_assign_spells(void) {
   TAR_CHAR_ROOM | TAR_OBJ_INV | TAR_OBJ_ROOM, FALSE, MAG_MANUAL, NULL);
 
   /* NON-castable spells should appear below here. */
-  spello(SPELL_IDENTIFY, "identify", 0, 0, 0, 0,
-  TAR_CHAR_ROOM | TAR_OBJ_INV | TAR_OBJ_ROOM, FALSE, MAG_MANUAL, NULL);
 
   /* you might want to name this one something more fitting to your theme -Welcor*/
   spello(SPELL_DG_AFFECT, "Script-inflicted", 0, 0, 0, POS_SITTING,

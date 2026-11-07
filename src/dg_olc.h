@@ -16,7 +16,7 @@
 
 #include "dg_scripts.h"
 
-#define NUM_TRIG_TYPE_FLAGS		21
+#define NUM_TRIG_TYPE_FLAGS		20
 
 /* Submodes of TRIGEDIT connectedness. */
 #define TRIGEDIT_MAIN_MENU              0
@@ -29,6 +29,7 @@
 #define TRIGEDIT_NARG			7
 #define TRIGEDIT_ARGUMENT		8
 #define TRIGEDIT_COPY                   9
+#define TRIGEDIT_CONFIRM_DELETE         10
 
 #define OLC_SCRIPT_EDIT		    82766  /* arbitrary > highest possible room number */
 #define SCRIPT_MAIN_MENU		0
@@ -45,5 +46,8 @@ void dg_olc_script_copy(struct descriptor_data *d);
 void dg_script_menu(struct descriptor_data *d);
 int dg_script_edit_parse(struct descriptor_data *d, char *arg);
 
+
+int delete_trigger(trig_rnum rnum, int *stale_refs);
+int save_triggers(zone_rnum zrnum);
 
 #endif /* _DG_OLC_H_ */

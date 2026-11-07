@@ -214,7 +214,7 @@ static void make_corpse(struct char_data *ch)
   SET_BIT_AR(GET_OBJ_EXTRA(corpse), ITEM_NODONATE);
   GET_OBJ_VAL(corpse, 0) = 0;	/* You can't store stuff in a corpse */
   GET_OBJ_VAL(corpse, 3) = 1;	/* corpse identifier */
-  GET_OBJ_WEIGHT(corpse) = GET_WEIGHT(ch) + IS_CARRYING_W(ch);
+  GET_OBJ_WEIGHT(corpse) = GET_WEIGHT(ch);
   GET_OBJ_RENT(corpse) = 100000;
   if (IS_NPC(ch))
     GET_OBJ_TIMER(corpse) = CONFIG_MAX_NPC_CORPSE_TIME;
@@ -223,8 +223,10 @@ static void make_corpse(struct char_data *ch)
 
   /* transfer character's inventory to the corpse */
   corpse->contains = ch->carrying;
-  for (o = corpse->contains; o != NULL; o = o->next_content)
+  for (o = corpse->contains; o != NULL; o = o->next_content) {
     o->in_obj = corpse;
+    GET_OBJ_WEIGHT(corpse) += GET_OBJ_WEIGHT(o);
+  }
   object_list_new_owner(corpse, NULL);
 
   /* transfer character's equipment to the corpse */
@@ -771,7 +773,9 @@ int damage(struct char_data *ch, struct char_data *victim, int dam, int attackty
     }
 
     if (!IS_NPC(victim)) {
-      mudlog(BRF, MAX(LVL_IMMORT, MAX(GET_INVIS_LEV(ch), GET_INVIS_LEV(victim))), 
+      /* ch is whatever did the killing, and a mob has no invis level to
+       * read: asking for one logs a SYSERR on every such death. */
+      mudlog(BRF, MAX(LVL_IMMORT, MAX(IS_NPC(ch) ? 0 : GET_INVIS_LEV(ch), GET_INVIS_LEV(victim))), 
         TRUE, "%s killed by %s at %s", GET_NAME(victim), GET_NAME(ch), world[IN_ROOM(victim)].name);
       if (MOB_FLAGGED(ch, MOB_MEMORY))
 	forget(ch, victim);
@@ -790,20 +794,22 @@ int damage(struct char_data *ch, struct char_data *victim, int dam, int attackty
 
     die(victim, ch);
     if (GROUP(ch) && (local_gold > 0) && PRF_FLAGGED(ch, PRF_AUTOSPLIT) ) {
-      generic_find("corpse", FIND_OBJ_ROOM, ch, &tmp_char, &corpse_obj);
+      generic_find("last.corpse", FIND_OBJ_ROOM, ch, &tmp_char, &corpse_obj);
       if (corpse_obj) {
-        do_get(ch, "all.coin corpse", 0, 0);
+        do_get(ch, "all.coin last.corpse", 0, 0);
         do_split(ch, local_buf, 0, 0);
       }
       /* need to remove the gold from the corpse */
     } else if (!IS_NPC(ch) && (ch != victim) && PRF_FLAGGED(ch, PRF_AUTOGOLD)) {
-      do_get(ch, "all.coin corpse", 0, 0);
+      do_get(ch, "all.coin last.corpse", 0, 0);
     }
     if (!IS_NPC(ch) && (ch != victim) && PRF_FLAGGED(ch, PRF_AUTOLOOT)) {
-      do_get(ch, "all corpse", 0, 0);
+      /* last.corpse, not corpse: obj_to_room() appends, so a plain name
+       * finds the oldest corpse in the room, not the one just made. */
+      do_get(ch, "all last.corpse", 0, 0);
     }
     if (IS_NPC(victim) && !IS_NPC(ch) && PRF_FLAGGED(ch, PRF_AUTOSAC)) {
-      do_sac(ch,"corpse",0,0);
+      do_sac(ch, "last.corpse", 0, 0);
     }
     return (-1);
   }

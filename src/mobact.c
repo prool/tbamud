@@ -26,6 +26,18 @@
 /* local file scope only function prototypes */
 static bool aggressive_mob_on_a_leash(struct char_data *slave, struct char_data *master, struct char_data *attack);
 
+static int snarl_cmd;
+
+/* The merged command table is rebuilt from scratch whenever a social is
+ * added or removed, and every index into it moves with it. The values
+ * below are indices into that table, handed straight to do_action(), so
+ * they have to be taken again each time it is rebuilt rather than once at
+ * boot. create_command_list() calls this; see the note there. */
+void assign_mobact_command_indices(void)
+{
+  snarl_cmd = find_command("snarl");
+}
+
 void mobile_activity(void)
 {
   struct char_data *ch, *next_ch, *vict;
@@ -39,8 +51,14 @@ void mobile_activity(void)
     if (!IS_MOB(ch))
       continue;
 
-    /* Examine call for special procedure */
-    if (MOB_FLAGGED(ch, MOB_SPEC) && !no_specials) {
+    /* Examine call for special procedure.  Not for a mob that is waiting
+     * to be extracted: extract_char() only sets MOB_NOTDEADYET and the
+     * free happens at the end of the pulse, so a mob killed by a player's
+     * command or purged by a random trigger is still on character_list
+     * when this runs.  perform_violence() tests the same flag before its
+     * call at fight.c:990. */
+    if (MOB_FLAGGED(ch, MOB_SPEC) && !no_specials &&
+        !MOB_FLAGGED(ch, MOB_NOTDEADYET)) {
       if (mob_index[GET_MOB_RNUM(ch)].func == NULL) {
 	log("SYSERR: %s (#%d): Attempting to call non-existing mob function.",
 		GET_NAME(ch), GET_MOB_VNUM(ch));
@@ -90,7 +108,7 @@ void mobile_activity(void)
     }
 
     /* Aggressive Mobs */
-     if (!MOB_FLAGGED(ch, MOB_HELPER) && (!AFF_FLAGGED(ch, AFF_BLIND) || !AFF_FLAGGED(ch, AFF_CHARM))) {
+     if (!MOB_FLAGGED(ch, MOB_HELPER) && (!AFF_FLAGGED(ch, AFF_BLIND) && !AFF_FLAGGED(ch, AFF_CHARM))) {
       found = FALSE;
       for (vict = world[IN_ROOM(ch)].people; vict && !found; vict = vict->next_in_room) {
 	if (IS_NPC(vict) || !CAN_SEE(ch, vict) || PRF_FLAGGED(vict, PRF_NOHASSLE))
@@ -132,6 +150,12 @@ void mobile_activity(void)
           found = TRUE;
           act("'Hey!  You're the fiend that attacked me!!!', exclaims $n.", FALSE, ch, 0, 0, TO_ROOM);
           hit(ch, vict, TYPE_UNDEFINED);
+          /* A killing blow takes damage() to forget(ch, victim), which
+           * frees this very node -- the loop above established that it is
+           * the one holding vict's id, and remember() keeps only one.
+           * Leaving by the loop's own test runs names = names->next
+           * first, which reads it after the free. */
+          break;
         }
       }
     }
@@ -149,7 +173,7 @@ void mobile_activity(void)
     }
 
     /* Helper Mobs */
-    if (MOB_FLAGGED(ch, MOB_HELPER) && (!AFF_FLAGGED(ch, AFF_BLIND) || !AFF_FLAGGED(ch, AFF_CHARM))) 
+    if (MOB_FLAGGED(ch, MOB_HELPER) && (!AFF_FLAGGED(ch, AFF_BLIND) && !AFF_FLAGGED(ch, AFF_CHARM))) 
     {
       found = FALSE;
       for (vict = world[IN_ROOM(ch)].people; vict && !found; vict = vict->next_in_room) 
@@ -239,7 +263,6 @@ void clearMemory(struct char_data *ch)
  * of it, eye them down, or otherwise intimidate the slave. */
 static bool aggressive_mob_on_a_leash(struct char_data *slave, struct char_data *master, struct char_data *attack)
 {
-  static int snarl_cmd;
   int dieroll;
 
   if (!master || !AFF_FLAGGED(slave, AFF_CHARM))

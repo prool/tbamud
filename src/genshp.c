@@ -14,6 +14,7 @@
 #include "genolc.h"
 #include "genshp.h"
 #include "genzon.h"
+#include "genmob.h"	/* for save_mobiles */
 
 /* NOTE (gg): Didn't modify sedit much. Don't consider it as 'recent' as the
  * other editors with regard to updates or style. */
@@ -248,6 +249,131 @@ void free_shop(struct shop_data *shop)
   free(shop);
 }
 
+/* Remove a shop from shop_index.
+ *
+ * shop_index is an array of shop_data, not of pointers, so free_shop() is the
+ * wrong tool -- it ends with free(shop), right for a heap-allocated one
+ * (OLC_SHOP) and wrong for an array element. The contents are released
+ * individually here, with the same helpers free_shop() uses.
+ *
+ * top_shop is a LAST INDEX, not a count, so the guard is `> top_shop` and the
+ * shift stops one short of it. real_shop() binary-searches this array by vnum,
+ * so it has to stay sorted -- which a straight compaction preserves.
+ *
+ * The keeper needs the most care, and NOT the way delete_quest handles a
+ * questmaster -- review showed that shape is unsafe here.
+ * assign_the_shopkeepers() displaces the mob's own spec proc into SHOP_FUNC
+ * and points mob_index at shop_keeper. It runs once, at boot, and its guard
+ * stashes the proc in only the FIRST shop it walks for a given keeper, so a
+ * mob keeping two shops has its proc in the lower-rnum one and NULL in the
+ * other. Simply dropping it when other shops remain therefore destroys the
+ * only copy: delete the shops in ascending order and the mob's own proc is
+ * gone for good. It is handed to a surviving shop instead. delete_quest
+ * needs none of this because add_quest re-stashes on every add. */
+int delete_shop(shop_rnum rnum, bool *keeper_unsaved)
+{
+  shop_rnum i, inherit = NOWHERE;
+  zone_rnum rznum, kzone;
+  mob_rnum keeper;
+  struct char_data *mob;
+  SPECIAL (*tempfunc);
+  int shops_remaining = 0;
+
+  if (keeper_unsaved)
+    *keeper_unsaved = FALSE;
+
+  if (rnum == NOWHERE || rnum > top_shop)
+    return FALSE;
+
+  rznum = real_zone_by_thing(SHOP_NUM(rnum));
+  keeper = SHOP_KEEPER(rnum);
+  tempfunc = SHOP_FUNC(rnum);
+
+  log("GenOLC: delete_shop: Deleting shop #%d.", SHOP_NUM(rnum));
+
+  free_shop_strings(&shop_index[rnum]);
+  free_shop_type_list(&(S_NAMELISTS(&shop_index[rnum])));
+  free(S_ROOMS(&shop_index[rnum]));
+  free(S_PRODUCTS(&shop_index[rnum]));
+
+  for (i = rnum; i < top_shop; i++)
+    shop_index[i] = shop_index[i + 1];
+
+  top_shop--;
+
+  if (top_shop >= 0)
+    RECREATE(shop_index, struct shop_data, top_shop + 1);
+  else {
+    free(shop_index);
+    shop_index = NULL;
+  }
+
+  if (keeper != NOBODY) {
+    for (i = 0; i <= top_shop; i++)
+      if (SHOP_KEEPER(i) == keeper) {
+        shops_remaining++;
+        if (inherit == NOWHERE && SHOP_FUNC(i) == NULL)
+          inherit = i;
+      }
+
+    if (shops_remaining) {
+      /* Somebody else still keeps a shop for this mob, so it stays a
+       * shopkeeper -- but the proc it had before it became one may have
+       * been living in the record just freed. Give it to a survivor that
+       * has none. */
+      if (tempfunc && inherit != NOWHERE)
+        SHOP_FUNC(inherit) = tempfunc;
+    } else {
+      /* Its last shop. Hand the proc back, but only if shop_keeper is
+       * still what is there to replace: a keeper reassigned since boot
+       * should keep the reassignment rather than have it overwritten. */
+      if (mob_index[keeper].func == shop_keeper)
+        mob_index[keeper].func = tempfunc;
+
+      /* And it is not a shopkeeper any more. MOB_SPEC left set over a NULL
+       * func makes mobile_activity log "Attempting to call non-existing mob
+       * function" -- once for every copy that spawns, and again after every
+       * reboot, because it strips the bit from the live mob and never from
+       * the prototype the next copy is read from. So: the prototype, the
+       * copies already walking around, and the .mob file they are loaded
+       * from, which is the only one of the three that survives a reboot. */
+      if (mob_index[keeper].func == NULL &&
+          MOB_FLAGGED(&mob_proto[keeper], MOB_SPEC)) {
+        REMOVE_BIT_AR(MOB_FLAGS(&mob_proto[keeper]), MOB_SPEC);
+        for (mob = character_list; mob; mob = mob->next)
+          if (IS_NPC(mob) && GET_MOB_RNUM(mob) == keeper)
+            REMOVE_BIT_AR(MOB_FLAGS(mob), MOB_SPEC);
+
+        kzone = real_zone_by_thing(mob_index[keeper].vnum);
+        if (kzone != NOWHERE) {
+          add_to_save_list(zone_table[kzone].number, SL_MOB);
+          /* Written now only when it is the zone this delete is already
+           * writing. Keepers do not have to live in their shop's zone,
+           * and reaching across to write a file the builder may have no
+           * right to edit is not this command's business -- that one is
+           * queued for the next save instead. The in-memory correction
+           * above happens either way.
+           *
+           * When that write cannot be done -- the zone holds a record too
+           * large to save -- the flag is corrected in memory but its .mob
+           * still carries it, so a reboot calls the missing spec again.
+           * Say so; the zone stays queued and the write retries. */
+          if (kzone == rznum && !save_mobiles(kzone) && keeper_unsaved)
+            *keeper_unsaved = TRUE;
+        }
+      }
+    }
+  }
+
+  if (rznum != NOWHERE)
+    add_to_save_list(zone_table[rznum].number, SL_SHP);
+  else
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: GenOLC: delete_shop: Cannot determine shop zone.");
+
+  return TRUE;
+}
+
 /* Returns the real number of the shop with given virtual number. We take so
  * good care to keep it sorted - let's use it. - Welcor */
 shop_rnum real_shop(shop_vnum vnum)
@@ -287,6 +413,131 @@ void modify_shop_string(char **str, char *new_s)
   if (*str)
     free(*str);
   *str = strdup(pointer);
+}
+
+/* How many shops name this mobile as their keeper. */
+static int shops_kept_by(mob_rnum keeper)
+{
+  shop_rnum i;
+  int n = 0;
+
+  if (keeper == NOBODY)
+    return 0;
+
+  for (i = 0; i <= top_shop; i++)
+    if (SHOP_KEEPER(i) == keeper)
+      n++;
+
+  return n;
+}
+
+/* Put both mobiles right after a shop's keeper has been changed.
+ *
+ * The rule the boot establishes is that a mobile runs shop_keeper exactly
+ * while some shop names it, and assign_the_shopkeepers displaces whatever proc
+ * the mobile already had into SHOP_FUNC so it can be handed back. Changing a
+ * keeper through sedit used to install shop_keeper on the new mobile and do
+ * nothing at all about the old one, which left it answering `list` and `buy`
+ * with "Sorry, but you cannot do that here!" -- a shopkeeper for no shop.
+ *
+ * `oldfunc` is the proc this shop was holding for its previous keeper, read
+ * before add_shop overwrote the record. It is only the mobile's own proc when
+ * THIS is the shop holding it: assign_the_shopkeepers stashes it in the first
+ * shop that names the mobile and leaves the rest NULL. So when the mobile
+ * still keeps others, the proc has to move to one of them rather than be
+ * dropped, or releasing shops in one order destroys it and the other order
+ * does not.
+ *
+ * MOB_SPEC is not SET on the incoming keeper: special() dispatches on the
+ * index entry and never reads the flag, and assign_the_shopkeepers does not
+ * set it either, so setting it here would diverge from what a reboot gives.
+ * It IS cleared off a mobile released with nothing left to dispatch, and
+ * written out -- see below for why the write is not optional.
+ *
+ * Returns the mobile it released, or NOBODY. */
+mob_rnum reassign_shopkeeper(shop_vnum vnum, mob_rnum oldkeeper, SPECIAL(*oldfunc))
+{
+  shop_rnum rshop = real_shop(vnum), i;
+  mob_rnum newkeeper, released = NOBODY;
+
+  if (rshop == NOWHERE)
+    return NOBODY;
+
+  newkeeper = SHOP_KEEPER(rshop);
+  if (newkeeper == oldkeeper)
+    return NOBODY;
+
+  /* The mobile that is no longer this shop's keeper. */
+  if (oldkeeper != NOBODY && oldkeeper <= top_of_mobt) {
+    if (shops_kept_by(oldkeeper) == 0) {
+      /* Nothing names it now, so it stops being a shopkeeper and takes its
+       * own proc back. */
+      if (mob_index[oldkeeper].func == shop_keeper)
+        mob_index[oldkeeper].func = oldfunc;
+
+      /* And with nothing left to dispatch it is not a SPEC mobile either.
+       * Stock shopkeepers carry MOB_SPEC in their .mob entry and no other
+       * proc, so this is the ordinary case rather than the odd one. Left
+       * set, mobile_activity logs "Attempting to call non-existing mob
+       * function" for every copy that spawns -- and strips the bit from the
+       * LIVE mobile only, so the prototype hands it out again on the next
+       * respawn, and the file hands it out again after every reboot.
+       *
+       * All three therefore, and the write is what makes it stick: mutating
+       * the prototype and leaving the file alone would put the change on
+       * disk at whatever later moment somebody saved that zone for an
+       * unrelated reason. Written here only when the keeper lives in the
+       * zone this shop is already in; anywhere else it is queued, because
+       * reaching across to write a zone the builder may not own would also
+       * flush whatever else that zone had pending. */
+      if (mob_index[oldkeeper].func == NULL &&
+          MOB_FLAGGED(&mob_proto[oldkeeper], MOB_SPEC)) {
+        struct char_data *mob;
+        zone_rnum kzone;
+
+        REMOVE_BIT_AR(MOB_FLAGS(&mob_proto[oldkeeper]), MOB_SPEC);
+        for (mob = character_list; mob; mob = mob->next)
+          if (IS_NPC(mob) && GET_MOB_RNUM(mob) == oldkeeper)
+            REMOVE_BIT_AR(MOB_FLAGS(mob), MOB_SPEC);
+
+        kzone = real_zone_by_thing(mob_index[oldkeeper].vnum);
+        if (kzone != NOWHERE) {
+          add_to_save_list(zone_table[kzone].number, SL_MOB);
+          /* If the zone cannot be rewritten -- it holds a record too large
+           * to save -- the flag is off in memory but its .mob still carries
+           * it, and a reboot calls the missing spec until the record is cut
+           * down. The zone stays queued; name it so an operator can act. */
+          if (kzone == real_zone_by_thing(vnum) && !save_mobiles(kzone))
+            mudlog(BRF, LVL_BUILDER, TRUE,
+                   "SYSERR: GenOLC: reassign_shopkeeper: zone %d holds a record too large to "
+                   "save; keeper #%d keeps its shopkeeper flag on disk until the zone can be "
+                   "saved.", zone_table[kzone].number, mob_index[oldkeeper].vnum);
+        }
+        released = oldkeeper;
+      }
+    } else if (oldfunc) {
+      /* It still keeps others, so it stays as it is -- but if the proc was
+       * being held HERE it has to move somewhere that survives. */
+      for (i = 0; i <= top_shop; i++)
+        if (SHOP_KEEPER(i) == oldkeeper && SHOP_FUNC(i) == NULL) {
+          SHOP_FUNC(i) = oldfunc;
+          break;
+        }
+    }
+  }
+
+  /* And the mobile that now is. SHOP_FUNC is written unconditionally: this
+   * record still holds whatever add_shop copied out of the editor, which is
+   * the OLD keeper's proc, and leaving it there makes the shop run an
+   * unrelated mobile's spec proc. */
+  if (newkeeper != NOBODY && newkeeper <= top_of_mobt) {
+    SHOP_FUNC(rshop) = mob_index[newkeeper].func != shop_keeper
+                         ? mob_index[newkeeper].func : NULL;
+    mob_index[newkeeper].func = shop_keeper;
+  } else
+    SHOP_FUNC(rshop) = NULL;
+
+  return released;
 }
 
 int add_shop(struct shop_data *nshp)
@@ -345,7 +596,7 @@ int save_shops(zone_rnum zone_num)
 {
   int i, j, rshop, num_shops = 0;
   FILE *shop_file;
-  char fname[128], oldname[128], buf[MAX_STRING_LENGTH];
+  char fname[128], oldname[128];
   struct shop_data *shop;
 
 #if CIRCLE_UNSIGNED_INDEX
@@ -357,12 +608,16 @@ int save_shops(zone_rnum zone_num)
     return FALSE;
   }
 
-  snprintf(fname, sizeof(fname), "%s/%d.new", SHP_PREFIX, zone_table[zone_num].number);
+  snprintf(fname, sizeof(fname), "%s%d.new", SHP_PREFIX, zone_table[zone_num].number);
   if (!(shop_file = fopen(fname, "w"))) {
-    mudlog(BRF, LVL_GOD, TRUE, "SYSERR: OLC: Cannot open shop file!");
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: OLC: Cannot open the shop file %s: %s",
+           fname, strerror(errno));
     return FALSE;
   } else if (fprintf(shop_file, "CircleMUD v3.0 Shop File~\n") < 0) {
-    mudlog(BRF, LVL_GOD, TRUE, "SYSERR: OLC: Cannot write to shop file!");
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: OLC: Cannot write to the shop file %s: %s",
+           fname, strerror(errno));
     fclose(shop_file);
     return FALSE;
   }
@@ -390,33 +645,46 @@ int save_shops(zone_rnum zone_num)
 		S_BUYWORD(shop, j) ? S_BUYWORD(shop, j) : "");
       fprintf(shop_file, "-1\n");
 
-      /* Save messages. Added some defaults as sanity checks. */
-      sprintf(buf,
-	      "%s~\n"
-	      "%s~\n"
-	      "%s~\n"
-	      "%s~\n"
-	      "%s~\n"
-	      "%s~\n"
-	      "%s~\n"
-	      "%d\n"
-	      "%ld\n"
-	      "%d\n"
-	      "%d\n",
-	      S_NOITEM1(shop) ? S_NOITEM1(shop) : "%s Ke?!",
-	      S_NOITEM2(shop) ? S_NOITEM2(shop) : "%s Ke?!",
-	      S_NOBUY(shop) ? S_NOBUY(shop) : "%s Ke?!",
-	      S_NOCASH1(shop) ? S_NOCASH1(shop) : "%s Ke?!",
-	      S_NOCASH2(shop) ? S_NOCASH2(shop) : "%s Ke?!",
-	      S_BUY(shop) ? S_BUY(shop) : "%s Ke?! %d?",
-	      S_SELL(shop) ? S_SELL(shop) : "%s Ke?! %d?",
-	      S_BROKE_TEMPER(shop),
-	      S_BITVECTOR(shop),
-	      S_KEEPER(shop) == NOBODY ? -1 : mob_index[S_KEEPER(shop)].vnum,
-	      S_NOTRADE(shop)
-	      );
-        
-        fputs(convert_from_tabs(buf), shop_file);
+      /* Save messages. Added some defaults as sanity checks.
+       *
+       * One string per call, because convert_from_tabs() hands back a
+       * single static buffer and the next call overwrites it.  These used
+       * to be assembled into one MAX_STRING_LENGTH buffer first, which put
+       * a bound on the seven together that the .shp format does not have:
+       * read_shop_message() accepts up to MAX_STRING_LENGTH for each of
+       * them on its own.  Writing them one at a time takes that bound off
+       * the seven together, so nothing has to be truncated.
+       *
+       * It does not take off the one the format has.  fread_string() puts
+       * a CR and an LF back after every FREAD_CHUNK - 1 bytes it reads, so
+       * a message that came in at the cap goes back out two bytes longer
+       * for each chunk it spans, and the next boot refuses the file.
+       * trigedit_write_zone() measures that before it writes; this does
+       * not, and a shop message is reachable only from sedit, which takes
+       * one interpreter line at a time.  A message long enough to matter
+       * has to come from a hand-written .shp. */
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_NOITEM1(shop) ? S_NOITEM1(shop) : "%s Ke?!"));
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_NOITEM2(shop) ? S_NOITEM2(shop) : "%s Ke?!"));
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_NOBUY(shop) ? S_NOBUY(shop) : "%s Ke?!"));
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_NOCASH1(shop) ? S_NOCASH1(shop) : "%s Ke?!"));
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_NOCASH2(shop) ? S_NOCASH2(shop) : "%s Ke?!"));
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_BUY(shop) ? S_BUY(shop) : "%s Ke?! %d?"));
+      fprintf(shop_file, "%s~\n",
+              convert_from_tabs(S_SELL(shop) ? S_SELL(shop) : "%s Ke?! %d?"));
+      fprintf(shop_file, "%d\n"
+                         "%ld\n"
+                         "%d\n"
+                         "%d\n",
+              S_BROKE_TEMPER(shop),
+              S_BITVECTOR(shop),
+              S_KEEPER(shop) == NOBODY ? -1 : mob_index[S_KEEPER(shop)].vnum,
+              S_NOTRADE(shop));
 
       /* Save the rooms. */
       for (j = 0;S_ROOM(shop, j) != NOWHERE; j++)
@@ -430,10 +698,37 @@ int save_shops(zone_rnum zone_num)
     }
   }
   fprintf(shop_file, "$~\n");
-  fclose(shop_file);
-  snprintf(oldname, sizeof(oldname), "%s/%d.shp", SHP_PREFIX, zone_table[zone_num].number);
-  remove(oldname);
-  rename(fname, oldname);
+  /* Verify the temporary file is complete before it replaces anything.
+   * A failed write reports itself at the flush or the close, the records
+   * before it having reached only the stream's buffer, so renaming
+   * without looking would put a truncated shop file over a good one.
+   * This is the shape save_quests() already uses. */
+  if (fflush(shop_file) == EOF || ferror(shop_file)) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: Error writing shop file %s: %s",
+           fname, strerror(errno));
+    fclose(shop_file);
+    if (!CONFIG_DEBUG_MODE)
+      remove(fname);
+    return FALSE;
+  }
+
+  if (fclose(shop_file) == EOF) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: Error closing shop file %s: %s",
+           fname, strerror(errno));
+    if (!CONFIG_DEBUG_MODE)
+      remove(fname);
+    return FALSE;
+  }
+
+  snprintf(oldname, sizeof(oldname), "%s%d.shp", SHP_PREFIX, zone_table[zone_num].number);
+  if (!genolc_install_file(fname, oldname)) {
+    mudlog(BRF, LVL_BUILDER, TRUE,
+           "SYSERR: Could not put the shop file %s in place: %s",
+           oldname, strerror(errno));
+    return FALSE;
+  }
 
   if (num_shops > 0)
     create_world_index(zone_table[zone_num].number, "shp");

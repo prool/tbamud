@@ -23,6 +23,7 @@
 #include "mud_event.h"
 #include "mail.h"         /**< For the has_mail function */
 #include "act.h"
+#include "oasis.h"
 #include "class.h"
 #include "fight.h"
 #include "modify.h"
@@ -512,7 +513,10 @@ void look_at_room(struct char_data *ch, int ignore_brief)
     send_to_char(ch, "[%5d] ", GET_ROOM_VNUM(IN_ROOM(ch)));
     send_to_char(ch, "%s[ %s][ %s ]", world[IN_ROOM(ch)].name, buf, sector_types[world[IN_ROOM(ch)].sector_type]);
 
-    if (SCRIPT(rm)) {
+    /* Triggers, not merely a script: a room can hold one for its variables
+     * alone, and a bare [T] reads as a room with triggers it will not
+     * name. */
+    if (SCRIPT(rm) && TRIGGERS(SCRIPT(rm))) {
       send_to_char(ch, "[T");
       for (t = TRIGGERS(SCRIPT(rm)); t; t = t->next)
         send_to_char(ch, " %d", GET_TRIG_VNUM(t));
@@ -568,7 +572,7 @@ static void look_in_obj(struct char_data *ch, char *arg)
     send_to_char(ch, "Look in what?\r\n");
   else if (!(bits = generic_find(arg, FIND_OBJ_INV | FIND_OBJ_ROOM |
                  FIND_OBJ_EQUIP, ch, &dummy, &obj))) {
-    send_to_char(ch, "There doesn't seem to be %s %s here.\r\n", AN(arg), arg);
+    send_to_char(ch, "There doesn't seem to be %s %s here.\r\n", AN(skip_number(arg)), skip_number(arg));
   } else if ((GET_OBJ_TYPE(obj) != ITEM_DRINKCON) &&
          (GET_OBJ_TYPE(obj) != ITEM_FOUNTAIN) &&
          (GET_OBJ_TYPE(obj) != ITEM_CONTAINER))
@@ -608,7 +612,33 @@ static void look_in_obj(struct char_data *ch, char *arg)
         else
         {
           char buf2[MAX_STRING_LENGTH];
-          amt = (GET_OBJ_VAL(obj, 1) * 3) / GET_OBJ_VAL(obj, 0);
+
+          /* Capacity divides here, and nothing has established that it is
+           * not zero.  oedit's drink-container arm takes any integer for
+           * the capacity and the contents both, and check_object() only
+           * compares the two when the capacity is already above zero -- so
+           * it never establishes the thing this line needs.  A capacity of
+           * 0 with NEGATIVE contents is SIGFPE and the MUD is gone -- the
+           * guards above catch contents of 0, a negative capacity, and
+           * contents above the capacity, so negative contents is the shape
+           * that gets through.  Object #335, the marble fountain, is
+           * 0 -1 0 0 and ships in a room zone 3 resets it into.
+           *
+           * fullness[] holds four entries and ends in "", not the "\n"
+           * sentinel the string tables use.  Clamp nonpositive contents
+           * before calculating fullness, and widen the multiplication to
+           * avoid signed int overflow.  The guard above ensures contents
+           * do not exceed capacity, so the quotient fits in amt (0..3). */
+          if (GET_OBJ_VAL(obj, 0) <= 0 || GET_OBJ_VAL(obj, 1) <= 0)
+            amt = 0;
+          else
+            amt = (GET_OBJ_VAL(obj, 1) * 3LL) / GET_OBJ_VAL(obj, 0);
+
+          if (amt < 0)
+            amt = 0;
+          else if (amt > 3)
+            amt = 3;
+
           sprinttype(GET_OBJ_VAL(obj, 2), color_liquid, buf2, sizeof(buf2));
           send_to_char(ch, "It's %sfull of a %s liquid.\r\n", fullness[amt], buf2);
         }
@@ -638,6 +668,15 @@ static void look_at_target(struct char_data *ch, char *arg)
   struct char_data *found_char = NULL;
   struct obj_data *obj, *found_obj = NULL;
   char *desc;
+  /* A last.<name> lookup cannot stop at the match it wants -- it only knows
+   * which one that was once the lists run out -- so it holds the description
+   * instead of printing on sight.  Room descriptions page, the rest do not.
+   * The description it keeps is the found object's own; if nothing answered to
+   * the name as an object, it is the last match anywhere.  Taking any last
+   * match would let one object's description be shown for another, since this
+   * count and generic_find()'s are walked separately. */
+  char *last_desc = NULL;
+  int last_paged = FALSE;
 
   if (!ch->desc)
     return;
@@ -668,35 +707,76 @@ static void look_at_target(struct char_data *ch, char *arg)
   }
 
   /* Does the argument match an extra desc in the room? */
-  if ((desc = find_exdesc(arg, world[IN_ROOM(ch)].ex_description)) != NULL && ++i == fnum) {
-    page_string(ch->desc, desc, FALSE);
-    return;
+  if ((desc = find_exdesc(arg, world[IN_ROOM(ch)].ex_description)) != NULL) {
+    if (fnum == FIND_INDEX_LAST) {
+      if (found_obj == NULL) {
+	last_desc = desc;
+	last_paged = TRUE;
+      }
+    } else if (++i == fnum) {
+      page_string(ch->desc, desc, FALSE);
+      return;
+    }
   }
 
   /* Does the argument match an extra desc in the char's equipment? */
   for (j = 0; j < NUM_WEARS && !found; j++)
     if (GET_EQ(ch, j) && CAN_SEE_OBJ(ch, GET_EQ(ch, j)))
-      if ((desc = find_exdesc(arg, GET_EQ(ch, j)->ex_description)) != NULL && ++i == fnum) {
-    send_to_char(ch, "%s", desc);
-    found = TRUE;
+      if ((desc = find_exdesc(arg, GET_EQ(ch, j)->ex_description)) != NULL) {
+	if (fnum == FIND_INDEX_LAST) {
+	  if (found_obj == NULL || GET_EQ(ch, j) == found_obj) {
+	    last_desc = desc;
+	    last_paged = FALSE;
+	  }
+	} else if (++i == fnum) {
+	  send_to_char(ch, "%s", desc);
+	  found = TRUE;
+	}
       }
 
   /* Does the argument match an extra desc in the char's inventory? */
   for (obj = ch->carrying; obj && !found; obj = obj->next_content) {
     if (CAN_SEE_OBJ(ch, obj))
-      if ((desc = find_exdesc(arg, obj->ex_description)) != NULL && ++i == fnum) {
-    send_to_char(ch, "%s", desc);
-    found = TRUE;
+      if ((desc = find_exdesc(arg, obj->ex_description)) != NULL) {
+	if (fnum == FIND_INDEX_LAST) {
+	  if (found_obj == NULL || obj == found_obj) {
+	    last_desc = desc;
+	    last_paged = FALSE;
+	  }
+	} else if (++i == fnum) {
+	  send_to_char(ch, "%s", desc);
+	  found = TRUE;
+	}
       }
   }
 
   /* Does the argument match an extra desc of an object in the room? */
   for (obj = world[IN_ROOM(ch)].contents; obj && !found; obj = obj->next_content)
     if (CAN_SEE_OBJ(ch, obj))
-      if ((desc = find_exdesc(arg, obj->ex_description)) != NULL && ++i == fnum) {
-    send_to_char(ch, "%s", desc);
-    found = TRUE;
+      if ((desc = find_exdesc(arg, obj->ex_description)) != NULL) {
+	if (fnum == FIND_INDEX_LAST) {
+	  if (found_obj == NULL || obj == found_obj) {
+	    last_desc = desc;
+	    last_paged = FALSE;
+	  }
+	} else if (++i == fnum) {
+	  send_to_char(ch, "%s", desc);
+	  found = TRUE;
+	}
       }
+
+  /* last.<name> ran every list to the end; whatever it settled on is the one.
+   * Nothing settles when the object it found has no description of its own,
+   * and it falls through to that object below.  A room description still pages
+   * and returns, as it does above. */
+  if (last_desc) {
+    if (last_paged) {
+      page_string(ch->desc, last_desc, FALSE);
+      return;
+    }
+    send_to_char(ch, "%s", last_desc);
+    found = TRUE;
+  }
 
   /* If an object was found back in generic_find */
   if (bits) {
@@ -839,7 +919,21 @@ ACMD(do_score)
     send_to_char(ch, "and you are not on a quest at the moment.\r\n");
   else
   {
-    send_to_char(ch, "and your current quest is: %s", QST_NAME(real_quest(GET_QUEST(ch))));
+    qst_rnum rnum = real_quest(GET_QUEST(ch));
+
+    /* GET_QUEST() holding something is not the same as it still resolving.
+     * delete_quest() does not clear the vnum from the players who are on
+     * that quest, so this has to survive real_quest() answering NOTHING
+     * rather than read aquest_table[NOTHING].  Every other reader of
+     * GET_QUEST() already tests this -- quest_progress(), quest_quit() and
+     * autoquest_trigger_check() all do -- and score was the one that did
+     * not.  Saying so rather than clearing it here: the quest commands
+     * clear the stale vnum the next time one of them is used, and score
+     * reports state, it does not repair it. */
+    if (rnum == NOTHING)
+      send_to_char(ch, "and your current quest no longer exists");
+    else
+      send_to_char(ch, "and your current quest is: %s", QST_NAME(rnum));
 
     if (!IS_NPC(ch) && PRF_FLAGGED(ch, PRF_SHOWVNUMS))
         send_to_char(ch, " [%d]\r\n", GET_QUEST(ch));
@@ -941,8 +1035,12 @@ ACMD(do_score)
     else
       send_to_char(ch, "%sPOOFOUT: %s%s disappears in a puff of smoke.%s\r\n", QYEL, QCYN, GET_NAME(ch), QNRM);
 
-    send_to_char(ch, "Your current zone: %s%d%s\r\n", CCCYN(ch, C_NRM), GET_OLC_ZONE(ch),
- CCNRM(ch, C_NRM));
+    if (GET_LEVEL(ch) >= LVL_BUILDER) {
+      char olcbuf[MAX_INPUT_LENGTH];
+
+      sprint_olc_access(ch, olcbuf, sizeof(olcbuf));
+      send_to_char(ch, "Your OLC access: [%s%s%s]\r\n", CCCYN(ch, C_NRM), olcbuf, CCNRM(ch, C_NRM));
+    }
   }
 }
 
@@ -1048,7 +1146,31 @@ int search_help(const char *argument, int level)
   int chk, bot, top, mid, minlen;
 
    bot = 0;
-   top = top_of_helpt;
+   /* top_of_helpt is a COUNT -- load_help fills the table with
+    * help_table[top_of_helpt++] -- so the last row is top_of_helpt - 1.
+    * Every other walk of this table in the tree bounds itself with
+    * `< top_of_helpt`; this one seeded an inclusive search at the count
+    * itself, so mid could land exactly one element past the end and the
+    * strn_cmp below read a keywords pointer out of whatever follows the
+    * allocation.
+    *
+    * It is a hard crash, not a stray read. index_boot callocs the table to
+    * exactly rec_count rows, so help_table[top_of_helpt] is not part of the
+    * table at all: its keywords field is whatever the allocator keeps past
+    * the block (the next chunk's size word, 0x71 when measured), and
+    * strn_cmp dereferences it. Plain builds die there just as sanitised
+    * ones do.
+    *
+    * Reachable by any player at any level: do_help passes straight through
+    * here, and any argument that sorts after the last keyword walks the
+    * search up to the top. With the stock help files that is `~` followed
+    * by anything.
+    *
+    * An empty table would be safe too -- top becomes -1 and the loop does
+    * not run -- though it cannot arise: index_boot exit(1)s on a help file
+    * with no records, and free_help_table NULLs the table, which do_help
+    * checks. */
+   top = top_of_helpt - 1;
    minlen = strlen(argument);
 
   while (bot <= top) {
@@ -1058,7 +1180,21 @@ int search_help(const char *argument, int level)
       while ((mid > 0) && !strn_cmp(argument, help_table[mid - 1].keywords, minlen))
          mid--;
 
-      while (level < help_table[mid].min_level && mid < (bot + top) / 2)
+      /* Walk past rows this player is not high enough for, and stop at the
+       * end of the RUN OF MATCHES rather than at wherever the binary search
+       * happened to land. The old bound was (bot + top) / 2 -- the mid it
+       * just came from -- so which restricted entries a mortal could see
+       * depended on the shape of the search, and moving `top` by one moved
+       * it. With `help sco`, master landed on `score` (min_level 0) and
+       * answered; bounding at the corrected mid landed on `scopy`
+       * (min_level 31) with nowhere to advance to, and a mortal got
+       * "There is no help on that word." Thirty-odd abbreviations changed
+       * that way, in both directions.
+       *
+       * The run of matches is the honest bound: advance while the next row
+       * still matches the argument, and stop at the table edge. */
+      while (level < help_table[mid].min_level && mid + 1 < top_of_helpt &&
+             !strn_cmp(argument, help_table[mid + 1].keywords, minlen))
         mid++;
       if (strn_cmp(argument, help_table[mid].keywords, minlen) || level < help_table[mid].min_level)
         break;
@@ -1113,7 +1249,16 @@ ACMD(do_help)
           send_to_char(ch, "\r\nDid you mean:\r\n");
           found = 1;
         }
-        send_to_char(ch, "  \t<send link=\"Help %s\">%s\t</send>\r\n", help_table[i].keywords, help_table[i].keywords);
+        /* MXP's attribute is href; a <send> with no href sends its own text
+         * as the command, so the old link= form ran the keyword instead of
+         * asking for its help.
+         * A keyword can hold tag characters (the stock file has <topic> and
+         * show->zones), and the protocol layer closes a tag at the first
+         * '>' it meets, so those are listed as plain text. */
+        if (strpbrk(help_table[i].keywords, "<>\"&"))
+          send_to_char(ch, "  %s\r\n", help_table[i].keywords);
+        else
+          send_to_char(ch, "  \t<send href=\"help %s\">%s\t</send>\r\n", help_table[i].keywords, help_table[i].keywords);
       }
     }
     return;
@@ -2638,7 +2783,7 @@ ACMD(do_areas)
     page_string(ch->desc, buf, TRUE);
 }
 
-static void list_scanned_chars(struct char_data * list, struct char_data * ch, int
+static bool list_scanned_chars(struct char_data * list, struct char_data * ch, int
 distance, int door)
 {
   char buf[MAX_STRING_LENGTH], buf2[MAX_STRING_LENGTH - 1];
@@ -2665,7 +2810,7 @@ distance, int door)
      count++;
 
   if (!count)
-    return;
+    return (FALSE);
 
   for (i = list; i; i = i->next_in_room) {
 
@@ -2690,6 +2835,7 @@ distance, int door)
 
   }
   send_to_char(ch, "%s", buf);
+  return (TRUE);
 }
 
 ACMD(do_scan)
@@ -2720,10 +2866,9 @@ ACMD(do_scan)
             send_to_char(ch, "%s: It is too dark to see anything.\r\n", dirs[door]);
           found=TRUE;
         } else {
-          if (world[scanned_room].people) {
-            list_scanned_chars(world[scanned_room].people, ch, range - 1, door);
+          if (world[scanned_room].people &&
+              list_scanned_chars(world[scanned_room].people, ch, range - 1, door))
             found=TRUE;
-          }
         }
       }                  // end of if
       else

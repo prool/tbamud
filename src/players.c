@@ -22,6 +22,7 @@
 #include "config.h" /* for pclean_criteria[] */
 #include "dg_scripts.h" /* To enable saving of player variables to disk */
 #include "quest.h"
+#include "spells.h" /* for TOP_SPELL_DEFINE */
 
 #define LOAD_HIT	0
 #define LOAD_MANA	1
@@ -48,8 +49,9 @@ void build_player_index(void)
 {
   int rec_count = 0, i;
   FILE *plr_index;
-  char index_name[40], line[256], bits[64];
-  char arg2[80];
+  char index_name[40], line[256], bits[WORLD_FLAG_FIELD + 1];
+  char arg2[PLR_INDEX_NAME_FIELD + 1];
+  long last;
 
   sprintf(index_name, "%s%s", LIB_PLRFILES, INDEX_FILE);
   if (!(plr_index = fopen(index_name, "r"))) {
@@ -58,7 +60,7 @@ void build_player_index(void)
     return;
   }
 
-  while (get_line(plr_index, line))
+  while (get_line(plr_index, line, sizeof(line)))
     if (*line != '~')
       rec_count++;
   rewind(plr_index);
@@ -71,9 +73,22 @@ void build_player_index(void)
 
   CREATE(player_table, struct player_index_element, rec_count);
   for (i = 0; i < rec_count; i++) {
-    get_line(plr_index, line);
-    sscanf(line, "%ld %s %d %s %ld", &player_table[i].id, arg2,
-      &player_table[i].level, bits, (long *)&player_table[i].last);
+    get_line(plr_index, line, sizeof(line));
+    /* Checked, because a short count here is not a partial record -- it is a
+     * record wearing the one before it.  arg2 and bits are declared outside
+     * this loop, so whatever the previous line put in them is still there,
+     * and the level, flags and last-login of the entry before this one would
+     * be adopted by this one without a word.  Five or nothing. */
+    if (sscanf(line, "%ld " PLR_INDEX_NAME_FMT " %d " FLAG_FIELD_FMT " %ld",
+        &player_table[i].id, arg2,
+        &player_table[i].level, bits, &last) != 5) {
+      log("SYSERR: Malformed record %d in player index %s: %s", i, index_name, line);
+      exit(1);
+    }
+    /* Written as a long, so read as one and converted; pointing sscanf at a
+     * time_t through a long pointer is only right where the two are the
+     * same size. */
+    player_table[i].last = (time_t)last;
     CREATE(player_table[i].name, char, strlen(arg2) + 1);
     strcpy(player_table[i].name, arg2);
     player_table[i].flags = asciiflag_conv(bits);
@@ -230,8 +245,9 @@ int load_char(const char *name, struct char_data *ch)
   int id, i;
   FILE *fl;
   char filename[40];
-  char buf[128], buf2[128], line[MAX_INPUT_LENGTH + 1], tag[6];
-  char f1[128], f2[128], f3[128], f4[128];
+  char buf2[128], line[MAX_INPUT_LENGTH + 1], tag[6];
+  char f1[WORLD_FLAG_FIELD + 1], f2[WORLD_FLAG_FIELD + 1];
+  char f3[WORLD_FLAG_FIELD + 1], f4[WORLD_FLAG_FIELD + 1];
   trig_data *t = NULL;
   trig_rnum t_rnum = NOTHING;
 
@@ -305,14 +321,14 @@ int load_char(const char *name, struct char_data *ch)
     for (i = 0; i < PR_ARRAY_MAX; i++)
       PRF_FLAGS(ch)[i] = PFDEF_PREFFLAGS;
 
-    while (get_line(fl, line)) {
+    while (get_line(fl, line, sizeof(line))) {
       tag_argument(line, tag);
 
       switch (*tag) {
       case 'A':
         if (!strcmp(tag, "Ac  "))	GET_AC(ch)		= atoi(line);
 	else if (!strcmp(tag, "Act ")) {
-         if (sscanf(line, "%s %s %s %s", f1, f2, f3, f4) == 4) {
+         if (sscanf(line, FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT, f1, f2, f3, f4) == 4) {
           PLR_FLAGS(ch)[0] = asciiflag_conv(f1);
           PLR_FLAGS(ch)[1] = asciiflag_conv(f2);
           PLR_FLAGS(ch)[2] = asciiflag_conv(f3);
@@ -320,7 +336,7 @@ int load_char(const char *name, struct char_data *ch)
         } else
           PLR_FLAGS(ch)[0] = asciiflag_conv(line);
       } else if (!strcmp(tag, "Aff ")) {
-        if (sscanf(line, "%s %s %s %s", f1, f2, f3, f4) == 4) {
+        if (sscanf(line, FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT, f1, f2, f3, f4) == 4) {
           AFF_FLAGS(ch)[0] = asciiflag_conv(f1);
           AFF_FLAGS(ch)[1] = asciiflag_conv(f2);
           AFF_FLAGS(ch)[2] = asciiflag_conv(f3);
@@ -396,7 +412,18 @@ int load_char(const char *name, struct char_data *ch)
 	break;
 
       case 'N':
-	     if (!strcmp(tag, "Name"))	GET_PC_NAME(ch)	= strdup(line);
+	     if (!strcmp(tag, "Name")) {
+	       /* GET_PC_NAME is a pointer, so strdup() takes whatever length the
+	        * file carried, and get_line() lets that be most of 250 bytes.
+	        * Creation bounds a name a player types, but nothing bounds this
+	        * line, and the rest of the tree copies GET_NAME into fixed fields
+	        * on the assumption that it holds a name.  Bound it here, where
+	        * MAX_NAME_LENGTH is, rather than at each of those copies. */
+	       char namebuf[MAX_NAME_LENGTH + 1];
+
+	       strlcpy(namebuf, line, sizeof(namebuf));
+	       GET_PC_NAME(ch) = strdup(namebuf);
+	     }
 	break;
 
       case 'O':
@@ -405,18 +432,29 @@ int load_char(const char *name, struct char_data *ch)
 
       case 'P':
        if (!strcmp(tag, "Page"))  GET_PAGE_LENGTH(ch) = atoi(line);
-	else if (!strcmp(tag, "Pass"))	strcpy(GET_PASSWD(ch), line);
+	else if (!strcmp(tag, "Pass")) {
+	  /* GET_PASSWD is a fixed field of MAX_PWD_LENGTH + 1 bytes, and the
+	   * line is whatever get_line() read -- as much as READ_SIZE.  A strcpy
+	   * past the end of it walks into the rest of char_player_data.  A pfile
+	   * the MUD wrote never carries one that long; a hand-edited or damaged
+	   * one can, and this is the parser that has to survive it. */
+	  strlcpy(GET_PASSWD(ch), line, sizeof(GET_PASSWD(ch)));
+	}
 	else if (!strcmp(tag, "Plyd"))	ch->player.time.played	= atoi(line);
 	else if (!strcmp(tag, "PfIn"))	POOFIN(ch)		= strdup(line);
 	else if (!strcmp(tag, "PfOt"))	POOFOUT(ch)		= strdup(line);
         else if (!strcmp(tag, "Pref")) {
-          if (sscanf(line, "%s %s %s %s", f1, f2, f3, f4) == 4) {
+          if (sscanf(line, FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT " " FLAG_FIELD_FMT, f1, f2, f3, f4) == 4) {
             PRF_FLAGS(ch)[0] = asciiflag_conv(f1);
             PRF_FLAGS(ch)[1] = asciiflag_conv(f2);
             PRF_FLAGS(ch)[2] = asciiflag_conv(f3);
             PRF_FLAGS(ch)[3] = asciiflag_conv(f4);
           } else
-	    PRF_FLAGS(ch)[0] = asciiflag_conv(f1);
+            /* The Act and Aff blocks above convert the line itself here,
+             * and this converted f1 -- which sscanf leaves alone when it
+             * matches nothing, so an empty Pref: line took whatever the
+             * block before it had put there. */
+	    PRF_FLAGS(ch)[0] = asciiflag_conv(line);
 	  }
         break;
 
@@ -468,7 +506,10 @@ int load_char(const char *name, struct char_data *ch)
 	break;
 
       default:
-	sprintf(buf, "SYSERR: Unknown tag %s in pfile %s", tag, name);
+	/* Formatted into a buffer and then never looked at, so an unrecognised
+	 * tag -- the mark of a pfile from a different build, or a damaged
+	 * one -- passed without a word. */
+	log("SYSERR: Unknown tag %s in pfile %s", tag, name);
       }
     }
   }
@@ -487,13 +528,82 @@ int load_char(const char *name, struct char_data *ch)
   return(id);
 }
 
+/*
+ * Install a completed temporary player file without discarding the previous
+ * valid save first.
+ */
+static int replace_player_file(const char *newname, const char *filename)
+{
+#ifdef CIRCLE_WINDOWS
+  char backup[MAX_INPUT_LENGTH + 8];
+  int had_original = TRUE;
+  int n;
+
+  n = snprintf(backup, sizeof(backup), "%s.bak", filename);
+  if (n < 0 || n >= (int)sizeof(backup)) {
+    log("SYSERR: Player backup filename is too long: %s", filename);
+    return FALSE;
+  }
+
+  /*
+   * Windows rename() does not reliably replace an existing destination.
+   * Move the current file aside first so it can be restored if installing
+   * the completed replacement fails.  A backup left behind by a crash
+   * between the two renames would make that first rename fail too, so it
+   * is cleared out of the way first.
+   */
+  if (remove(backup) < 0 && errno != ENOENT) {
+    log("SYSERR: Couldn't clear stale player backup %s: %s",
+        backup, strerror(errno));
+    return FALSE;
+  }
+
+  if (rename(filename, backup) < 0) {
+    if (errno == ENOENT)
+      had_original = FALSE;
+    else {
+      log("SYSERR: Couldn't preserve player file %s: %s",
+          filename, strerror(errno));
+      return FALSE;
+    }
+  }
+
+  if (rename(newname, filename) < 0) {
+    int saved_errno = errno;
+
+    if (had_original && rename(backup, filename) < 0)
+      log("SYSERR: Couldn't restore player file %s from %s: %s",
+          filename, backup, strerror(errno));
+
+    log("SYSERR: Couldn't install player file %s: %s",
+        filename, strerror(saved_errno));
+    return FALSE;
+  }
+
+  if (had_original && remove(backup) < 0 && errno != ENOENT)
+    log("SYSERR: Couldn't remove player backup %s: %s",
+        backup, strerror(errno));
+
+  return TRUE;
+#else
+  if (rename(newname, filename) < 0) {
+    log("SYSERR: Couldn't install player file %s: %s",
+        filename, strerror(errno));
+    return FALSE;
+  }
+
+  return TRUE;
+#endif
+}
+
 /* Write the vital data of a player to the player file. */
 /* This is the ASCII Player Files save routine. */
 void save_char(struct char_data * ch)
 {
   FILE *fl;
-  char filename[40], buf[MAX_STRING_LENGTH], bits[127], bits2[127], bits3[127], bits4[127];
-  int i, j, id, save_index = FALSE;
+  char filename[MAX_INPUT_LENGTH], tempname[MAX_INPUT_LENGTH + 8];
+  char buf[MAX_STRING_LENGTH], bits[127], bits2[127], bits3[127], bits4[127];
+  int i, j, id, n, save_index = FALSE, save_ok = TRUE;
   struct affected_type *aff, tmp_aff[MAX_AFFECT];
   struct obj_data *char_eq[NUM_WEARS];
   trig_data *t;
@@ -521,8 +631,17 @@ void save_char(struct char_data * ch)
 
   if (!get_filename(filename, sizeof(filename), PLR_FILE, GET_NAME(ch)))
     return;
-  if (!(fl = fopen(filename, "w"))) {
-    mudlog(NRM, LVL_GOD, TRUE, "SYSERR: Couldn't open player file %s for write", filename);
+
+  n = snprintf(tempname, sizeof(tempname), "%s.tmp", filename);
+  if (n < 0 || n >= (int)sizeof(tempname)) {
+    mudlog(NRM, LVL_GOD, TRUE,
+           "SYSERR: Temporary player filename is too long for %s", filename);
+    return;
+  }
+
+  if (!(fl = fopen(tempname, "w"))) {
+    mudlog(NRM, LVL_GOD, TRUE,
+           "SYSERR: Couldn't open temporary player file %s for write", tempname);
     return;
   }
 
@@ -691,7 +810,11 @@ void save_char(struct char_data * ch)
   write_aliases_ascii(fl, ch);
   save_char_vars_ascii(fl, ch);
 
-  fclose(fl);
+  if (fflush(fl) == EOF || ferror(fl))
+    save_ok = FALSE;
+
+  if (fclose(fl) == EOF)
+    save_ok = FALSE;
 
   /* More char_to_store code to add spell and eq affections back in. */
   for (i = 0; i < MAX_AFFECT; i++) {
@@ -711,6 +834,23 @@ void save_char(struct char_data * ch)
 #endif
   }
   /* end char_to_store code */
+
+  if (!save_ok) {
+    mudlog(NRM, LVL_GOD, TRUE,
+           "SYSERR: Failed writing temporary player file %s; previous save preserved",
+           tempname);
+    if (remove(tempname) < 0 && errno != ENOENT)
+      log("SYSERR: Couldn't remove failed temporary player file %s: %s",
+          tempname, strerror(errno));
+    return;
+  }
+
+  if (!replace_player_file(tempname, filename)) {
+    if (remove(tempname) < 0 && errno != ENOENT)
+      log("SYSERR: Couldn't remove temporary player file %s: %s",
+          tempname, strerror(errno));
+    return;
+  }
 
   if ((id = get_ptable_by_name(GET_NAME(ch))) < 0)
     return;
@@ -749,7 +889,12 @@ void tag_argument(char *argument, char *tag)
   char *tmp = argument, *ttag = tag, *wrt = argument;
   int i;
 
-  for (i = 0; i < 4; i++)
+  /* Stop at the end of the line.  A pfile line shorter than four
+   * characters was copied out of past its terminator, and the walk
+   * below then started from there looking for a NUL that the array may
+   * not contain.  A short tag matches nothing and falls to the unknown
+   * tag branch, which is the right answer for a line like that. */
+  for (i = 0; i < 4 && *tmp; i++)
     *(ttag++) = *(tmp++);
   *ttag = '\0';
 
@@ -834,8 +979,24 @@ static void load_affects(FILE *fl, struct char_data *ch)
   i = 0;
   do {
     new_affect(&af);
-    get_line(fl, line);
+    /* As in load_skills: without this the loop never ends, and each turn
+     * of it calls affect_to_char(), so the list grows until memory runs
+     * out rather than merely hanging. */
+    if (!get_line(fl, line, sizeof(line)))
+      break;
     n_vars = sscanf(line, "%d %d %d %d %d %d %d %d", &num, &num2, &num3, &num4, &num5, &num6, &num7, &num8);
+    if (n_vars < 1)
+      break;
+    /* An affect's spell number runs to TOP_SPELL_DEFINE, which is the size
+     * of spell_info[] -- not to MAX_SKILLS, which bounds the skills array
+     * and is a smaller, different thing.  SPELL_DG_AFFECT is 298, so a
+     * player carrying a script-applied affect saves one above MAX_SKILLS
+     * as a matter of course. */
+    if (num > TOP_SPELL_DEFINE) {
+      log("SYSERR: load_affects: spell %d out of range in %s's pfile", num,
+          GET_NAME(ch) ? GET_NAME(ch) : "a player");
+      continue;
+    }
     if (num > 0) {
       af.spell = num;
       af.duration = num2;
@@ -850,7 +1011,14 @@ static void load_affects(FILE *fl, struct char_data *ch)
         if (num5 > 0 && num5 < NUM_AFF_FLAGS)  /* Ignore invalid values */
           SET_BIT_AR(af.bitvector, num5);
       } else {
+        /* Not a shape this format has.  sscanf leaves the fields it could
+         * not fill alone, so duration, modifier and location would be
+         * whatever the record before this one put there -- an affect
+         * wearing the previous affect's values.  It was logged and then
+         * applied regardless.  build_player_index() above refuses a short
+         * record for exactly this reason. */
         log("SYSERR: Invalid affects in pfile (%s), expecting 5 or 8 values", GET_NAME(ch));
+        continue;
       }
       affect_to_char(ch, &af);
       i++;
@@ -864,10 +1032,23 @@ static void load_skills(FILE *fl, struct char_data *ch)
   char line[MAX_INPUT_LENGTH + 1];
 
   do {
-    get_line(fl, line);
-    sscanf(line, "%d %d", &num, &num2);
-      if (num != 0)
-	GET_SKILL(ch, num) = num2;
+    /* get_line() answers 0 at end of file, and its contract leaves the
+     * buffer unspecified when it does.  Ignoring that return meant parsing
+     * that buffer again -- and because sscanf leaves what it cannot fill
+     * alone, num kept the value that ended the previous line, so a pfile
+     * whose skill list lost its terminator never left this loop.  The MUD
+     * is single threaded: that is the whole game hung on one login. */
+    if (!get_line(fl, line, sizeof(line)))
+      break;
+    if (sscanf(line, "%d %d", &num, &num2) != 2)
+      break;
+    /* num indexes skills[MAX_SKILLS + 1] and arrives straight out of the
+     * file, so it has to be inside the array before it is written to. */
+    if (num > 0 && num <= MAX_SKILLS)
+      GET_SKILL(ch, num) = num2;
+    else if (num != 0)
+      log("SYSERR: load_skills: skill %d out of range in %s's pfile", num,
+          GET_NAME(ch) ? GET_NAME(ch) : "a player");
   } while (num != 0);
 }
 
@@ -877,8 +1058,13 @@ void load_quests(FILE *fl, struct char_data *ch)
   char line[MAX_INPUT_LENGTH + 1];
 
   do {
-    get_line(fl, line);
-    sscanf(line, "%d", &num);
+    /* As in load_skills: end of file has to end the loop, or this one
+     * appends the same quest to the list until the process runs out of
+     * memory. */
+    if (!get_line(fl, line, sizeof(line)))
+      break;
+    if (sscanf(line, "%d", &num) != 1)
+      break;
     if (num != NOTHING)
       add_completed_quest(ch, num);
   } while (num != NOTHING);
@@ -951,16 +1137,24 @@ static void read_aliases_ascii(FILE *file, struct char_data *ch, int count)
   for (i = 0; i < count; i++) {
     char abuf[MAX_INPUT_LENGTH+1], rbuf[MAX_INPUT_LENGTH+1], tbuf[MAX_INPUT_LENGTH];
 
-    /* Read the aliased command. */
-    get_line(file, abuf);
-
-    /* Read the replacement. This needs to have a space prepended before placing in
-     * the in-memory struct. The space may be there already, but we can't be certain! */
+    /* get_line() answers 0 at the end of the file and leaves the buffer
+     * untouched.  These three are declared inside the loop and never
+     * initialised, so a count larger than the records that follow -- a
+     * truncated pfile, or an Alis: line that was edited by hand -- read
+     * three buffers of stack per pass, tested them, and strdup'd
+     * whatever happened to be in them, walking on past the end of the
+     * array if no NUL turned up. */
     rbuf[0] = ' ';
-    get_line(file, rbuf+1);
 
-    /* read the type */
-    get_line(file, tbuf);
+    /* Read the aliased command, then the replacement -- which needs a
+     * space prepended before it goes in the in-memory struct, and may or
+     * may not have one already -- then the type. */
+    if (!get_line(file, abuf, sizeof(abuf)) ||
+        !get_line(file, rbuf + 1, sizeof(rbuf) - 1) ||
+        !get_line(file, tbuf, sizeof(tbuf))) {
+      log("SYSERR: Alias list ends early: %d of %d read.", i, count);
+      break;
+    }
 
     if (abuf[0] && rbuf[1] && *tbuf) {
       struct alias_data *temp;

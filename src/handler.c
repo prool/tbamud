@@ -38,7 +38,12 @@ char *fname(const char *namelist)
   static char holder[READ_SIZE];
   char *point;
 
-  for (point = holder; isalpha(*namelist); namelist++, point++)
+  /* The keyword list is not length-capped anywhere it comes from: oedit
+   * and redit store it with str_udup() straight off a MAX_INPUT_LENGTH
+   * input line, and fread_string() reads one out of a world file with no
+   * bound at all.  holder is READ_SIZE. */
+  for (point = holder; isalpha(*namelist) && point < holder + sizeof(holder) - 1;
+       namelist++, point++)
     *point = *namelist;
 
   *point = '\0';
@@ -97,7 +102,7 @@ int isname(const char *str, const char *namelist)
     if(curtok && is_abbrev(str, curtok)) {
       /* Don't allow abbreviated numbers. - Sryth */
       if (isdigit(*str) && (atoi(str) != atoi(curtok)))
-        return 0;
+        continue;
       free(newlist);
       return 1;
     }
@@ -205,6 +210,41 @@ static void aff_apply_modify(struct char_data *ch, byte loc, sbyte mod, char *ms
   } /* switch */
 }
 
+/* Is this AFF bit one the mob was created with, and one that nothing in the
+ * game deliberately takes away?
+ *
+ * The question is asked of the mob, not of mob_proto[GET_MOB_RNUM(ch)].  The
+ * two are the same at read_mobile() and can drift apart afterwards -- medit
+ * writes a prototype out from under mobs already in the world, and
+ * %transform% leaves a mob wearing another prototype's flags while its rnum
+ * still names the one it was loaded from -- and it is what the mob was made
+ * with, not what its vnum says today, that a spell has no business removing.
+ *
+ * AFF_INVISIBLE and AFF_HIDE are excluded, and that is the whole of the
+ * exception.  The game has explicit mechanics that reveal a mob -- appear()
+ * when it is attacked, and the hide check -- so those two are the game's to
+ * remove, and a mob it has revealed has to stay revealed.  Treating them as
+ * innate would hand an invisibility spell cast on a revealed mob the means
+ * to give its innate invisibility back when the spell expired.  Whether a
+ * mob should ever become invisible again, and on what, is a decision for
+ * each MUD rather than one to make here.
+ *
+ * Nothing else a mob file sets has such a mechanic: no stock code path
+ * removes SANCTUARY, DETECT_INVIS, SENSE_LIFE or NOTRACK from a mob on
+ * purpose, so for those the mob's own flags really are a source that outlives
+ * any spell or item, and dropping them is the bug this guards. */
+static bool aff_flag_is_innate(struct char_data *ch, int flag)
+{
+  if (!IS_NPC(ch))
+    return FALSE;
+
+  if (flag == AFF_INVISIBLE || flag == AFF_HIDE)
+    return FALSE;
+
+  /* bool is a signed char here, so do not hand back the masked bit itself. */
+  return IS_SET_AR(GET_INNATE_AFF(ch), flag) ? TRUE : FALSE;
+}
+
 static void affect_modify_ar(struct char_data * ch, byte loc, sbyte mod, int bitv[], bool add)
 {
   int i , j;
@@ -215,10 +255,35 @@ static void affect_modify_ar(struct char_data * ch, byte loc, sbyte mod, int bit
         if(IS_SET_AR(bitv, (i*32)+j))
           SET_BIT_AR(AFF_FLAGS(ch), (i*32)+j);
   } else {
+    /* The AFF bits a mob is created with are a source, like equipment or a
+     * spell, and unlike those two they do not go away while the mob lives.
+     * This branch runs when some OTHER source is withdrawn, so clearing a bit
+     * the mob came with throws away a flag nothing asked to remove: give a mob
+     * with innate sanctuary an item whose perm-affects include sanctuary, take
+     * it away again, and the mob is left without sanctuary for the rest of its
+     * life.
+     *
+     * Only this bookkeeping path is guarded, and only for the bits
+     * aff_flag_is_innate() answers for -- which deliberately excludes the two
+     * the game reveals a mob by removing.  Both of those are taken off with
+     * REMOVE_BIT_AR directly (appear(), do_hide(), the hide check in
+     * command_interpreter()) and so are untouched either way, and a mob that
+     * has been revealed stays revealed.  Removals of the remaining bits that
+     * do come through here are declined on purpose: for those, a mob keeping
+     * the flag it was made with is the intended outcome.
+     *
+     * Nothing here restores a bit; it only declines to drop one whose source
+     * is still present.  Death and repop remain the only way a mob returns to
+     * its mob-file state, which is also the only restoration the game has:
+     * reset_zone() reads a new mobile when fewer than the maximum exist and
+     * never touches an existing one. */
     for(i = 0; i < AF_ARRAY_MAX; i++)
       for(j = 0; j < 32; j++)
-        if(IS_SET_AR(bitv, (i*32)+j))
+        if(IS_SET_AR(bitv, (i*32)+j)) {
+          if (aff_flag_is_innate(ch, (i*32)+j))
+            continue;
           REMOVE_BIT_AR(AFF_FLAGS(ch), (i*32)+j);
+        }
     mod = -mod;
   }
 
@@ -599,7 +664,13 @@ int get_number(char **name)
   if ((ppos = strchr(*name, '.')) != NULL) {
     *ppos++ = '\0';
     strlcpy(number, *name, sizeof(number));
-    strcpy(*name, ppos);	/* strcpy: OK (always smaller) */
+    memmove(*name, ppos, strlen(ppos) + 1);	/* memmove: the copy overlaps */
+
+    /* last.<name> asks for the match nearest the end of the list.  Only
+     * obj_to_room() appends, so that is the newest object in a room --
+     * every other list here is built by prepending. */
+    if (!str_cmp(number, "last"))
+      return (FIND_INDEX_LAST);
 
     for (i = 0; *(number + i); i++)
       if (!isdigit(*(number + i)))
@@ -608,6 +679,32 @@ int get_number(char **name)
     return (atoi(number));
   }
   return (1);
+}
+
+/* The keyword half of a "<number>.name" or "last.name" argument, for naming it
+ * back to the player.  get_number() strips the prefix from the buffer it is
+ * handed, but generic_find() works on a copy, so its callers still hold the
+ * whole thing when a lookup fails and they come to say what was not found.
+ * Only a prefix get_number() would really have consumed is skipped: "abc.foo"
+ * is not a lookup we understand, and echoing it as "foo" would hide what the
+ * player actually typed.  Nor is a prefix with no keyword after it -- there is
+ * nothing better to show than the lot. */
+const char *skip_number(const char *name)
+{
+  const char *ppos;
+  int i;
+
+  if ((ppos = strchr(name, '.')) == NULL || !*(ppos + 1) || ppos == name)
+    return (name);
+
+  if (ppos - name == 4 && !strn_cmp(name, "last", 4))
+    return (ppos + 1);
+
+  for (i = 0; name + i < ppos; i++)
+    if (!isdigit(name[i]))
+      return (name);
+
+  return (ppos + 1);
 }
 
 /* Search a given list for an object number, and return a ptr to that obj */
@@ -637,7 +734,7 @@ struct obj_data *get_obj_num(obj_rnum nr)
 /* search a room for a char, and return a pointer if found..  */
 struct char_data *get_char_room(char *name, int *number, room_rnum room)
 {
-  struct char_data *i;
+  struct char_data *i, *last = NULL;
   int num;
 
   if (!number) {
@@ -649,11 +746,14 @@ struct char_data *get_char_room(char *name, int *number, room_rnum room)
     return (NULL);
 
   for (i = world[room].people; i && *number; i = i->next_in_room)
-    if (isname(name, i->player.name))
-      if (--(*number) == 0)
+    if (isname(name, i->player.name)) {
+      if (*number == FIND_INDEX_LAST)
+	last = i;
+      else if (--(*number) == 0)
 	return (i);
+    }
 
-  return (NULL);
+  return (last);
 }
 
 /* search all over the world for a char num, and return a pointer if found */
@@ -736,8 +836,8 @@ void obj_to_obj(struct obj_data *obj, struct obj_data *obj_to)
   obj_to->contains = obj;
   obj->in_obj = obj_to;
 
-  /* Add weight to container, unless unlimited. */
-  if (GET_OBJ_VAL(obj->in_obj, 0) > 0) {
+  /* Add weight to container, unless it is one that does not track. */
+  if (TRACKS_CONTENT_WEIGHT(obj->in_obj)) {
     for (tmp_obj = obj->in_obj; tmp_obj->in_obj; tmp_obj = tmp_obj->in_obj)
       GET_OBJ_WEIGHT(tmp_obj) += GET_OBJ_WEIGHT(obj);
 
@@ -760,8 +860,8 @@ void obj_from_obj(struct obj_data *obj)
   obj_from = obj->in_obj;
   REMOVE_FROM_LIST(obj, obj_from->contains, next_content);
 
-  /* Subtract weight from containers container unless unlimited. */
-  if (GET_OBJ_VAL(obj->in_obj, 0) > 0) {
+  /* Subtract it again on the way out, by the same rule. */
+  if (TRACKS_CONTENT_WEIGHT(obj->in_obj)) {
     for (temp = obj->in_obj; temp->in_obj; temp = temp->in_obj)
       GET_OBJ_WEIGHT(temp) -= GET_OBJ_WEIGHT(obj);
 
@@ -782,6 +882,43 @@ void object_list_new_owner(struct obj_data *list, struct char_data *ch)
     object_list_new_owner(list->next_content, ch);
     list->carried_by = ch;
   }
+}
+
+/* An object-list walk hands its "next" pointer here so that extract_obj()
+ * can move it along instead of leaving it pointing at memory it has just
+ * freed.  It answers the registration it replaced, and the caller puts that
+ * back on the way out, so a walk always leaves the one around it registered
+ * rather than unregistered.
+ *
+ * That is not the same as nesting.  One pointer is held at a time, so while
+ * an inner walk is registered an extraction does not move the outer walk's
+ * next -- it is only restored, not maintained, and it can be restored
+ * pointing at something freed in the meantime.  Nothing does that today:
+ * the three callers are script_trigger_check(), check_time_triggers() and
+ * point_update(), which the heartbeat calls directly and which cannot reach
+ * one another.  A fourth caller that could would need this to keep every
+ * registration rather than the innermost.
+ *
+ * The registration is a single pointer restored by hand at the end of each
+ * span, so a return or a goto out of one would leave it aimed at a dead
+ * stack frame, which every later extraction would then read through and
+ * write through whenever the comparison matched.  None of the three has
+ * one; check before adding a fourth.
+ *
+ * Characters do not need this: extract_char() only marks them and the free
+ * happens in extract_pending_chars() at the end of the pulse.  An object is
+ * freed the moment it is extracted, so any walk whose body can run a script
+ * is walking a list that can change underneath it -- and two of the
+ * twenty-two random object triggers shipped in lib/world/trg purge the
+ * object they are attached to. */
+static struct obj_data **obj_walk_next = NULL;
+
+struct obj_data **protect_obj_walk(struct obj_data **next)
+{
+  struct obj_data **was = obj_walk_next;
+
+  obj_walk_next = next;
+  return was;
 }
 
 /* Extract an object from the world */
@@ -816,6 +953,11 @@ void extract_obj(struct obj_data *obj)
     extract_obj(obj->contains);
 
   REMOVE_FROM_LIST(obj, object_list, next);
+
+  /* REMOVE_FROM_LIST leaves obj->next alone, so a walk standing on this
+   * object can be moved on to the one after it before the free below. */
+  if (obj_walk_next && *obj_walk_next == obj)
+    *obj_walk_next = obj->next;
 
   if (GET_OBJ_RNUM(obj) != NOTHING)
     (obj_index[GET_OBJ_RNUM(obj)].number)--;
@@ -983,7 +1125,8 @@ void extract_char_final(struct char_data *ch)
       extract_script_mem(SCRIPT_MEM(ch));
   } else {
     save_char(ch);
-    Crash_delete_crashfile(ch);
+    if (GET_PFILEPOS(ch) >= 0)
+      Crash_delete_crashfile(ch);
   }
 
   /* If there's a descriptor, they're in the menu now. */
@@ -1059,7 +1202,7 @@ void extract_pending_chars(void)
  * which incorporate the actual player-data */
 struct char_data *get_player_vis(struct char_data *ch, char *name, int *number, int inroom)
 {
-  struct char_data *i;
+  struct char_data *i, *last = NULL;
   int num;
 
   if (!number) {
@@ -1076,17 +1219,21 @@ struct char_data *get_player_vis(struct char_data *ch, char *name, int *number, 
       continue;
     if (!CAN_SEE(ch, i))
       continue;
+    if (*number == FIND_INDEX_LAST) {
+      last = i;
+      continue;
+    }
     if (--(*number) != 0)
       continue;
     return (i);
   }
 
-  return (NULL);
+  return (last);
 }
 
 struct char_data *get_char_room_vis(struct char_data *ch, char *name, int *number)
 {
-  struct char_data *i;
+  struct char_data *i, *last = NULL;
   int num;
 
   if (!number) {
@@ -1104,11 +1251,14 @@ struct char_data *get_char_room_vis(struct char_data *ch, char *name, int *numbe
 
   for (i = world[IN_ROOM(ch)].people; i && *number; i = i->next_in_room)
     if (isname(name, i->player.name))
-      if (CAN_SEE(ch, i))
-	if (--(*number) == 0)
+      if (CAN_SEE(ch, i)) {
+	if (*number == FIND_INDEX_LAST)
+	  last = i;
+	else if (--(*number) == 0)
 	  return (i);
+      }
 
-  return (NULL);
+  return (last);
 }
 
 struct char_data *get_char_world_vis(struct char_data *ch, char *name, int *number)
@@ -1126,6 +1276,11 @@ struct char_data *get_char_world_vis(struct char_data *ch, char *name, int *numb
 
   if (*number == 0)
     return get_player_vis(ch, name, NULL, 0);
+
+  /* As in get_obj_vis(): character_list has no order the player can see, so
+   * last. stops at the room above rather than walking every mobile alive. */
+  if (*number == FIND_INDEX_LAST)
+    return (NULL);
 
   for (i = character_list; i && *number; i = i->next) {
     if (IN_ROOM(ch) == IN_ROOM(i))
@@ -1154,7 +1309,7 @@ struct char_data *get_char_vis(struct char_data *ch, char *name, int *number, in
 
 struct obj_data *get_obj_in_list_vis(struct char_data *ch, char *name, int *number, struct obj_data *list)
 {
-  struct obj_data *i;
+  struct obj_data *i, *last = NULL;
   int num;
 
   if (!number) {
@@ -1167,11 +1322,14 @@ struct obj_data *get_obj_in_list_vis(struct char_data *ch, char *name, int *numb
 
   for (i = list; i && *number; i = i->next_content)
     if (isname(name, i->name))
-      if (CAN_SEE_OBJ(ch, i))
-	if (--(*number) == 0)
+      if (CAN_SEE_OBJ(ch, i)) {
+	if (*number == FIND_INDEX_LAST)
+	  last = i;
+	else if (--(*number) == 0)
 	  return (i);
+      }
 
-  return (NULL);
+  return (last);
 }
 
 /* search the entire world for an object, and return a pointer  */
@@ -1196,6 +1354,13 @@ struct obj_data *get_obj_vis(struct char_data *ch, char *name, int *number)
   if ((i = get_obj_in_list_vis(ch, name, number, world[IN_ROOM(ch)].contents)) != NULL)
     return (i);
 
+  /* last. asks for the far end of a list the player can see.  object_list is
+   * not one: its order is the order things happened to be created in, so the
+   * answer would mean nothing, and finding it would cost a walk of every
+   * object in the game on every lookup.  The lists above still take it. */
+  if (*number == FIND_INDEX_LAST)
+    return (NULL);
+
   /* ok.. no luck yet. scan the entire obj list   */
   for (i = object_list; i && *number; i = i->next)
     if (isname(name, i->name))
@@ -1208,7 +1373,7 @@ struct obj_data *get_obj_vis(struct char_data *ch, char *name, int *number)
 
 struct obj_data *get_obj_in_equip_vis(struct char_data *ch, char *arg, int *number, struct obj_data *equipment[])
 {
-  int j, num;
+  int j, num, last = -1;
 
   if (!number) {
     number = &num;
@@ -1219,16 +1384,19 @@ struct obj_data *get_obj_in_equip_vis(struct char_data *ch, char *arg, int *numb
     return (NULL);
 
   for (j = 0; j < NUM_WEARS; j++)
-    if (equipment[j] && CAN_SEE_OBJ(ch, equipment[j]) && isname(arg, equipment[j]->name))
-      if (--(*number) == 0)
+    if (equipment[j] && CAN_SEE_OBJ(ch, equipment[j]) && isname(arg, equipment[j]->name)) {
+      if (*number == FIND_INDEX_LAST)
+        last = j;
+      else if (--(*number) == 0)
         return (equipment[j]);
+    }
 
-  return (NULL);
+  return (last >= 0 ? equipment[last] : NULL);
 }
 
 int get_obj_pos_in_equip_vis(struct char_data *ch, char *arg, int *number, struct obj_data *equipment[])
 {
-  int j, num;
+  int j, num, last = -1;
 
   if (!number) {
     number = &num;
@@ -1239,11 +1407,14 @@ int get_obj_pos_in_equip_vis(struct char_data *ch, char *arg, int *number, struc
     return (-1);
 
   for (j = 0; j < NUM_WEARS; j++)
-    if (equipment[j] && CAN_SEE_OBJ(ch, equipment[j]) && isname(arg, equipment[j]->name))
-      if (--(*number) == 0)
+    if (equipment[j] && CAN_SEE_OBJ(ch, equipment[j]) && isname(arg, equipment[j]->name)) {
+      if (*number == FIND_INDEX_LAST)
+        last = j;
+      else if (--(*number) == 0)
         return (j);
+    }
 
-  return (-1);
+  return (last);
 }
 
 const char *money_desc(int amount)
@@ -1379,11 +1550,15 @@ int generic_find(char *arg, bitvector_t bitvector, struct char_data *ch,
 
   if (IS_SET(bitvector, FIND_OBJ_EQUIP)) {
     for (found = FALSE, i = 0; i < NUM_WEARS && !found; i++)
-      if (GET_EQ(ch, i) && isname(name, GET_EQ(ch, i)->name) && --number == 0) {
-	*tar_obj = GET_EQ(ch, i);
-	found = TRUE;
+      if (GET_EQ(ch, i) && isname(name, GET_EQ(ch, i)->name)) {
+	if (number == FIND_INDEX_LAST)
+	  *tar_obj = GET_EQ(ch, i);	/* keep going; the last one wins */
+	else if (--number == 0) {
+	  *tar_obj = GET_EQ(ch, i);
+	  found = TRUE;
+	}
       }
-    if (found)
+    if (*tar_obj)
       return (FIND_OBJ_EQUIP);
   }
 
@@ -1411,7 +1586,7 @@ int find_all_dots(char *arg)
   if (!strcmp(arg, "all"))
     return (FIND_ALL);
   else if (!strncmp(arg, "all.", 4)) {
-    strcpy(arg, arg + 4);	/* strcpy: OK (always less) */
+    memmove(arg, arg + 4, strlen(arg + 4) + 1);	/* memmove: the copy overlaps */
     return (FIND_ALLDOT);
   } else
     return (FIND_INDIV);

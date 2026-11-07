@@ -136,7 +136,8 @@ ASPELL(spell_summon)
 	      GET_NAME(ch), world[IN_ROOM(ch)].name);
 
       send_to_char(ch, "You failed because %s has summon protection on.\r\n", GET_NAME(victim));
-      mudlog(BRF, MAX(LVL_IMMORT, MAX(GET_INVIS_LEV(ch), GET_INVIS_LEV(victim))), TRUE, 
+      /* A mob can cast this through a script, and has no invis level. */
+      mudlog(BRF, MAX(LVL_IMMORT, MAX(IS_NPC(ch) ? 0 : GET_INVIS_LEV(ch), GET_INVIS_LEV(victim))), TRUE, 
         "%s failed summoning %s to %s.", GET_NAME(ch), GET_NAME(victim), world[IN_ROOM(ch)].name);
       return;
     }
@@ -172,12 +173,14 @@ static int isname_obj(char *search, char *list)
   int match = 1;
   int i;
 
-  /* Force to lowercase for string comparisons */
-  sprintf(searchname, "%s", search);
+  /* Force to lowercase for string comparisons.  `search` reaches here from
+   * cast_arg2, which is MAX_INPUT_LENGTH and holds whatever the player
+   * typed after the spell name, so it does not fit searchname[128]. */
+  strlcpy(searchname, search, sizeof(searchname));
   for (i = 0; searchname[i]; i++)
     searchname[i] = LOWER(searchname[i]);
 
-  sprintf(namelist, "%s", list);
+  strlcpy(namelist, list, sizeof(namelist));
   for (i = 0; namelist[i]; i++)
     namelist[i] = LOWER(namelist[i]);
 

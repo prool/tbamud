@@ -71,10 +71,29 @@ int parse_class(char arg)
  * the limit of your bitvector_t, typically 0-31. */
 bitvector_t find_class_bitvector(const char *arg)
 {
-  size_t rpos, ret = 0;
+  size_t rpos, len = strlen(arg);
+  bitvector_t ret = 0;
 
-  for (rpos = 0; rpos < strlen(arg); rpos++)
-    ret |= (1 << parse_class(arg[rpos]));
+  for (rpos = 0; rpos < len; rpos++) {
+    int chclass = parse_class(arg[rpos]);
+
+    /* parse_class() answers CLASS_UNDEFINED (-1) for a letter that names no
+     * class, and shifting by a negative count is undefined.  The compilers
+     * this has been built with mask the count and set bit 31, which no real
+     * class uses -- so `who -c x` and `users -c x` list nobody.  That is the
+     * sensible answer; keep it, with a bit that is actually reserved for it
+     * rather than one the shift happened to land on.
+     *
+     * The shift operand is bitvector_t, not int: `1` is an int, so
+     * `1 << chclass` is undefined once a MUD has 31 classes -- the same
+     * fault as the negative count above, waiting at the other end of the
+     * range.  The header comment invites exactly that ("up to the limit of
+     * your bitvector_t"), so make the type match the promise. */
+    if (chclass == CLASS_UNDEFINED)
+      ret |= CLASS_BIT_UNKNOWN;
+    else
+      ret |= ((bitvector_t)1 << chclass);
+  }
 
   return (ret);
 }
@@ -1457,6 +1476,19 @@ void do_start(struct char_data *ch)
     SET_BIT_AR(PLR_FLAGS(ch), PLR_SITEOK);
 }
 
+/* Practice sessions gained on reaching a new level. Wisdom sets the figure and
+ * the class bounds it: a caster never gains fewer than two, and everyone else
+ * gains one or two however wise they are, so wisdom past 12 buys a warrior
+ * nothing. Exposed so that anything reporting the number to a player reports
+ * what levelling will actually give them. */
+int practices_per_level(struct char_data *ch)
+{
+  if (IS_MAGIC_USER(ch) || IS_CLERIC(ch))
+    return MAX(2, wis_app[GET_WIS(ch)].bonus);
+
+  return MIN(2, MAX(1, wis_app[GET_WIS(ch)].bonus));
+}
+
 /* This function controls the change to maxmove, maxmana, and maxhp for each
  * class every time they gain a level. */
 void advance_level(struct char_data *ch)
@@ -1500,10 +1532,7 @@ void advance_level(struct char_data *ch)
   if (GET_LEVEL(ch) > 1)
     ch->points.max_mana += add_mana;
 
-  if (IS_MAGIC_USER(ch) || IS_CLERIC(ch))
-    GET_PRACTICES(ch) += MAX(2, wis_app[GET_WIS(ch)].bonus);
-  else
-    GET_PRACTICES(ch) += MIN(2, MAX(1, wis_app[GET_WIS(ch)].bonus));
+  GET_PRACTICES(ch) += practices_per_level(ch);
 
   if (GET_LEVEL(ch) >= LVL_IMMORT) {
     for (i = 0; i < 3; i++)

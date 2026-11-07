@@ -71,11 +71,15 @@ typedef struct descriptor_data descriptor_t;
  Types.
  ******************************************************************************/
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+typedef bool bool_t; /* C23: false/true are keywords, not enum constants. */
+#else
 typedef enum
 {
    false, 
    true
 } bool_t;
+#endif
 
 typedef enum
 {
@@ -244,6 +248,29 @@ void ProtocolDestroy( protocol_t *apProtocol );
  */
 void ProtocolNegotiate( descriptor_t *apDescriptor );
 
+/******************************************************************************
+ Bug report throttle.
+ ******************************************************************************/
+
+/**
+ * Retires protocol bug reports whose repeat window has passed, printing how
+ * many were held back behind each.  Reports also retire whenever another one
+ * arrives; this exists so that a flood which simply stops still has its count
+ * come out rather than waiting for the next unrelated report.
+ *
+ * Call it about once a minute.
+ */
+void ReportBugTick( void );
+
+/**
+ * Retires every remembered report at once, whether its window has passed or
+ * not.  Call it wherever the game loop is about to stop running -- the wait
+ * for a connection, the end of the loop, copyover -- because a slot filled
+ * moments earlier will not retire on its own once nothing is running, and a
+ * player who floods and then quits fills one moments earlier.
+ */
+void ReportBugFlush( void );
+
 /* Function: ProtocolInput
  *
  * Extracts any negotiation sequences from the input buffer, and passes back 
@@ -322,6 +349,12 @@ const char *ProtocolOutput( descriptor_t *apDescriptor, const char *apData, int 
 /******************************************************************************
  Copyover save/load functions.
  ******************************************************************************/
+
+/** Longest string CopyoverGet() can return: a screen size, then one letter
+ * per negotiated option.  Named here rather than left as the literal on its
+ * buffer, because the copyover reader has to size its own array from the same
+ * number -- and it had picked an unrelated one. */
+#define COPYOVER_GUI_FIELD  63
 
 /* Function: CopyoverGet
  *

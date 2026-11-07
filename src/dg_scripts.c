@@ -37,7 +37,7 @@ static obj_data *find_obj(long n);
 static room_data *find_room(long n);
 static void do_stat_trigger(struct char_data *ch, trig_data *trig);
 static void script_stat(char_data *ch, struct script_data *sc);
-static int remove_trigger(struct script_data *sc, char *name);
+static int remove_trigger(struct script_data *sc, char *name, char *removed, size_t rlen);
 static int is_num(char *arg);
 static void eval_op(char *op, char *lhs, char *rhs, char *result, void *go,
           struct script_data *sc, trig_data *trig);
@@ -625,7 +625,8 @@ obj_data *get_obj_by_room(room_data *room, char *name)
 void script_trigger_check(void)
 {
   char_data *ch;
-  obj_data *obj;
+  obj_data *obj, *next_obj;
+  struct obj_data **saved_walk;
   struct room_data *room=NULL;
   room_rnum nr;
   struct script_data *sc;
@@ -634,14 +635,27 @@ void script_trigger_check(void)
     if (SCRIPT(ch)) {
       sc = SCRIPT(ch);
 
+      /* character_list holds characters that are in no room -- one
+       * between char_from_room() and char_to_room(), for instance --
+       * and IN_ROOM is NOWHERE for them, which is 65535.  A global
+       * trigger still fires; the zone test simply has no zone to ask
+       * about. */
       if (IS_SET(SCRIPT_TYPES(sc), WTRIG_RANDOM) &&
-          (!is_empty(world[IN_ROOM(ch)].zone) ||
+          ((IN_ROOM(ch) != NOWHERE && !is_empty(world[IN_ROOM(ch)].zone)) ||
            IS_SET(SCRIPT_TYPES(sc), WTRIG_GLOBAL)))
         random_mtrigger(ch);
     }
   }
 
-  for (obj = object_list; obj; obj = obj->next) {
+  /* random_otrigger() runs a script, and a script can purge the object
+   * it is attached to -- which frees it at once.  obj = obj->next then reads
+   * the freed object, and the walk carries on into whatever is there.
+   * Take next first, and register it so extract_obj() can move it along if
+   * the script purges that one instead. */
+  saved_walk = protect_obj_walk(&next_obj);
+  for (obj = object_list; obj; obj = next_obj) {
+    next_obj = obj->next;
+
     if (SCRIPT(obj)) {
       sc = SCRIPT(obj);
 
@@ -649,6 +663,7 @@ void script_trigger_check(void)
         random_otrigger(obj);
     }
   }
+  protect_obj_walk(saved_walk);
 
   for (nr = 0; nr <= top_of_world; nr++) {
     if (SCRIPT(&world[nr])) {
@@ -666,7 +681,8 @@ void script_trigger_check(void)
 void check_time_triggers(void)
 {
   char_data *ch;
-  obj_data *obj;
+  obj_data *obj, *next_obj;
+  struct obj_data **saved_walk;
   struct room_data *room=NULL;
   int nr;
   struct script_data *sc;
@@ -675,14 +691,27 @@ void check_time_triggers(void)
     if (SCRIPT(ch)) {
       sc = SCRIPT(ch);
 
+      /* character_list holds characters that are in no room -- one
+       * between char_from_room() and char_to_room(), for instance --
+       * and IN_ROOM is NOWHERE for them, which is 65535.  A global
+       * trigger still fires; the zone test simply has no zone to ask
+       * about. */
       if (IS_SET(SCRIPT_TYPES(sc), WTRIG_TIME) &&
-          (!is_empty(world[IN_ROOM(ch)].zone) ||
+          ((IN_ROOM(ch) != NOWHERE && !is_empty(world[IN_ROOM(ch)].zone)) ||
            IS_SET(SCRIPT_TYPES(sc), WTRIG_GLOBAL)))
         time_mtrigger(ch);
     }
   }
 
-  for (obj = object_list; obj; obj = obj->next) {
+  /* time_otrigger() runs a script, and a script can purge the object
+   * it is attached to -- which frees it at once.  obj = obj->next then reads
+   * the freed object, and the walk carries on into whatever is there.
+   * Take next first, and register it so extract_obj() can move it along if
+   * the script purges that one instead. */
+  saved_walk = protect_obj_walk(&next_obj);
+  for (obj = object_list; obj; obj = next_obj) {
+    next_obj = obj->next;
+
     if (SCRIPT(obj)) {
       sc = SCRIPT(obj);
 
@@ -690,6 +719,7 @@ void check_time_triggers(void)
         time_otrigger(obj);
     }
   }
+  protect_obj_walk(saved_walk);
 
   for (nr = 0; nr <= top_of_world; nr++) {
     if (SCRIPT(&world[nr])) {
@@ -733,7 +763,7 @@ static EVENTFUNC(trig_wait_event)
           found = TRUE;
     } else {
       room_rnum i;
-      for (i = 0;i<top_of_world && !found;i++)
+      for (i = 0;i<=top_of_world && !found;i++)
         if (&world[i] == (struct room_data *)go)
           found = TRUE;
     }
@@ -1083,7 +1113,12 @@ ACMD(do_attach)
  * trigger, otherwise 1.  If it matters, you might need to check to see if all 
  * the triggers were removed after this function returns, in order to remove 
  * the script. */
-static int remove_trigger(struct script_data *sc, char *name)
+/* removed, when given, is filled with the trigger this actually took out.
+ * The caller cannot work that out from the argument it passed: a numeric
+ * token matches by position first and only then by vnum -- see the comment
+ * in the loop below -- so for the small numbers a builder types, the
+ * trigger removed is usually not the one whose vnum the number names. */
+static int remove_trigger(struct script_data *sc, char *name, char *removed, size_t rlen)
 {
   trig_data *i, *j;
   int num = 0, string = FALSE, n;
@@ -1119,6 +1154,13 @@ static int remove_trigger(struct script_data *sc, char *name)
   }
 
   if (i) {
+    /* Before extract_trigger() frees it. */
+    if (removed && rlen) {
+      snprintf(removed, rlen, "%d (%s)", trig_index[i->nr]->vnum, GET_TRIG_NAME(i));
+      /* Windows uses _snprintf(), which may not terminate a truncated name. */
+      removed[rlen - 1] = '\0';
+    }
+
     if (j) {
       j->next = i->next;
       extract_trigger(i);
@@ -1147,15 +1189,18 @@ ACMD(do_detach)
   struct room_data *room;
   char arg1[MAX_INPUT_LENGTH], arg2[MAX_INPUT_LENGTH], arg3[MAX_INPUT_LENGTH], *snum;
   char *trigger = 0;
-  int num_arg, tn, rn;
+  char trigdesc[MAX_INPUT_LENGTH + 8];
+  int num_arg;
   room_rnum rnum;
-  trig_data *trig;
 
   argument = two_arguments(argument, arg1, arg2);
   one_argument(argument, arg3);
-  tn = atoi(arg3);
-  rn = real_trigger(tn);
-  trig = read_trigger(rn);
+
+  /* What the builder typed, until remove_trigger() says what it actually
+   * took out.  atoi() on this used to name a trigger by vnum, which is
+   * wrong twice over: a name gives 0, and a number is matched as a
+   * position before it is tried as a vnum. */
+  snprintf(trigdesc, sizeof(trigdesc), "'%s'", *arg3 ? arg3 : arg2);
 
   if (!*arg1 || !*arg2) {
     send_to_char(ch, "Usage: detach [ mob | object | room ] { target } { trigger |"
@@ -1195,8 +1240,8 @@ ACMD(do_detach)
       else
         snum = arg2;
 
-    if (remove_trigger(SCRIPT(room), snum)) {
-      send_to_char(ch, "Trigger %d (%s) removed from %d.\r\n", tn, GET_TRIG_NAME(trig), world[rnum].number);
+    if (remove_trigger(SCRIPT(room), snum, trigdesc, sizeof(trigdesc))) {
+      send_to_char(ch, "Trigger %s removed from %d.\r\n", trigdesc, world[rnum].number);
       
       if (!TRIGGERS(SCRIPT(room)))
         extract_script(room, WLD_TRIGGER);
@@ -1277,9 +1322,9 @@ ACMD(do_detach)
         send_to_char(ch, "All triggers removed from %s.\r\n", IS_NPC(victim) ? GET_SHORT(victim) : GET_NAME(victim));
       }
 
-      else if (trigger && remove_trigger(SCRIPT(victim), trigger)) {
-        send_to_char(ch, "Trigger %d (%s) removed from %s.\r\n", 
-          tn, GET_TRIG_NAME(trig), IS_NPC(victim) ? GET_SHORT(victim) : GET_NAME(victim));
+      else if (trigger && remove_trigger(SCRIPT(victim), trigger, trigdesc, sizeof(trigdesc))) {
+        send_to_char(ch, "Trigger %s removed from %s.\r\n", 
+          trigdesc, IS_NPC(victim) ? GET_SHORT(victim) : GET_NAME(victim));
 
         if (!TRIGGERS(SCRIPT(victim))) {
           extract_script(victim, MOB_TRIGGER);
@@ -1303,9 +1348,12 @@ ACMD(do_detach)
                 object->name);
       }
 
-      else if (remove_trigger(SCRIPT(object), trigger)) {
-        send_to_char(ch, "Trigger %d (%s) removed from %s.\r\n", 
-          tn, GET_TRIG_NAME(trig), object->short_description ? object->short_description : 
+      /* "You must specify a trigger to remove" above leaves trigger NULL,
+       * and remove_trigger() runs strstr() and isdigit() on it.  The mob
+       * branch has this guard. */
+      else if (trigger && remove_trigger(SCRIPT(object), trigger, trigdesc, sizeof(trigdesc))) {
+        send_to_char(ch, "Trigger %s removed from %s.\r\n", 
+          trigdesc, object->short_description ? object->short_description : 
           object->name);
         if (!TRIGGERS(SCRIPT(object))) {
           extract_script(object, OBJ_TRIGGER);
@@ -1385,10 +1433,14 @@ static void eval_op(char *op, char *lhs, char *rhs, char *result, void *go,
   while (*rhs && isspace(*rhs))
     rhs++;
 
+  /* Test the bound before dereferencing.  On an empty operand the scan
+   * above stops on the terminator, --p then steps in front of the buffer,
+   * and reading *p there is out of bounds.  Both tests were already here,
+   * only in the order that reads first. */
   for (p = (unsigned char *) lhs; *p; p++);
-  for (--p; isspace(*p) && ((char *)p > lhs); *p-- = '\0');
+  for (--p; ((char *)p > lhs) && isspace(*p); *p-- = '\0');
   for (p = (unsigned char *) rhs; *p; p++);
-  for (--p; isspace(*p) && ((char *)p > rhs); *p-- = '\0');
+  for (--p; ((char *)p > rhs) && isspace(*p); *p-- = '\0');
 
 
   /* find the op, and figure out the value */
@@ -1431,7 +1483,7 @@ static void eval_op(char *op, char *lhs, char *rhs, char *result, void *go,
     if (is_num(lhs) && is_num(rhs))
       sprintf(result, "%d", atoi(lhs) >= atoi(rhs));
     else
-      sprintf(result, "%d", str_cmp(lhs, rhs) <= 0);
+      sprintf(result, "%d", str_cmp(lhs, rhs) >= 0);
   }
 
   else if (!strcmp("<", op)) {
@@ -1476,7 +1528,11 @@ static void eval_op(char *op, char *lhs, char *rhs, char *result, void *go,
 char *matching_quote(char *p)
 {
   for (p++; *p && (*p != '"'); p++) {
-    if (*p == '\\')
+    /* Only step over the escaped character if there is one.  On a
+     * backslash immediately before the terminator this lands on the
+     * terminator, and the loop's own p++ then carries the scan past the
+     * end of the string. */
+    if (*p == '\\' && p[1])
       p++;
   }
 
@@ -1512,6 +1568,19 @@ static void eval_expr(char *line, char *result, void *go, struct script_data *sc
 
   while (*line && isspace(*line))
     line++;
+
+  /* Same reason var_subst() checks: the condition on an 'if', 'while' or
+   * 'switch' is a slice of a trigger line, which carries no length limit of
+   * its own, while expr[] here, line[] in eval_lhs_op_rhs() and the tokens[]
+   * array beside it are all sized MAX_INPUT_LENGTH.  An over-long condition
+   * evaluates to nothing, which reads as false. */
+  if (strlen(line) >= MAX_INPUT_LENGTH) {
+    script_log("Trigger: %s, VNum %d, type: %d. Expression is %d characters, over the %d limit: '%.60s...'",
+               GET_TRIG_NAME(trig), GET_TRIG_VNUM(trig), type,
+               (int)strlen(line), MAX_INPUT_LENGTH - 1, line);
+    *result = '\0';
+    return;
+  }
 
   if (eval_lhs_op_rhs(line, result, go, sc, trig, type));
 
@@ -1708,8 +1777,16 @@ static void process_wait(void *go, trig_data *trig, int type, char *cmd,
     /* valid forms of time are 14:30 and 1430 */
     if (sscanf(arg, "until %ld:%ld", &hr, &min) == 2)
       min += (hr * 60);
-    else
+    else if (sscanf(arg, "until %ld", &hr) == 1)
       min = (hr % 100) + ((hr / 100) * 60);
+    else {
+      /* Neither form matched, so hr holds whatever was on the stack.  It
+       * was used anyway, and the pulse count computed from it went to
+       * event_create(). */
+      script_log("Trigger: %s, VNum %d. wait until w/o a time: '%s'",
+              GET_TRIG_NAME(trig), GET_TRIG_VNUM(trig), cl->cmd);
+      return;
+    }
 
     /* calculate the pulse of the day of "until" time */
     ntime = (min * SECS_PER_MUD_HOUR * PASSES_PER_SEC) / 60;
@@ -1725,7 +1802,18 @@ static void process_wait(void *go, trig_data *trig, int type, char *cmd,
   }
 
   else {
-    if (sscanf(arg, "%ld %c", &when, &c) == 2) {
+    /* One field is 'wait 30'; two is 'wait 30 s'.  None means the
+     * argument was not a number at all -- most easily a %variable% that
+     * was never set -- and when was used uninitialised. */
+    int fields = sscanf(arg, "%ld %c", &when, &c);
+
+    if (fields < 1) {
+      script_log("Trigger: %s, VNum %d. wait w/o a number: '%s'",
+              GET_TRIG_NAME(trig), GET_TRIG_VNUM(trig), cl->cmd);
+      return;
+    }
+
+    if (fields == 2) {
       if (c == 't')
         when *= PULSES_PER_MUD_HOUR;
       else if (c == 's')
@@ -1917,7 +2005,7 @@ static void process_detach(void *go, struct script_data *sc, trig_data *trig,
       extract_script(c, MOB_TRIGGER);
       return;
     }
-    if (remove_trigger(SCRIPT(c), trignum_s)) {
+    if (remove_trigger(SCRIPT(c), trignum_s, NULL, 0)) {
       if (!TRIGGERS(SCRIPT(c))) {
         extract_script(c, MOB_TRIGGER);
       }
@@ -1930,7 +2018,7 @@ static void process_detach(void *go, struct script_data *sc, trig_data *trig,
       extract_script(o, OBJ_TRIGGER);
       return;
     }
-    if (remove_trigger(SCRIPT(o), trignum_s)) {
+    if (remove_trigger(SCRIPT(o), trignum_s, NULL, 0)) {
       if (!TRIGGERS(SCRIPT(o))) {
         extract_script(o, OBJ_TRIGGER);
       }
@@ -1943,7 +2031,7 @@ static void process_detach(void *go, struct script_data *sc, trig_data *trig,
       extract_script(r, WLD_TRIGGER);
       return;
     }
-    if (remove_trigger(SCRIPT(r), trignum_s)) {
+    if (remove_trigger(SCRIPT(r), trignum_s, NULL, 0)) {
       if (!TRIGGERS(SCRIPT(r))) {
         extract_script(r, WLD_TRIGGER);
       }
@@ -1955,9 +2043,15 @@ static void process_detach(void *go, struct script_data *sc, trig_data *trig,
 
 struct room_data *dg_room_of_obj(struct obj_data *obj)
 {
+  /* The carriers get the test the object itself already had: a character
+   * between char_from_room() and char_to_room(), or one holding things
+   * before being put in a room at all, is in NOWHERE -- and NOWHERE is
+   * 65535, so world[NOWHERE] is a long way past the end of the table. */
   if (IN_ROOM(obj) != NOWHERE) return &world[IN_ROOM(obj)];
-  if (obj->carried_by)        return &world[IN_ROOM(obj->carried_by)];
-  if (obj->worn_by)           return &world[IN_ROOM(obj->worn_by)];
+  if (obj->carried_by && IN_ROOM(obj->carried_by) != NOWHERE)
+    return &world[IN_ROOM(obj->carried_by)];
+  if (obj->worn_by && IN_ROOM(obj->worn_by) != NOWHERE)
+    return &world[IN_ROOM(obj->worn_by)];
   if (obj->in_obj)            return (dg_room_of_obj(obj->in_obj));
   return NULL;
 }
@@ -2397,7 +2491,10 @@ static void extract_value(struct script_data *sc, trig_data *trig, char *cmd)
 {
   char buf[MAX_INPUT_LENGTH], buf2[MAX_INPUT_LENGTH];
   char *buf3;
-  char to[128];
+  /* Filled by strcpy() from buf2, which holds a token off the trigger line
+   * and is MAX_INPUT_LENGTH itself, so this has to match it -- as
+   * dg_letter_value()'s varname below already does. */
+  char to[MAX_INPUT_LENGTH];
   int num;
 
   buf3 = any_one_arg(cmd, buf);
@@ -2480,8 +2577,14 @@ static void dg_letter_value(struct script_data *sc, trig_data *trig, char *cmd)
      TRIG_RESTART restarted after a 'wait' */
 int script_driver(void *go_adress, trig_data *trig, int type, int mode)
 {
+  return script_driver_default(go_adress, trig, type, mode, 1);
+}
+
+int script_driver_default(void *go_adress, trig_data *trig, int type, int mode,
+                         int default_ret)
+{
   static int depth = 0;
-  int ret_val = 1;
+  int ret_val = default_ret;
   struct cmdlist_element *cl;
   char cmd[MAX_INPUT_LENGTH], *p;
   struct script_data *sc = 0;
@@ -2572,7 +2675,7 @@ int script_driver(void *go_adress, trig_data *trig, int type, int mode)
       if (!temp) {
         script_log("Trigger VNum %d has 'while' without 'done'.",
                    GET_TRIG_VNUM(trig));
-        return ret_val;
+        break;
       }
       if (process_if(p + 6, go, sc, trig, type)) {
          temp->original = cl;
@@ -2827,8 +2930,12 @@ void read_saved_vars(struct char_data *ch)
   long context;
   char fn[127];
   char input_line[1024], *temp, *p;
-  char varname[32];
-  char context_str[16];
+  /* Both are filled by any_one_arg() out of input_line, and neither copy is
+   * bounded, so each has to be able to hold the whole line.  get_line() fills
+   * the caller's buffer to its own size now, so the cap is input_line's, not
+   * READ_SIZE's. */
+  char varname[sizeof(input_line)];
+  char context_str[sizeof(input_line)];
 
   /* If getting to the menu from inside the game, the vars aren't removed. So 
    * let's not allocate them again. */
@@ -2851,7 +2958,7 @@ void read_saved_vars(struct char_data *ch)
   }
   /* walk through each line in the file parsing variables */
   do {
-    if (get_line(file, input_line)>0) {
+    if (get_line(file, input_line, sizeof(input_line))>0) {
       p = temp = strdup(input_line);
       temp = any_one_arg(temp, varname);
       temp = any_one_arg(temp, context_str);
@@ -2911,8 +3018,9 @@ void read_saved_vars_ascii(FILE *file, struct char_data *ch, int count)
 {
   long context;
   char input_line[1024], *temp, *p;
-  char varname[READ_SIZE];
-  char context_str[READ_SIZE];
+  /* As in read_saved_vars(): sized to the line they are taken from. */
+  char varname[sizeof(input_line)];
+  char context_str[sizeof(input_line)];
   int i;
 
   /* If getting to the menu from inside the game, the vars aren't removed. So 
@@ -2928,7 +3036,7 @@ void read_saved_vars_ascii(FILE *file, struct char_data *ch, int count)
   /* walk through each line in the file parsing variables */
   for (i = 0; i < count; i++)
   {
-    if (get_line(file, input_line)>0) {
+    if (get_line(file, input_line, sizeof(input_line))>0) {
       p = temp = strdup(input_line);
       temp = any_one_arg(temp, varname);
       temp = any_one_arg(temp, context_str);

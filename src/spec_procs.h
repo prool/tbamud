@@ -35,6 +35,7 @@ const char *get_spec_func_name(SPECIAL(*func));
 /* Utility functions */
 void sort_spells(void);
 void list_skills(struct char_data *ch);
+int practice_gain_percent(struct char_data *ch);
 
 /* Special functions */
 SPECIAL(guild);
@@ -50,5 +51,7 @@ SPECIAL(janitor);
 SPECIAL(cityguard);
 SPECIAL(pet_shops);
 SPECIAL(bank);
+
+void assign_spec_command_indices(void);
 
 #endif /* _SPEC_PROCS_H_ */

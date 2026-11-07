@@ -22,7 +22,7 @@
 
 /* local functions */
 static void sedit_setup_new(struct descriptor_data *d);
-static void sedit_save_to_disk(int zone_num);
+static int sedit_save_to_disk(int zone_num);
 static void sedit_products_menu(struct descriptor_data *d);
 static void sedit_compact_rooms_menu(struct descriptor_data *d);
 static void sedit_rooms_menu(struct descriptor_data *d);
@@ -35,13 +35,40 @@ static void sedit_disp_menu(struct descriptor_data *d);
 
 void sedit_save_internally(struct descriptor_data *d)
 {
+  shop_rnum rshop = real_shop(OLC_NUM(d));
+  mob_rnum oldkeeper = NOBODY, released;
+  SPECIAL(*oldfunc) = NULL;
+
+  /* Read before add_shop overwrites the record: the mobile this shop used to
+   * keep, and the spec proc that mobile had before it was made a keeper. */
+  if (rshop != NOWHERE) {
+    oldkeeper = SHOP_KEEPER(rshop);
+    oldfunc = SHOP_FUNC(rshop);
+  }
+
   OLC_SHOP(d)->vnum = OLC_NUM(d);
   add_shop(OLC_SHOP(d));
+
+  released = reassign_shopkeeper(OLC_NUM(d), oldkeeper, oldfunc);
+
+  /* A released keeper that lives in another zone has its mobile file
+   * queued rather than written -- see reassign_shopkeeper. Queued is
+   * silent, so say which zone is now waiting on a save; until it happens
+   * a reboot brings the stale flag back. */
+  if (released != NOBODY) {
+    zone_rnum kz = real_zone_by_thing(mob_index[released].vnum);
+
+    if (kz != NOWHERE && kz != real_zone_by_thing(OLC_NUM(d)) &&
+        in_save_list(zone_table[kz].number, SL_MOB))
+      write_to_output(d, "The old keeper (mobile %d) lives in zone %d; that "
+                         "zone's mobile file still needs saving.\r\n",
+                      mob_index[released].vnum, zone_table[kz].number);
+  }
 }
 
-static void sedit_save_to_disk(int num)
+static int sedit_save_to_disk(int num)
 {
-  save_shops(num);
+  return save_shops(num);
 }
 
 /* utility functions */
@@ -79,7 +106,11 @@ ACMD(do_oasis_sedit)
       if ((zlok = real_zone(GET_OLC_ZONE(ch))) == NOWHERE)
         number = NOWHERE;
       else
-        number = genolc_zone_bottom(zlok);
+        /* The lookup below resolves this as a zone NUMBER, so that is what
+         * the builder's assigned zone has to become here.  Handing it
+         * genolc_zone_bottom()'s vnum made every argument-less save fail
+         * with "Sorry, there is no zone for that number!". */
+        number = zone_table[zlok].number;
     }
 
     if (number == NOWHERE) {
@@ -141,12 +172,19 @@ ACMD(do_oasis_sedit)
   if (save) {
     send_to_char(ch, "Saving all shops in zone %d.\r\n",
       zone_table[OLC_ZNUM(d)].number);
-    mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
-      "OLC: %s saves shop info for zone %d.",
-      GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
 
     /* Save the shops to the shop file. */
-    save_shops(OLC_ZNUM(d));
+    if (save_shops(OLC_ZNUM(d)))
+      mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
+        "OLC: %s saves shop info for zone %d.",
+        GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
+    else {
+      send_to_char(ch, "Unable to save all shops in zone %d. The changes are "
+        "still in memory.\r\n", zone_table[OLC_ZNUM(d)].number);
+      mudlog(BRF, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
+        "SYSERR: OLC: %s failed to save shop info for zone %d.",
+        GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
+    }
 
     /* Free the OLC structure. */
     free(d->olc);
@@ -209,6 +247,15 @@ static void sedit_setup_new(struct descriptor_data *d)
 
 void sedit_setup_existing(struct descriptor_data *d, int rshop_num)
 {
+  /* The W) Copy menu item calls this again on a descriptor that already
+   * holds a working copy, and the CREATE below assigns over it.  Release
+   * it first, the way cleanup_olc() does on the way out.  On the way in
+   * there is nothing here yet and the test is false. */
+  if (OLC_SHOP(d)) {
+    free_shop(OLC_SHOP(d));
+    OLC_SHOP(d) = NULL;
+  }
+
   /* Create a scratch shop structure. */
   CREATE(OLC_SHOP(d), struct shop_data, 1);
 
@@ -403,6 +450,7 @@ static void sedit_disp_menu(struct descriptor_data *d)
 	  "%sP%s) Products Menu\r\n"
 	  "%sT%s) Accept Types Menu\r\n"
           "%sW%s) Copy Shop\r\n"
+          "%sX%s) Delete Shop\r\n"
 	  "%sQ%s) Quit\r\n"
 	  "Enter Choice : ",
 
@@ -424,7 +472,7 @@ static void sedit_disp_menu(struct descriptor_data *d)
 	  grn, nrm, yel, S_SELL(shop),
 	  grn, nrm, cyn, buf1,
 	  grn, nrm, cyn, buf2,
-	  grn, nrm, grn, nrm, grn, nrm, grn, nrm, grn, nrm
+	  grn, nrm, grn, nrm, grn, nrm, grn, nrm, grn, nrm, grn, nrm
   );
 
   OLC_MODE(d) = SEDIT_MAIN_MENU;
@@ -434,9 +482,11 @@ static void sedit_disp_menu(struct descriptor_data *d)
 void sedit_parse(struct descriptor_data *d, char *arg)
 {
   int i;
+  zone_rnum kzone;
+  mob_vnum keepvnum;
 
   if (OLC_MODE(d) > SEDIT_NUMERICAL_RESPONSE) {
-    if (!isdigit(arg[0]) && ((*arg == '-') && (!isdigit(arg[1])))) {
+    if (!*arg || (!isdigit(arg[0]) && (*arg != '-' || !isdigit(arg[1])))) {
       write_to_output(d, "Field must be numerical, try again : ");
       return;
     }
@@ -451,8 +501,11 @@ void sedit_parse(struct descriptor_data *d, char *arg)
              "OLC: %s edits shop %d", GET_NAME(d->character),
              OLC_NUM(d));
       if (CONFIG_OLC_SAVE) {
-        sedit_save_to_disk(real_zone_by_thing(OLC_NUM(d)));
-        write_to_output(d, "Shop saved to disk.\r\n");
+        if (sedit_save_to_disk(real_zone_by_thing(OLC_NUM(d))))
+          write_to_output(d, "Shop saved to disk.\r\n");
+        else
+          write_to_output(d, "Unable to save shop %d to disk. The change is "
+                             "still in memory.\r\n", OLC_NUM(d));
       } else
         write_to_output(d, "Shop saved to memory.\r\n");
 
@@ -467,9 +520,117 @@ void sedit_parse(struct descriptor_data *d, char *arg)
       return;
     }
 
+  case SEDIT_CONFIRM_DELETE:
+    switch (*arg) {
+    case 'y':
+    case 'Y': {
+      /* Resolve by VNUM, never the stored index: another builder saving a
+       * shop renumbers this one underneath the editor, and real_shop is how
+       * every other path here finds a shop. */
+      shop_rnum drnum = real_shop(OLC_NUM(d));
+
+      /* A keeper that stops being one loses MOB_SPEC, and the mob file is
+       * written so that sticks. Anyone holding that mobile in medit took
+       * their copy before the change and would save the flag straight back
+       * -- to disk, and across the reboot -- putting back the SYSERR the
+       * clearing exists to stop. So the two do not happen at once. sedit
+       * already refuses a shop another descriptor holds; this is the same
+       * refusal, one record along. */
+      if (drnum != NOWHERE && SHOP_KEEPER(drnum) != NOBODY) {
+        mob_vnum kvnum = mob_index[SHOP_KEEPER(drnum)].vnum;
+        struct descriptor_data *dsc;
+
+        for (dsc = descriptor_list; dsc; dsc = dsc->next)
+          if (dsc != d && STATE(dsc) == CON_MEDIT && dsc->olc &&
+              OLC_NUM(dsc) == kvnum) {
+            write_to_output(d, "This shop's keeper (mobile %d) is currently "
+                               "being edited by %s.\r\n", kvnum,
+                            GET_NAME(dsc->character));
+            sedit_disp_menu(d);
+            return;
+          }
+      }
+
+      /* Read before the delete: afterwards drnum names a different shop,
+       * or none. Only used to tell the builder about a keeper whose mob
+       * file is in another zone -- see below. */
+      kzone = NOWHERE;
+      keepvnum = NOBODY;
+      if (drnum != NOWHERE && SHOP_KEEPER(drnum) != NOBODY) {
+        keepvnum = mob_index[SHOP_KEEPER(drnum)].vnum;
+        kzone = real_zone_by_thing(keepvnum);
+      }
+
+      bool keeper_unsaved = FALSE;
+      if (drnum != NOWHERE && delete_shop(drnum, &keeper_unsaved)) {
+        mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(d->character)), TRUE,
+               "OLC: %s deletes shop %d", GET_NAME(d->character), OLC_NUM(d));
+        write_to_output(d, "Shop deleted.\r\n");
+        /* delete_shop marks the zone; whether that reaches disk now is
+         * the same question every other editor answers here. qedit's
+         * delete says so explicitly rather than leaving the builder to
+         * guess whether a reboot will bring it back. */
+        if (CONFIG_OLC_SAVE) {
+          if (sedit_save_to_disk(real_zone_by_thing(OLC_NUM(d))))
+            write_to_output(d, "Shop file saved to disk.\r\n");
+          else
+            write_to_output(d, "Unable to save the shop file to disk. The "
+                               "change is still in memory.\r\n");
+        } else
+          write_to_output(d, "Shop file saved to memory.\r\n");
+
+        /* A keeper that stopped being one loses MOB_SPEC, and that is only
+         * written out here when it lives in the zone this delete already
+         * writes. Anywhere else it is queued -- correct, since reaching
+         * across to write a zone the builder may not own would also flush
+         * somebody else's pending work there. But the queue is silent, and
+         * "saved to disk" reads like the whole job is done, so say what is
+         * left. Until that save happens a reboot brings the flag back. */
+        if (kzone != NOWHERE && kzone != real_zone_by_thing(OLC_NUM(d)) &&
+            in_save_list(zone_table[kzone].number, SL_MOB))
+          write_to_output(d, "The keeper (mobile %d) lives in zone %d; that "
+                             "zone's mobile file still needs saving.\r\n",
+                          keepvnum, zone_table[kzone].number);
+        /* The keeper lived in this zone, so delete_shop tried to write it
+         * now -- but it holds a record too large to save, so the flag is
+         * off in memory and still on disk. A reboot calls the missing spec
+         * until the record is cut down; the zone stays queued and retries. */
+        else if (keeper_unsaved)
+          write_to_output(d, "The keeper (mobile %d) is no longer a shopkeeper, but this zone "
+                             "holds a record too large to save, so its mobile file still carries "
+                             "the shopkeeper flag. A reboot calls the missing spec until that "
+                             "record is cut down. See the syslog.\r\n", keepvnum);
+        cleanup_olc(d, CLEANUP_ALL);
+        return;
+      }
+      /* Nothing went, so nothing is discarded either. */
+      write_to_output(d, "Could not delete that shop.\r\n");
+      sedit_disp_menu(d);
+      return;
+    }
+    case 'n':
+    case 'N':
+      sedit_disp_menu(d);
+      return;
+    default:
+      write_to_output(d, "Invalid choice!\r\n");
+      write_to_output(d, "Delete this shop? : ");
+      return;
+    }
+
   case SEDIT_MAIN_MENU:
     i = 0;
     switch (*arg) {
+    case 'x':
+    case 'X':
+      if (real_shop(OLC_NUM(d)) == NOWHERE) {
+        write_to_output(d, "That shop has never been saved -- quit without saving instead.\r\n");
+        sedit_disp_menu(d);
+        return;
+      }
+      write_to_output(d, "Are you sure you want to delete this shop? ");
+      OLC_MODE(d) = SEDIT_CONFIRM_DELETE;
+      return;
     case 'w':
     case 'W':
       write_to_output(d, "Copy what shop? ");
@@ -686,12 +847,11 @@ void sedit_parse(struct descriptor_data *d, char *arg)
 	write_to_output(d, "That mobile does not exist, try again : ");
 	return;
       }
+    /* Only the working copy. Converting the mobile here made typing a vnum
+     * enough to turn it into a shopkeeper -- before any save, and with no way
+     * back if the builder quit without saving. The conversion belongs with
+     * the save, which is where the old keeper can be released too. */
     S_KEEPER(OLC_SHOP(d)) = i;
-    if (i == -1)
-      break;
-    /* Fiddle with special procs. */
-    S_FUNC(OLC_SHOP(d)) = mob_index[i].func != shop_keeper ? mob_index[i].func : NULL;
-    mob_index[i].func = shop_keeper;
     break;
   case SEDIT_OPEN1:
     S_OPEN1(OLC_SHOP(d)) = LIMIT(atoi(arg), 0, 28);
@@ -726,7 +886,10 @@ void sedit_parse(struct descriptor_data *d, char *arg)
 	write_to_output(d, "That object does not exist, try again : ");
 	return;
       }
-    if (i > 0)
+    /* i is an rnum here, and rnum 0 is a real object -- the lowest vnum in
+     * the world.  Guarding on > 0 dropped it with no message at all; the
+     * room case below already uses >= 0. */
+    if (i >= 0)
       add_shop_to_int_list(&(S_PRODUCTS(OLC_SHOP(d))), i);
     sedit_products_menu(d);
     return;

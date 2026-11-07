@@ -27,7 +27,14 @@ struct obj_data *create_money(int amount);
 int	isname(const char *str, const char *namelist);
 int	is_name(const char *str, const char *namelist);
 char	*fname(const char *namelist);
+/** Returned by get_number() for a "last.<name>" prefix: the caller wants
+ * the match nearest the end of the list rather than the Nth from the front.
+ * A negative value cannot collide with a real index -- the searches count
+ * down from a positive one and already read 0 as "not a number". */
+#define FIND_INDEX_LAST	(-1)
+
 int	get_number(char **name);
+const char *skip_number(const char *name);
 
 /* objects */
 void	obj_to_char(struct obj_data *object, struct char_data *ch);
@@ -44,6 +51,7 @@ void	obj_from_obj(struct obj_data *obj);
 void	object_list_new_owner(struct obj_data *list, struct char_data *ch);
 
 void	extract_obj(struct obj_data *obj);
+struct obj_data **protect_obj_walk(struct obj_data **next);
 
 void update_char_objects(struct char_data *ch);
 
@@ -99,6 +107,7 @@ int	generic_find(char *arg, bitvector_t bitvector, struct char_data *ch,
 void forget(struct char_data *ch, struct char_data *victim);
 void remember(struct char_data *ch, struct char_data *victim);
 void mobile_activity(void);
+void assign_mobact_command_indices(void);
 void clearMemory(struct char_data *ch);
 
 

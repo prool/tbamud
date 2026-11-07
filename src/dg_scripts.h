@@ -69,9 +69,8 @@
 #define MTRIG_CAST             (1 << 15)     /* mob targetted by spell     */
 #define MTRIG_LEAVE            (1 << 16)     /* someone leaves room seen   */
 #define MTRIG_DOOR             (1 << 17)     /* door manipulated in room   */
-
+#define MTRIG_DAMAGE           (1 << 18)     /* mob takes damage           */
 #define MTRIG_TIME             (1 << 19)     /* trigger based on game hour */
-#define MTRIG_DAMAGE           (1 << 20)     /* trigger whenever mob is damaged */
 
 /* obj trigger types */
 #define OTRIG_GLOBAL           (1 << 0)	     /* unused                     */
@@ -309,6 +308,12 @@ int trig_is_attached(struct script_data *sc, int trig_num);
 /* To maintain strict-aliasing we'll have to do this trick with a union */
 /* Thanks to Chris Gilbert for reminding me that there are other options. */
 int script_driver(void *go_adress, trig_data *trig, int type, int mode);
+/* As script_driver, but says what a script that never runs `return` should
+ * yield. script_driver passes 1, which every trigger type but one reads as
+ * "allow"; the damage trigger reads its return as an amount and passes the
+ * damage that was incoming, so that not returning leaves the hit alone. */
+int script_driver_default(void *go_adress, trig_data *trig, int type, int mode,
+                         int default_ret);
 trig_rnum real_trigger(trig_vnum vnum);
 void process_eval(void *go, struct script_data *sc, trig_data *trig,
                  int type, char *cmd);
@@ -344,6 +349,7 @@ void free_varlist(struct trig_var_data *vd);
 int remove_var(struct trig_var_data **var_list, char *name);
 void free_trigger(trig_data *trig);
 void extract_trigger(struct trig_data *trig);
+void extract_script_triggers(struct script_data *sc);
 void extract_script(void *thing, int type);
 void extract_script_mem(struct script_memory *sc);
 void free_proto_script(void *thing, int type);

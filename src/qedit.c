@@ -32,7 +32,7 @@ static void qedit_setup_new(struct descriptor_data *d);
 static void qedit_setup_existing(struct descriptor_data *d, qst_rnum rnum);
 static void qedit_disp_menu(struct descriptor_data *d);
 static void qedit_save_internally(struct descriptor_data *d);
-static void qedit_save_to_disk(int num);
+static int qedit_save_to_disk(int num);
 
 /*-------------------------------------------------------------------*/
 
@@ -41,9 +41,9 @@ static void qedit_save_internally(struct descriptor_data *d)
   add_quest(OLC_QUEST(d));
 }
 
-static void qedit_save_to_disk(int num)
+static int qedit_save_to_disk(int num)
 {
-  save_quests(num);
+  return save_quests(num);
 }
 
 /*-------------------------------------------------------------------*\
@@ -82,7 +82,11 @@ ACMD(do_oasis_qedit)
       if ((zlok = real_zone(GET_OLC_ZONE(ch))) == NOWHERE)
         number = NOWHERE;
       else
-        number = genolc_zone_bottom(zlok);
+        /* The lookup below resolves this as a zone NUMBER, so that is what
+         * the builder's assigned zone has to become here.  Handing it
+         * genolc_zone_bottom()'s vnum made every argument-less save fail
+         * with "Sorry, there is no zone for that number!". */
+        number = zone_table[zlok].number;
     }
 
     if (number == NOWHERE) {
@@ -134,7 +138,10 @@ ACMD(do_oasis_qedit)
   /****************************************************************************/
   /** Find the zone.                                                         **/
   /****************************************************************************/
-  if ((OLC_ZNUM(d) = real_zone_by_thing(number)) == NOWHERE) {
+  /* 'qedit save <n>' names a zone; 'qedit <n>' names a quest vnum.  The
+   * two need different lookups -- as the other five editors already do. */
+  if ((OLC_ZNUM(d) = save ? real_zone(number)
+                          : real_zone_by_thing(number)) == NOWHERE) {
     send_to_char(ch, "Sorry, there is no zone for that number!\r\n");
     free(d->olc);
     d->olc = NULL;
@@ -158,14 +165,23 @@ ACMD(do_oasis_qedit)
   if (save) {
     send_to_char(ch, "Saving all quests in zone %d.\r\n",
       zone_table[OLC_ZNUM(d)].number);
-    mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
-      "OLC: %s saves quest info for zone %d.",
-      GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
 
     /**************************************************************************/
     /** Save the quest to the quest file.                                    **/
     /**************************************************************************/
-    qedit_save_to_disk(OLC_ZNUM(d));
+    if (qedit_save_to_disk(OLC_ZNUM(d))) {
+      mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
+        "OLC: %s saves quest info for zone %d.",
+        GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
+    } else {
+      send_to_char(ch,
+        "Unable to save all quests in zone %d. The change is still in memory.\r\n",
+        zone_table[OLC_ZNUM(d)].number);
+
+      mudlog(BRF, MAX(LVL_BUILDER, GET_INVIS_LEV(ch)), TRUE,
+        "SYSERR: OLC: %s failed to save quest info for zone %d.",
+        GET_NAME(ch), zone_table[OLC_ZNUM(d)].number);
+    }
 
     /**************************************************************************/
     /** Free the OLC structure.                                              **/
@@ -330,7 +346,7 @@ static void qedit_disp_menu(struct descriptor_data *d)
     quest->quit && (str_cmp(quest->quit, "undefined"))
      ? quest->quit : "Nothing\r\n",
     quest_flags,
-    quest_types[quest->type],
+    QST_TYPE_NAME(quest->type),
     quest->type == AQ_OBJ_RETURN ? buf2 : "",
     quest->qm == NOBODY ? -1 :     quest->qm,
     real_mobile(quest->qm) == NOBODY ? "Invalid Mob" : mob_proto[(real_mobile(quest->qm))].player.short_descr,
@@ -391,8 +407,12 @@ void qedit_parse(struct descriptor_data *d, char *arg)
           mudlog(CMP, MAX(LVL_BUILDER, GET_INVIS_LEV(d->character)), TRUE,
      "OLC: %s edits quest %d", GET_NAME(d->character), OLC_NUM(d));
           if (CONFIG_OLC_SAVE) {
-            qedit_save_to_disk(real_zone_by_thing(OLC_NUM(d)));
-            write_to_output(d, "Quest %d saved to disk.\r\n", OLC_NUM(d));
+            if (qedit_save_to_disk(real_zone_by_thing(OLC_NUM(d))))
+              write_to_output(d, "Quest %d saved to disk.\r\n", OLC_NUM(d));
+            else
+              write_to_output(d,
+                "Unable to save quest %d to disk. The change is still in memory.\r\n",
+                OLC_NUM(d));
           } else
             write_to_output(d, "Quest %d saved to memory.\r\n", OLC_NUM(d));
           cleanup_olc(d, CLEANUP_STRUCTS);
@@ -416,8 +436,10 @@ void qedit_parse(struct descriptor_data *d, char *arg)
    else
             write_to_output(d, "Couldn't delete the quest!\r\n");
           if (CONFIG_OLC_SAVE) {
-            qedit_save_to_disk(real_zone_by_thing(OLC_NUM(d)));
-            write_to_output(d, "Quest file saved to disk.\r\n");
+            if (qedit_save_to_disk(real_zone_by_thing(OLC_NUM(d))))
+              write_to_output(d, "Quest file saved to disk.\r\n");
+            else
+              write_to_output(d, "Unable to save quest file to disk.\r\n");
           } else
             write_to_output(d, "Quest file saved to memory.\r\n");
           cleanup_olc(d, CLEANUP_ALL);
@@ -672,6 +694,11 @@ void qedit_parse(struct descriptor_data *d, char *arg)
         break;
       }
     case QEDIT_TIMELIMIT:
+      if (number == 0) {
+        write_to_output(d, "Time limit must be -1 for none or between 1 and 100.\r\n"
+                           "Enter time limit to complete (-1 for none) : ");
+        return;
+      }
       OLC_QUEST(d)->value[4] = LIMIT(number, -1, 100);
       break;
     case QEDIT_RETURNMOB:

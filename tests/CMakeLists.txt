@@ -101,3 +101,101 @@ add_mud_test(test_class
     ${MUD_SRCDIR}/random.c
     ${CMAKE_CURRENT_SOURCE_DIR}/test_class.c
 )
+
+# ---------------------------------------------------------------------------
+# test_ibt — covers the IBT_DATA structure in src/ibt.h
+# ---------------------------------------------------------------------------
+add_mud_test(test_ibt
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_ibt.c
+)
+
+# ---------------------------------------------------------------------------
+# test_lists — covers src/lists.c
+# ---------------------------------------------------------------------------
+add_mud_test(test_lists
+    ${MUD_SRCDIR}/lists.c
+    ${MUD_SRCDIR}/utils.c
+    ${MUD_SRCDIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_lists.c
+)
+
+# ---------------------------------------------------------------------------
+# test_handler — covers innate-affect handling in src/handler.c
+# ---------------------------------------------------------------------------
+add_mud_test(test_handler
+    ${MUD_SRCDIR}/handler.c
+    ${MUD_SRCDIR}/lists.c
+    ${MUD_SRCDIR}/utils.c
+    ${MUD_SRCDIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_handler.c
+)
+
+# ---------------------------------------------------------------------------
+# test_mud_event — covers char_has_mud_event() in src/mud_event.c
+# ---------------------------------------------------------------------------
+add_mud_test(test_mud_event
+    ${MUD_SRCDIR}/mud_event.c
+    ${MUD_SRCDIR}/dg_event.c
+    ${MUD_SRCDIR}/lists.c
+    ${MUD_SRCDIR}/utils.c
+    ${MUD_SRCDIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_mud_event.c
+)
+
+add_mud_test(test_obj_walk
+    ${MUD_SRCDIR}/handler.c
+    ${MUD_SRCDIR}/lists.c
+    ${MUD_SRCDIR}/utils.c
+    ${MUD_SRCDIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_obj_walk.c
+)
+
+# ---------------------------------------------------------------------------
+# test_handler_prefix — covers the keyword helpers in src/handler.c
+# interpreter.c is here for one_argument, lists.c for the group list handler.c uses.
+# ---------------------------------------------------------------------------
+add_mud_test(test_handler_prefix
+    ${MUD_SRCDIR}/handler.c
+    ${MUD_SRCDIR}/interpreter.c
+    ${MUD_SRCDIR}/lists.c
+    ${MUD_SRCDIR}/utils.c
+    ${MUD_SRCDIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_handler_prefix.c
+)
+
+# interpreter.c brings crypt() along with it, as above.
+if(CRYPT_LIBRARY)
+    target_link_libraries(test_handler_prefix PRIVATE ${CRYPT_LIBRARY})
+endif()
+# test_improved_edit — covers format_text() and replace_str() in src/improved-edit.c
+# ---------------------------------------------------------------------------
+add_mud_test(test_improved_edit
+    ${MUD_SRCDIR}/improved-edit.c
+    ${MUD_SRCDIR}/utils.c
+    ${MUD_SRCDIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_improved_edit.c
+)
+
+# This fixture uses section garbage collection to link the real saver paths
+# without the unrelated OLC editor functions. MSVC resolves those discarded
+# functions' dependencies before elimination, so it cannot link this target.
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND NOT MSVC)
+    add_executable(test_genolc_savers
+        ${UNITY_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_genolc_savers.c
+        ${MUD_SRCDIR}/genmob.c
+        ${MUD_SRCDIR}/genobj.c
+        ${MUD_SRCDIR}/genwld.c
+        ${MUD_SRCDIR}/genolc.c
+        ${MUD_SRCDIR}/genzon.c
+    )
+    target_include_directories(test_genolc_savers PRIVATE ${TEST_INCLUDES})
+    target_compile_options(test_genolc_savers PRIVATE
+        -ffunction-sections -fdata-sections)
+    if(APPLE)
+        set_property(TARGET test_genolc_savers APPEND_STRING PROPERTY LINK_FLAGS " -Wl,-dead_strip")
+    else()
+        set_property(TARGET test_genolc_savers APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--gc-sections")
+    endif()
+    add_test(NAME test_genolc_savers COMMAND test_genolc_savers)
+endif()

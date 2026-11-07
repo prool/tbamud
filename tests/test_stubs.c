@@ -23,6 +23,7 @@
 #include "interpreter.h"
 #include "class.h"
 #include "dg_scripts.h"
+#include "dg_event.h"
 #include "protocol.h"
 
 #include <stdarg.h>
@@ -38,6 +39,7 @@ FILE                      *logfile          = NULL;  /* tests init to stderr in 
 struct descriptor_data    *descriptor_list  = NULL;
 int                        no_specials      = 0;
 int                        circle_restrict  = 0;
+unsigned long              pulse            = 0;
 
 /* db.c */
 struct room_data          *world            = NULL;
@@ -59,10 +61,10 @@ struct config_data         config_info;            /* zero-init */
 time_t                     motdmod          = 0;
 time_t                     newsmod          = 0;
 
-/* interpreter needs some start-room vnum stubs */
-ush_int r_mortal_start_room = 0;
-ush_int r_immort_start_room = 0;
-ush_int r_frozen_start_room = 0;
+/* interpreter needs some start-room rnum stubs */
+room_rnum r_mortal_start_room = 0;
+room_rnum r_immort_start_room = 0;
+room_rnum r_frozen_start_room = 0;
 
 /* config.c */
 int selfdelete_fastwipe = 0;
@@ -83,6 +85,10 @@ __attribute__((weak)) const char *pc_class_types[] = { "\n" };
 __attribute__((weak))
 size_t send_to_char(struct char_data *ch, const char *messg, ...)
 { (void)ch; (void)messg; return 0; }
+
+__attribute__((weak))
+void send_to_room(room_rnum room, const char *messg, ...)
+{ (void)room; (void)messg; }
 
 __attribute__((weak))
 char *act(const char *str, int hide_invisible, struct char_data *ch,
@@ -150,6 +156,11 @@ __attribute__((weak))
 int parse_class(char arg)
 { (void)arg; return CLASS_UNDEFINED; }
 
+/* Referenced as a mud_event_index[] callback in mud_event.c. */
+__attribute__((weak))
+EVENTFUNC(get_protocols)
+{ (void)event_obj; return 0; }
+
 /* ---------- class.c ---------- */
 __attribute__((weak))
 void set_title(struct char_data *ch, char *title) { (void)ch; (void)title; }
@@ -205,7 +216,7 @@ __attribute__((weak))
 void free_char_from_db(struct char_data *ch) { (void)ch; }
 
 __attribute__((weak))
-void Crash_crashsave(struct char_data *ch) { (void)ch; }
+int Crash_crashsave(struct char_data *ch) { (void)ch; return 1; }
 
 __attribute__((weak))
 int Crash_load(struct char_data *ch) { (void)ch; return 0; }
@@ -266,6 +277,12 @@ int command_wtrigger(struct char_data *actor, char *cmd, char *argument)
 __attribute__((weak))
 void look_at_room(struct char_data *ch, int ignore_brief)
 { (void)ch; (void)ignore_brief; }
+
+/* ---------- act.offensive.c ---------- */
+/* Referenced as a mud_event_index[] callback in mud_event.c. */
+__attribute__((weak))
+EVENTFUNC(event_whirlwind)
+{ (void)event_obj; return 0; }
 
 /* ---------- protocol.c ---------- */
 __attribute__((weak))
@@ -505,3 +522,96 @@ STUB_ACMD(do_zreset)
 STUB_ACMD(do_zunlock)
 
 #undef STUB_ACMD
+
+/* =========================================================
+ * Stubs needed when handler.c is in the build
+ *
+ * handler.c reaches into fight.c, quest.c, mobact.c, objsave.c, dg_scripts.c
+ * and mud_event.c.  None of that is under test here, so it is stubbed; link
+ * lists.c alongside handler.c for the group list, which is exercised.
+ * ========================================================= */
+
+/* ---------- db.c ---------- */
+struct obj_data           *object_list      = NULL;
+struct obj_data           *obj_proto        = NULL;
+
+/* ---------- fight.c ---------- */
+struct char_data          *combat_list      = NULL;
+
+__attribute__((weak))
+void stop_fighting(struct char_data *ch) { (void)ch; }
+
+/* ---------- quest.c ---------- */
+__attribute__((weak))
+void autoquest_trigger_check(struct char_data *ch, struct char_data *vict,
+                             struct obj_data *object, int type)
+{ (void)ch; (void)vict; (void)object; (void)type; }
+
+/* ---------- mobact.c ---------- */
+__attribute__((weak))
+void forget(struct char_data *ch, struct char_data *victim)
+{ (void)ch; (void)victim; }
+
+__attribute__((weak))
+void clearMemory(struct char_data *ch) { (void)ch; }
+
+/* ---------- objsave.c ---------- */
+__attribute__((weak))
+int Crash_delete_crashfile(struct char_data *ch) { (void)ch; return 0; }
+
+/* ---------- dg_scripts.c ---------- */
+__attribute__((weak))
+void extract_script(void *thing, int type) { (void)thing; (void)type; }
+
+__attribute__((weak))
+void extract_script_mem(struct script_memory *sc) { (void)sc; }
+
+__attribute__((weak))
+void free_proto_script(void *thing, int type) { (void)thing; (void)type; }
+
+/* ---------- mud_event.c ---------- */
+__attribute__((weak))
+void event_cancel(struct event *event) { (void)event; }
+
+__attribute__((weak))
+void clear_char_event_list(struct char_data *ch) { (void)ch; }
+
+/* ---------- db.c (object allocation) ---------- */
+__attribute__((weak))
+struct obj_data *create_obj(void) { return NULL; }
+
+__attribute__((weak))
+void free_obj(struct obj_data *obj) { (void)obj; }
+
+/* ---------- class.c ---------- */
+__attribute__((weak))
+int invalid_class(struct char_data *ch, struct obj_data *obj)
+{ (void)ch; (void)obj; return 0; }
+
+/* ---------- interpreter.c ---------- */
+__attribute__((weak))
+char *one_argument(char *argument, char *first_arg)
+{ if (first_arg) *first_arg = '\0'; return argument; }
+
+/* ---------- comm.c (group messaging) ---------- */
+__attribute__((weak))
+void send_to_group(struct char_data *ch, struct group_data *group,
+                   const char *msg, ...)
+{ (void)ch; (void)group; (void)msg; }
+
+/* =========================================================
+ * Stubs needed when improved-edit.c is in the build
+ *
+ * parse_edit_action() dispatches to these three; format_text() and
+ * replace_str(), which is what test_improved_edit covers, reach none of them.
+ * ========================================================= */
+
+__attribute__((weak))
+void parse_at(char *str) { (void)str; }
+
+__attribute__((weak))
+int format_script(struct descriptor_data *d) { (void)d; return 0; }
+
+__attribute__((weak))
+void half_chop(char *string, char *arg1, char *arg2)
+{ (void)string; if (arg1) *arg1 = 0; if (arg2) *arg2 = 0; }

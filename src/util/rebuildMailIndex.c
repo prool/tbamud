@@ -15,10 +15,23 @@
 
 #define FLAG(n) (1 << (n))
 
+/* Standalone: no utils.h here either, so the same two-step stringify.  The
+ * header fields below are read out of a 5000-byte line into 33-byte buffers,
+ * which is the widest gap between source and destination anywhere in the
+ * tree. */
+#define MI_STRINGIFY_(x)  #x
+#define MI_STRINGIFY(x)   MI_STRINGIFY_(x)
+#define MAIL_HDR_FIELD    32
+#define MAIL_HDR_FMT      "%" MI_STRINGIFY(MAIL_HDR_FIELD) "s"
+
 #ifndef FALSE
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+enum _boolean_type { FALSE=0, TRUE };
+#else
 typedef enum _boolean_type {
   FALSE=0, TRUE
 } bool;
+#endif
 #endif
 
 /* 128-bit flag defines (from utils.h) */
@@ -53,7 +66,7 @@ long atol(const char *str);
 #define MAIL_DRAFT    6  /* Mail is a draft (not yet sent)          */
 
 void walkdir(FILE* index_file, char *dir);
-int get_line(FILE *fl, char *buf);
+int get_line(FILE *fl, char *buf, size_t bufsize);
 long asciiflag_conv(char *flag);
 int sprintascii(char *out, long bits);
 
@@ -102,7 +115,7 @@ char *findLine(FILE *plr_file, char *tag) {
 	static char line[5000];
 	rewind(plr_file);
 
-	while (get_line(plr_file, line)) {
+	while (get_line(plr_file, line, sizeof(line))) {
 		if(!strncmp(tag, line, strlen(tag))) {
 			return line+strlen(tag);
 		}
@@ -133,18 +146,20 @@ long parse_send_time(FILE *plr_file) {
 char *parse_subject(FILE *plr_file) {
 	static char subj[1000];
 	char *txt = findLine(plr_file, "Subj:");
-	sprintf(subj, "%s", (txt == NULL) ? "(null)" : txt);
+	snprintf(subj, sizeof(subj), "%s", (txt == NULL) ? "(null)" : txt);
 	return (subj);
 }
 
 /* Search file for mail flags and return as bitvector */
 int parse_mail_flags(FILE *plr_file) {
   int fl[4], ret=0;
-  char *txt, f1[33], f2[33], f3[33], f4[33];
+  char *txt, f1[MAIL_HDR_FIELD + 1], f2[MAIL_HDR_FIELD + 1];
+  char f3[MAIL_HDR_FIELD + 1], f4[MAIL_HDR_FIELD + 1];
 
   if ((txt = findLine(plr_file, "Flag:")) != NULL) {
     /* Read the flags */
-    if (sscanf(txt, "%s %s %s %s", f1, f2, f3, f4) == 4) {
+    if (sscanf(txt, MAIL_HDR_FMT " " MAIL_HDR_FMT " " MAIL_HDR_FMT " " MAIL_HDR_FMT,
+               f1, f2, f3, f4) == 4) {
       fl[0] = asciiflag_conv(f1);
       fl[1] = asciiflag_conv(f2);
       fl[2] = asciiflag_conv(f3);
@@ -217,7 +232,20 @@ void walkdir(FILE *index_file, char *dir) {
 
       if (name != NULL) {
         /* Grab the data from the mail file and throw it in the index */
-        mail_file = fopen(filename_qfd, "r");
+        if ((mail_file = fopen(filename_qfd, "r")) == NULL) {
+          fprintf(stderr, "Unable to open mail file %s: ", filename_qfd);
+          perror("");
+          continue;
+        }
+
+        if (findLine(mail_file, "MlID:") == NULL ||
+            findLine(mail_file, "Send:") == NULL ||
+            findLine(mail_file, "Reci:") == NULL ||
+            findLine(mail_file, "Sent:") == NULL) {
+          fprintf(stderr, "Skipping malformed mail file: %s\n", filename_qfd);
+          fclose(mail_file);
+          continue;
+        }
 
         id        = parse_mailid(mail_file);
         sender    = parse_sender(mail_file);
@@ -236,24 +264,32 @@ void walkdir(FILE *index_file, char *dir) {
   }
 }
 
-int get_line(FILE *fl, char *buf)
+int get_line(FILE *fl, char *buf, size_t bufsize)
 {
-  char temp[READ_SIZE];
   int lines = 0;
-  int sl;
+  size_t sl = 0;
+
+  if (bufsize < 2)
+    return (0);
 
   do {
-    if (!fgets(temp, READ_SIZE, fl))
+    if (!fgets(buf, bufsize, fl))
       return (0);
     lines++;
-  } while (*temp == '*' || *temp == '\n' || *temp == '\r');
+    /* Discard the tail of a line that did not fit; a fragment left in the
+     * stream is read as a line of its own by the next call. */
+    sl = strlen(buf);
+    if (sl > 0 && buf[sl - 1] != '\n') {
+      int c;
+      while ((c = getc(fl)) != EOF && c != '\n')
+        ;
+    }
+  } while (*buf == '*' || *buf == '\n' || *buf == '\r');
 
-  /* Last line of file doesn't always have a \n, but it should. */
-  sl = strlen(temp);
-  while (sl > 0 && (temp[sl - 1] == '\n' || temp[sl - 1] == '\r'))
-    temp[--sl] = '\0';
+  /* Last line of file does not always end in a newline, but it should. */
+  while (sl > 0 && (buf[sl - 1] == '\n' || buf[sl - 1] == '\r'))
+    buf[--sl] = '\0';
 
-  strcpy(buf, temp); /* strcpy: OK, if buf >= READ_SIZE (256) */
   return (lines);
 }
 

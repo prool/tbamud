@@ -24,6 +24,8 @@
 #define HEDIT_PERMISSION  888  /* arbitrary number higher then max zone vnum*/
 #define ALL_PERMISSION    666  /* arbitrary number higher then max zone vnum*/
 
+void sprint_olc_access(struct char_data *ch, char *buf, size_t buflen);
+
 /* Macros, defines, structs and globals for the OLC suite.  You will need
    to adjust these numbers if you ever add more. Note: Most of the NUM_ and
    MAX_ limits have been moved to more appropriate locations. */
@@ -43,6 +45,10 @@
 #define MAX_EXTRA_DESC  512
 #define MAX_MOB_DESC	1024
 #define MAX_OBJ_DESC	512
+/* cedit's three login-time text screens: the menu, the welcome message
+ * and the newbie start message.  Bounded well under save_config()'s own
+ * char[MAX_STRING_LENGTH] writer, whose strcpy is unchecked. */
+#define MAX_CONFIG_TEXT	4096
 #define MAX_DUPLICATES  100  /* when loading in zedit */
 
 /* arbitrary limits - roll your own */
@@ -88,6 +94,10 @@ struct oasis_olc_data {
   zone_rnum zone_num;            /* current zone             */
   room_vnum number;              /* vnum of subject          */
   int value;                     /* mostly 'has changed' flag*/
+  long help_version;             /* hedit: help_table generation at open */
+  char *help_key;                /* hedit: keyword of the row it opened  */
+  char *help_text;               /* hedit: that row's text, as opened     */
+  int help_line_shared;          /* hedit: keyword line not unique at open*/
   char *storage;                 /* used for 'tedit'         */
   struct char_data *mob;         /* used for 'medit'         */
   struct room_data *room;        /* used for 'redit'         */
@@ -118,6 +128,10 @@ extern const char *nrm, *grn, *cyn, *yel;
 #define OLC_MODE(d)    (OLC(d)->mode)     /**< Parse input mode.	*/
 #define OLC_NUM(d)     (OLC(d)->number)   /**< Room/Obj VNUM.	*/
 #define OLC_VAL(d)     (OLC(d)->value)    /**< Scratch variable.	*/
+#define OLC_HELP_VERSION(d) (OLC(d)->help_version)  /**< hedit: table generation */
+#define OLC_HELP_KEY(d)     (OLC(d)->help_key)      /**< hedit: opened keyword */
+#define OLC_HELP_TEXT(d)    (OLC(d)->help_text)     /**< hedit: opened text    */
+#define OLC_HELP_LINE_SHARED(d) (OLC(d)->help_line_shared) /**< hedit: see hedit_relocate */
 #define OLC_ZNUM(d)    (OLC(d)->zone_num) /**< Real zone number.	*/
 
 #define OLC_STORAGE(d) (OLC(d)->storage)  /**< char pointer.	*/
@@ -169,6 +183,7 @@ extern const char *nrm, *grn, *cyn, *yel;
 #define AEDIT_VICT_VICT_BODY_FOUND     20
 #define AEDIT_OBJ_CHAR_FOUND           21
 #define AEDIT_OBJ_OTHERS_FOUND         22
+#define AEDIT_CONFIRM_DELETE           23
 
 /* Submodes of OEDIT connectedness. */
 #define OEDIT_MAIN_MENU              	1
@@ -255,6 +270,9 @@ extern const char *nrm, *grn, *cyn, *yel;
 #define MEDIT_AFF_FLAGS             6
 #define MEDIT_CONFIRM_SAVESTRING    7
 #define MEDIT_STATS_MENU            8
+/* Must stay BELOW MEDIT_NUMERICAL_RESPONSE: medit_parse rejects any
+ * non-numeric input for every mode above it, and this one wants y/n. */
+#define MEDIT_DELETE                9
 
 /* Numerical responses. */
 #define MEDIT_NUMERICAL_RESPONSE	10
@@ -274,7 +292,6 @@ extern const char *nrm, *grn, *cyn, *yel;
 #define MEDIT_ATTACK			24
 #define MEDIT_LEVEL			25
 #define MEDIT_ALIGNMENT			26
-#define MEDIT_DELETE                    27
 #define MEDIT_COPY                      28
 #define MEDIT_STR                       29
 #define MEDIT_INT                       30
@@ -303,6 +320,9 @@ extern const char *nrm, *grn, *cyn, *yel;
 #define SEDIT_NAMELIST_MENU		13
 #define SEDIT_NAMELIST			14
 #define SEDIT_COPY                      15
+/* Must stay BELOW SEDIT_NUMERICAL_RESPONSE: sedit_parse rejects any
+ * non-numeric input for every mode above it, and this one wants y/n. */
+#define SEDIT_CONFIRM_DELETE            16
 
 #define SEDIT_NUMERICAL_RESPONSE	20
 #define SEDIT_OPEN1			21
@@ -391,6 +411,7 @@ extern const char *nrm, *grn, *cyn, *yel;
 #define HEDIT_ENTRY                     4
 #define HEDIT_KEYWORDS                  5
 #define HEDIT_MIN_LEVEL                 6
+#define HEDIT_CONFIRM_DELETE            7
 
 int  save_config( IDXTYPE nowhere );
 
@@ -418,7 +439,7 @@ ACMD(do_oasis_oedit);
 void redit_setup_existing(struct descriptor_data *d, int rnum);
 void redit_string_cleanup(struct descriptor_data *d, int terminator);
 void redit_save_internally(struct descriptor_data *d);
-void redit_save_to_disk(zone_vnum zone_num);
+int redit_save_to_disk(zone_vnum zone_num);
 void redit_parse(struct descriptor_data *d, char *arg);
 void free_room(struct room_data *room);
 ACMD(do_oasis_redit);
@@ -434,7 +455,7 @@ void zedit_parse(struct descriptor_data *d, char *arg);
 ACMD(do_oasis_zedit);
 
 /* public functions from cedit.c */
-void cedit_save_to_disk( void );
+int cedit_save_to_disk( void );
 void cedit_parse(struct descriptor_data *d, char *arg);
 void cedit_string_cleanup(struct descriptor_data *d, int terminator);
 ACMD(do_oasis_cedit);

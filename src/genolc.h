@@ -45,7 +45,8 @@ extern struct save_list_data *save_list;
 #define SL_ZON	4
 #define SL_CFG	5
 #define SL_QST  6
-#define SL_MAX  6	
+#define SL_TRG  7
+#define SL_MAX  7
 #define SL_ACT SL_MAX + 1 /* must be above MAX */ 
 #define SL_HLP SL_MAX + 2
 
@@ -53,6 +54,7 @@ extern struct save_list_data *save_list;
 
 #define LIMIT(var, low, high)	MIN(high, MAX(var, low))
 
+int genolc_install_file(const char *scratch, const char *dest);
 room_vnum genolc_zone_bottom(zone_rnum rznum);
 room_vnum genolc_zonep_bottom(struct zone_data *zone);
 extern void free_save_list(void);

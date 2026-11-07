@@ -48,7 +48,7 @@ void parse_trigger(FILE *trig_f, int nr)
     trig->nr = top_of_trigt;
     trig->name = fread_string(trig_f, errors);
 
-    get_line(trig_f, line);
+    get_line(trig_f, line, sizeof(line));
     k = sscanf(line, "%d %s %d", &attach_type, flags, t);
     trig->attach_type = (byte)attach_type;
     trig->trigger_type = (long)asciiflag_conv(flags);
@@ -132,14 +132,14 @@ void trig_data_copy(trig_data *this_data, const trig_data *trg)
 void dg_read_trigger(FILE *fp, void *proto, int type)
 {
   char line[READ_SIZE];
-  char junk[8];
+  char junk[TRIG_TAG_FIELD + 1];
   int vnum, rnum, count;
   char_data *mob;
   room_data *room;
   struct trig_proto_list *trg_proto, *new_trg;
 
-  get_line(fp, line);
-  count = sscanf(line,"%7s %d",junk,&vnum);
+  get_line(fp, line, sizeof(line));
+  count = sscanf(line, TRIG_TAG_FMT " %d", junk, &vnum);
 
   if (count != 2) {
     mudlog(BRF, LVL_BUILDER, TRUE,
@@ -216,11 +216,11 @@ void dg_read_trigger(FILE *fp, void *proto, int type)
 
 void dg_obj_trigger(char *line, struct obj_data *obj)
 {
-  char junk[8];
+  char junk[TRIG_TAG_FIELD + 1];
   int vnum, rnum, count;
   struct trig_proto_list *trg_proto, *new_trg;
 
-  count = sscanf(line,"%s %d",junk,&vnum);
+  count = sscanf(line, TRIG_TAG_FMT " %d", junk, &vnum);
 
   if (count != 2) {
     mudlog(BRF, LVL_BUILDER, TRUE,

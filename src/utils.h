@@ -34,6 +34,23 @@
 /** Standard line size, used for many string limits. */
 #define READ_SIZE	256
 
+/* Stringify a macro's VALUE. Two levels are required: the inner macro
+ * stringifies its argument, so the outer one has to expand it first. */
+#define STRINGIFY_(x)   #x
+#define STRINGIFY(x)    STRINGIFY_(x)
+
+/** A scanf field width for a buffer declared `[N + 1]`: N characters plus
+ * the terminating NUL that scanf always appends.  Written as
+ *
+ *     char name[MAX_NAME_LENGTH + 1];
+ *     sscanf(line, "%" SCANF_WIDTH(MAX_NAME_LENGTH) "s", name);
+ *
+ * the bound comes from the same constant that sizes the array, so the two
+ * cannot drift apart.  A literal width can drift silently in either
+ * direction -- truncating if the buffer is later grown, overflowing if it
+ * is shrunk -- and nothing diagnoses it. */
+#define SCANF_WIDTH(n)  STRINGIFY(n)
+
 /* Public functions made available from utils.c. Documentation for all functions
  * are made available with the function definition. */
 void basic_mud_log(const char *format, ...) __attribute__ ((format (printf, 1, 2)));
@@ -45,7 +62,7 @@ int	dice(int number, int size);
 size_t	sprintbit(bitvector_t vektor, const char *names[], char *result, size_t reslen);
 size_t	sprinttype(int type, const char *names[], char *result, size_t reslen);
 void sprintbitarray(int bitvector[], const char *names[], int maxar, char *result);
-int get_line(FILE *fl, char *buf);
+int get_line(FILE *fl, char *buf, size_t bufsize);
 int get_filename(char *filename, size_t fbufsize, int mode, const char *orig_name);
 time_t mud_time_to_secs(struct time_info_data *now);
 struct time_info_data *age(struct char_data *ch);
@@ -637,6 +654,8 @@ do                                                              \
 #define GET_DEFAULT_POS(ch)	((ch)->mob_specials.default_pos)
 /** Return the memory of ch. */
 #define MEMORY(ch)		((ch)->mob_specials.memory)
+/** Return the affect bitarray ch was created with. NPCs only. */
+#define GET_INNATE_AFF(ch)	((ch)->mob_specials.innate_aff)
 
 /** Return the equivalent strength of ch if ch has level 18 strength. */
 #define STRENGTH_APPLY_INDEX(ch) \
@@ -732,6 +751,13 @@ do                                                              \
 /** Defines if an obj is a corpse. */
 #define IS_CORPSE(obj)		(GET_OBJ_TYPE(obj) == ITEM_CONTAINER && \
 					GET_OBJ_VAL((obj), 3) == 1)
+/** Does this container's own weight include what is inside it?  A container
+ * with a capacity tracks its contents; the "unlimited" ones (val0 == 0) never
+ * have, and a corpse tracks despite carrying val0 == 0.  Every place that adds
+ * or subtracts content weight has to ask the same question -- when the two
+ * halves disagree, the difference is written to a rent file and the container
+ * comes back lighter. */
+#define TRACKS_CONTENT_WEIGHT(obj)	(GET_OBJ_VAL((obj), 0) > 0 || IS_CORPSE(obj))
 
 /** Can the obj be worn on body part? */
 #define CAN_WEAR(obj, part)	OBJWEAR_FLAGGED((obj), (part))

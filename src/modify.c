@@ -248,9 +248,17 @@ static void playing_string_cleanup(struct descriptor_data *d, int action)
 {
   if (PLR_FLAGGED(d->character, PLR_MAILING)) {
     if (action == STRINGADD_SAVE && *d->str) {
-      store_mail(d->mail_to, GET_IDNUM(d->character), *d->str);
-      write_to_output(d, "Message sent!\r\n");
-      notify_if_playing(d->character, d->mail_to);
+      if (store_mail(d->mail_to, GET_IDNUM(d->character), *d->str)) {
+        write_to_output(d, "Message sent!\r\n");
+        notify_if_playing(d->character, d->mail_to);
+      } else {
+        /* The spool could not be written, so nothing further is sent to it
+         * this session; the sender should hear that rather than be told to
+         * try again. */
+        write_to_output(d, "Unable to send your message: the mail system is out of order until an immortal looks at it.\r\n");
+        mudlog(BRF, LVL_IMMORT, TRUE, "SYSERR: Mail from %s could not be stored; mail disabled.", GET_NAME(d->character));
+        no_mail = 1;
+      }
     } else
       write_to_output(d, "Mail aborted.\r\n");
     
@@ -381,11 +389,35 @@ ACMD(do_skillset)
     return;
   }
   if ((spell_info[skill].min_level[(pc)] >= LVL_IMMORT) && (pl < LVL_IMMORT)) {
-    send_to_char(ch, "%s cannot be learned by mortals.\r\n", spell_info[skill].name);
+    int c, learners = 0;
+
+    /* min_level is LVL_IMMORT both for a skill no mortal may learn and for
+     * a class that may not learn it, so the two have to be told apart here
+     * or a warrior's skill offered to a mage reads as though nobody can
+     * learn it. */
+    for (c = 0; c < NUM_CLASSES; c++)
+      if (spell_info[skill].min_level[c] < LVL_IMMORT)
+        learners++;
+
+    if (!learners)
+      send_to_char(ch, "%s cannot be learned by mortals.\r\n", spell_info[skill].name);
+    else {
+      send_to_char(ch, "%s cannot be learned by the %s class.\r\n",
+                   spell_info[skill].name, pc_class_types[pc]);
+      send_to_char(ch, "It is learned by:\r\n");
+      for (c = 0; c < NUM_CLASSES; c++)
+        if (spell_info[skill].min_level[c] < LVL_IMMORT)
+          send_to_char(ch, "  %-12s at level %d.\r\n",
+                       pc_class_types[c], spell_info[skill].min_level[c]);
+    }
     return;
   } else if (spell_info[skill].min_level[(pc)] > pl) {
     send_to_char(ch, "%s is a level %d %s.\r\n", GET_NAME(vict), pl, pc_class_types[pc]);
-    send_to_char(ch, "The minimum level for %s is %d for %ss.\r\n", spell_info[skill].name, spell_info[skill].min_level[(pc)], pc_class_types[pc]);
+    send_to_char(ch, "The minimum level for %s is %d for the %s class.\r\n", spell_info[skill].name, spell_info[skill].min_level[(pc)], pc_class_types[pc]);
+    /* Deliberate: an immortal may set a skill the character has not
+     * levelled into.  Say so, rather than leaving two lines that read
+     * like a refusal in front of a change that happened anyway. */
+    send_to_char(ch, "Setting it anyway.\r\n");
   }
 
   /* find_skill_num() guarantees a valid spell_info[] index, or -1, and we
@@ -412,13 +444,20 @@ static char *next_page(char *str, struct char_data *ch)
     else if (line > (GET_PAGE_LENGTH(ch) - (PRF_FLAGGED(ch, PRF_COMPACT) ? 1 : 2)))
       return (str);
 
-    /* Check for the beginning of an ANSI color code block. */
+    /* Check for the beginning of an ANSI color code block.  Stop at the
+     * last character before the terminator as well as at the 'm': a string
+     * can end part way through a code, and stepping onto the '\0' here
+     * leaves the str++ above to carry the walk past the end of the buffer.
+     * Stopping short of it instead lets the test at the top of the loop
+     * end the page, which is what the end of the string means. */
     else if (*str == '\x1B')  /* Jump to the end of the ANSI code, or max 9 chars */
-      for (count=0; *str != 'm' && count < 9; count++)
+      for (count=0; *str != 'm' && *(str + 1) && count < 9; count++)
         str++;
 
+    /* Likewise for a colour code of this MUD's own: a string ending in a
+     * lone tab has no letter to skip over, only the terminator. */
     else if (*str == '\t') {
-      if (*(str + 1) != '\t')
+      if (*(str + 1) && *(str + 1) != '\t')
         str++;
     }
 

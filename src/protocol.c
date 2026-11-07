@@ -55,10 +55,178 @@ static void Write( descriptor_t *apDescriptor, const char *apData )
    write_to_output( apDescriptor, apData, 0 );
 }
 
-static void ReportBug( const char *apText )
+/* Seconds between repeats of the same protocol bug report.  See ReportBug. */
+#define REPORT_BUG_INTERVAL 60
+
+/* One remembered report.  Keyed on the call site and the text together:
+ * the site alone lets a player rotate payloads through one slot, and the
+ * text alone lets them mint a new key per keystroke. */
+typedef struct
 {
-   log( "%s", apText);
+   char text[512];
+   time_t when;
+   int    line;
+   int    dropped;
+   bool_t used;
+} bug_report_t;
+
+/* Two live slots per call site is enough to tell one bug from another
+ * without letting a flood at one site crowd out every other site. */
+#define REPORT_BUG_SLOTS    32
+#define REPORT_BUG_PER_SITE 2
+
+static bug_report_t sBugs[REPORT_BUG_SLOTS];
+
+/* Retire remembered reports, saying how many were held back behind each.
+ * With aAll false only the slots whose window has passed go; with it true
+ * every live slot goes, however recently it was filled.
+ *
+ * The count line says the held reports came in within the window of the
+ * first of them, which is true either way: the window bounds when a slot
+ * can take a report, not when it is printed. */
+static void ReportBugRetire( bool_t aAll )
+{
+   time_t now = time(0);
+   int i;
+
+   for ( i = 0; i < REPORT_BUG_SLOTS; ++i )
+   {
+      if ( !sBugs[i].used )
+         continue;
+
+      /* now < when is a clock that has gone backwards; retire the slot
+       * rather than hold it until the clock catches up. */
+      if ( !aAll && now >= sBugs[i].when
+           && now - sBugs[i].when < REPORT_BUG_INTERVAL )
+         continue;
+
+      if ( sBugs[i].dropped > 0 )
+         log( "%s (and %d more from the same place within %d seconds of it)",
+              sBugs[i].text, sBugs[i].dropped, REPORT_BUG_INTERVAL );
+
+      sBugs[i].used = FALSE;
+   }
 }
+
+/* Called on every report and once a minute from the game loop. */
+void ReportBugTick( void )
+{
+   ReportBugRetire( FALSE );
+}
+
+/* Called where the game loop is about to stop running: the wait for a
+ * connection, the end of the loop itself, and copyover.  Waiting for the
+ * window to close is no use there, because nothing will be running to
+ * notice when it does -- a player who floods and then quits inside the
+ * minute is the ordinary case, and a tick would pass over their slot and
+ * leave the count for whenever somebody next connects. */
+void ReportBugFlush( void )
+{
+   ReportBugRetire( TRUE );
+}
+
+static void ReportBugAt( const char *apText, int aLine )
+{
+   /* Six of these report a malformed \t[ escape -- an RGB colour, a
+    * Unicode substitute or a required MXP version -- and the text carrying
+    * one is not always the MUD's own: ProtocolOutput() runs over every line
+    * on its way to a player, so a say or a gossip holding "@[f" is
+    * reported once for each player who can see it.  do_title() runs
+    * parse_at() over what the player typed and stores the result, so a
+    * malformed code put in a title is reported again on every who list
+    * and every score, and the title is in the pfile, so it survives a
+    * reboot.  What ends it is the next level, because gain_exp() calls
+    * set_title(ch, NULL) -- so for an immortal, or anyone at the level
+    * cap, it does not end.
+    *
+    * The report is worth keeping -- a bad colour code in a room
+    * description is a real thing to fix.  Saying it thousands of times is
+    * not, and it buries the reports that matter.
+    *
+    * Neither half of the key works alone.  Six of these reports
+    * interpolate bytes the player chose, so remembering the text lets them
+    * mint a fresh key whenever they like; remembering only the site lets
+    * them alternate two malformations and hit the same single slot from
+    * two directions, which is what the first attempt at this did.  Keep
+    * both, in a table with a fixed number of slots per site: a flood ends
+    * up in one site's two slots and is counted there, and a genuine report
+    * from anywhere else still has a slot of its own. */
+   char text[512];
+   size_t len;
+   time_t now = time(0);
+   int i, oldest = -1, mine = 0;
+
+   /* Every caller ends its text with a newline and log() adds one of its
+    * own, so the count below would come out on a line by itself with no
+    * timestamp in front of it.  Trim the ends -- and flatten any line
+    * ending left in the middle, because several of these reports quote
+    * text a player typed, and do_title()'s echo puts a carriage return
+    * inside the quoted part. */
+   snprintf( text, sizeof(text), "%s", apText );
+   /* sysdep.h makes snprintf() the Windows _snprintf(), which leaves the
+    * buffer unterminated when it truncates -- and apText can be an MSDP
+    * buffer eight times this one's size, so strlen() below would run off
+    * the stack.  Terminate rather than assume the callers are short. */
+   text[sizeof(text) - 1] = '\0';
+   len = strlen(text);
+   while ( len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r') )
+      text[--len] = '\0';
+   while ( len-- > 0 )
+      if ( text[len] == '\n' || text[len] == '\r' )
+         text[len] = ' ';
+
+   ReportBugTick();
+
+   for ( i = 0; i < REPORT_BUG_SLOTS; ++i )
+   {
+      if ( !sBugs[i].used || sBugs[i].line != aLine )
+         continue;
+
+      if ( !strcmp( sBugs[i].text, text ) )
+      {
+         sBugs[i].dropped++;
+         return;
+      }
+
+      ++mine;
+      if ( oldest < 0 || sBugs[i].when < sBugs[oldest].when )
+         oldest = i;
+   }
+
+   if ( mine >= REPORT_BUG_PER_SITE )
+   {
+      /* This site is already saying as much as it is allowed to.  Count
+       * this one against its oldest slot so the volume is still reported,
+       * rather than dropping it without trace. */
+      sBugs[oldest].dropped++;
+      return;
+   }
+
+   for ( i = 0; i < REPORT_BUG_SLOTS; ++i )
+   {
+      if ( sBugs[i].used )
+         continue;
+
+      snprintf( sBugs[i].text, sizeof(sBugs[i].text), "%s", text );
+      sBugs[i].when = now;
+      sBugs[i].line = aLine;
+      sBugs[i].dropped = 0;
+      sBugs[i].used = TRUE;
+      log( "%s", text );
+      return;
+   }
+
+   /* Every slot is live and none of them is ours.  There are more slots
+    * than sites times the per-site allowance, so this cannot happen.  If
+    * it ever does, oldest is -1 here -- it is only set while scanning
+    * slots at this same line, and there are none -- so the report is lost.
+    * Raising REPORT_BUG_SLOTS is what keeps that unreachable. */
+   if ( oldest >= 0 )
+      sBugs[oldest].dropped++;
+}
+
+/* Report by call site and text together: see the table above. */
+#define ReportBug(text) ReportBugAt( (text), __LINE__ )
 
 static void InfoMessage( descriptor_t *apDescriptor, const char *apData )
 {
@@ -122,7 +290,11 @@ static const char s_Gauge5[]  = "\005\002Opponent\002darkred\002OPPONENT_HEALTH\
 #define STRING_READ_ONLY           true,  false, false, false, -1, -1,  0, NULL
 #define BOOLEAN_SET_TO(x)          false, true,  false, false,  0,  1,  x, NULL
 #define STRING_WITH_LENGTH_OF(x,y) true,  true,  false, false,  x,  y,  0, NULL
-#define STRING_WRITE_ONCE(x,y)     true,  true,  true,  false, -1, -1,  0, NULL
+/* STRING_WRITE_ONCE took a minimum and a maximum length and then threw
+ * both away, hardcoding the -1, -1 that the macros with no length use.  A
+ * Max of -1 makes ExecuteMSDPPair() call malloc(0) and then write the
+ * terminator into it. */
+#define STRING_WRITE_ONCE(x,y)     true,  true,  true,  false,  x,  y,  0, NULL
 #define STRING_GUI(x)              true,  false, false, true,  -1, -1,  0, x
 
 static variable_name_t VariableNameTable[eMSDP_MAX+1] = 
@@ -553,6 +725,9 @@ const char *ProtocolOutput( descriptor_t *apDescriptor, const char *apData, int 
       if ( apData[j] == '\t' )
       {
          const char *pCopyFrom = NULL;
+         /* The unicode substitute is copied out further down, after the block
+          * that fills it has ended, so it cannot live inside that block. */
+         char UnicodeSubstitute[8] = {'\0'};
 
          switch ( apData[++j] )
          {
@@ -681,7 +856,11 @@ const char *ProtocolOutput( descriptor_t *apDescriptor, const char *apData, int 
             case '[':
                if ( tolower(apData[++j]) == 'u' )
                {
-                  char Buffer[8] = {'\0'}, BugString[256];
+                  /* An alias, not an array: sizeof(Buffer) is a pointer's
+                   * size here, which on LP64 is coincidentally the old array
+                   * size. Bound the writes below by the array itself. */
+                  char *Buffer = UnicodeSubstitute;
+                  char BugString[256];
                   int Index = 0;
                   int Number = 0;
                   bool_t bDone = false, bValid = true;
@@ -884,7 +1063,7 @@ void ProtocolNegotiate( descriptor_t *apDescriptor )
 
 const char *CopyoverGet( descriptor_t *apDescriptor )
 {
-   static char Buffer[64];
+   static char Buffer[COPYOVER_GUI_FIELD + 1];
    char *pBuffer = Buffer;
    protocol_t *pProtocol = apDescriptor ? apDescriptor->pProtocol : NULL;
 
@@ -1264,12 +1443,13 @@ void MSDPSetTable( descriptor_t *apDescriptor, variable_t aMSDP, const char *apV
 
    if ( pProtocol != NULL && apValue != NULL )
    {
-      if ( *apValue == '\0' )
-      {
-         /* It's easier to call MSDPSetString if the value is empty */
-         MSDPSetString(apDescriptor, aMSDP, apValue);
-      }
-      else if ( VariableNameTable[aMSDP].bString )
+      /* An empty value is still sent as a table, not as a bare string.
+       * A variable must not change type with its contents, or a client
+       * that indexes it has the type pulled out from under it. The path
+       * below wraps an empty value as MSDP_TABLE_OPEN MSDP_TABLE_CLOSE,
+       * which is exactly the empty table.
+       */
+      if ( VariableNameTable[aMSDP].bString )
       {
          const char MsdpTableStart[] = { (char)MSDP_TABLE_OPEN, '\0' };
          const char MsdpTableStop[]  = { (char)MSDP_TABLE_CLOSE, '\0' };
@@ -1300,12 +1480,13 @@ void MSDPSetArray( descriptor_t *apDescriptor, variable_t aMSDP, const char *apV
 
    if ( pProtocol != NULL && apValue != NULL )
    {
-      if ( *apValue == '\0' )
-      {
-         /* It's easier to call MSDPSetString if the value is empty */
-         MSDPSetString(apDescriptor, aMSDP, apValue);
-      }
-      else if ( VariableNameTable[aMSDP].bString )
+      /* An empty value is still sent as an array, not as a bare string.
+       * A variable must not change type with its contents, or a client
+       * that indexes it has the type pulled out from under it. The path
+       * below wraps an empty value as MSDP_ARRAY_OPEN MSDP_ARRAY_CLOSE,
+       * which is exactly the empty array.
+       */
+      if ( VariableNameTable[aMSDP].bString )
       {
          const char MsdpArrayStart[] = { (char)MSDP_ARRAY_OPEN, '\0' };
          const char MsdpArrayStop[]  = { (char)MSDP_ARRAY_CLOSE, '\0' };
@@ -1701,12 +1882,13 @@ static void PerformSubnegotiation( descriptor_t *apDescriptor, char aCmd, char *
             /* Store the client name. */
             const int MaxClientLength = 64;
             char *pClientName = alloca(MaxClientLength+1);
+            const char *pVersion;
             int i = 0, j = 1;
             bool_t bStopCyclicTTYPE = false;
 
             for ( ; apData[j] != '\0' && i < MaxClientLength; ++j )
             {
-               if ( isprint(apData[j]) )
+               if ( isprint((unsigned char)apData[j]) )
                   pClientName[i++] = apData[j];
             }
             pClientName[i] = '\0';
@@ -1797,13 +1979,18 @@ static void PerformSubnegotiation( descriptor_t *apDescriptor, char aCmd, char *
                 */ 
                pProtocol->b256Support = eSOMETIMES;
 
-               if ( strlen(pClientName) > 7 )
+               pVersion = pClientName + 6;
+               while ( *pVersion && !isalnum((unsigned char)*pVersion) )
+                  ++pVersion;
+
+               if ( *pVersion )
                {
+                  char *pVersionCopy = AllocString(pVersion);
                   pClientName[6] = '\0';
                   free(pProtocol->pVariables[eMSDP_CLIENT_ID]->pValueString);
                   pProtocol->pVariables[eMSDP_CLIENT_ID]->pValueString = AllocString(pClientName);
                   free(pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString);
-                  pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString = AllocString(pClientName+7);
+                  pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString = pVersionCopy;
 
                   /* Mudlet 1.1 and later supports 256 colours. */
                   if ( strcmp(pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString, "1.1") >= 0 )
@@ -1825,13 +2012,18 @@ static void PerformSubnegotiation( descriptor_t *apDescriptor, char aCmd, char *
                pProtocol->pVariables[eMSDP_XTERM_256_COLORS]->ValueInt = 1;
                pProtocol->b256Support = eYES;
 
-               if ( strlen(pClientName) > 9 )
+               pVersion = pClientName + 8;
+               while ( *pVersion && !isalnum((unsigned char)*pVersion) )
+                  ++pVersion;
+
+               if ( *pVersion )
                {
+                  char *pVersionCopy = AllocString(pVersion);
                   pClientName[8] = '\0';
                   free(pProtocol->pVariables[eMSDP_CLIENT_ID]->pValueString);
                   pProtocol->pVariables[eMSDP_CLIENT_ID]->pValueString = AllocString(pClientName);
                   free(pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString);
-                  pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString = AllocString(pClientName+9);
+                  pProtocol->pVariables[eMSDP_CLIENT_VERSION]->pValueString = pVersionCopy;
                }
             }
             else if ( MatchString(pClientName, "MUSHCLIENT") || 
@@ -2111,10 +2303,13 @@ static void ExecuteMSDPPair( descriptor_t *apDescriptor, const char *apVariable,
                         {
                            for ( j = 0; j < VariableNameTable[i].Max && *apValue != '\0'; ++apValue )
                            {
-                              if ( isprint(*apValue) )
+                              if ( isprint((unsigned char)*apValue) )
                                  pBuffer[j++] = *apValue;
                            }
-                           pBuffer[j++] = '\0';
+                           /* The terminator is not part of the length the
+                            * test below is about: counting it made a Min
+                            * of 1 accept an empty value. */
+                           pBuffer[j] = '\0';
 
                            if ( j >= VariableNameTable[i].Min )
                            {
