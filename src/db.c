@@ -451,28 +451,28 @@ ACMD(do_reboot)
 
 void boot_world(void)
 {
-  log("Loading zone table.");
+  //log("Loading zone table.");
   index_boot(DB_BOOT_ZON);
 
-  log("Loading triggers and generating index.");
+  //log("Loading triggers and generating index.");
   index_boot(DB_BOOT_TRG);
 
-  log("Loading rooms.");
+  //log("Loading rooms.");
   index_boot(DB_BOOT_WLD);
 
-  log("Renumbering rooms.");
+  //log("Renumbering rooms.");
   renum_world();
 
-  log("Checking start rooms.");
+  //log("Checking start rooms.");
   check_start_rooms();
 
-  log("Loading mobs and generating index.");
+  //log("Loading mobs and generating index.");
   index_boot(DB_BOOT_MOB);
 
-  log("Loading objs and generating index.");
+  //log("Loading objs and generating index.");
   index_boot(DB_BOOT_OBJ);
 
-  log("Renumbering zone table.");
+  //log("Renumbering zone table.");
   renum_zone_table();
 
   if(converting) {
@@ -485,7 +485,7 @@ void boot_world(void)
     index_boot(DB_BOOT_SHP);
   }
 
-  log("Loading quests.");
+  //log("Loading quests.");
   index_boot(DB_BOOT_QST);
 
 }
@@ -686,19 +686,19 @@ void boot_db(void)
 {
   zone_rnum i;
 
-  log("Boot db -- BEGIN.");
+  //log("Boot db -- BEGIN.");
 
-  log("Resetting the game time:");
+  //log("Resetting the game time:");
   reset_time();
   
-  log("Initialize Global Lists");
+  //log("Initialize Global Lists");
   global_lists = create_list();
   group_list   = create_list();
 
-  log("Initializing Events");
+  //log("Initializing Events");
   init_events();
 
-  log("Reading news, credits, help, ihelp, bground, info & motds.");
+  //log("Reading news, credits, help, ihelp, bground, info & motds.");
   file_to_string_alloc(NEWS_FILE, &news);
   file_to_string_alloc(CREDITS_FILE, &credits);
   file_to_string_alloc(MOTD_FILE, &motd);
@@ -714,15 +714,15 @@ void boot_db(void)
   if (file_to_string_alloc(GREETINGS_FILE, &GREETINGS) == 0)
     prune_crlf(GREETINGS);
 
-  log("Loading spell definitions.");
+  //log("Loading spell definitions.");
   mag_assign_spells();
 
   boot_world();
 
-  log("Loading help entries.");
+  //log("Loading help entries.");
   index_boot(DB_BOOT_HLP);
 
-  log("Generating player index.");
+  //log("Generating player index.");
   build_player_index();
 
   if (auto_pwipe) {
@@ -730,16 +730,16 @@ void boot_db(void)
     clean_pfiles();
   }
 
-  log("Loading fight messages.");
+  //log("Loading fight messages.");
   load_messages();
 
-  log("Loading social messages.");
+  //log("Loading social messages.");
   boot_social_messages();
 
-  log("Building command list.");
+  //log("Building command list.");
   create_command_list(); /* aedit patch -- M. Scott */
 
-  log("Assigning function pointers:");
+  //log("Assigning function pointers:");
 
   if (!no_specials) {
     log("   Mobiles.");
@@ -754,28 +754,28 @@ void boot_db(void)
     assign_the_quests();
   }
 
-  log("Assigning spell and skill levels.");
+  //log("Assigning spell and skill levels.");
   init_spell_levels();
 
-  log("Sorting spells.");
+  //log("Sorting spells.");
   sort_spells();
 
-  log("Booting mail system.");
+  //log("Booting mail system.");
   if (!scan_file()) {
     log("    Mail boot failed -- Mail system disabled");
     no_mail = 1;
   }
-  log("Reading banned site and invalid-name list.");
+  //log("Reading banned site and invalid-name list.");
   load_banned();
   read_invalid_list();
 
-  log("Loading Ideas.");
+  //log("Loading Ideas.");
   load_ibt_file(SCMD_IDEA);
 
-  log("Loading Bugs.");
+  //log("Loading Bugs.");
   load_ibt_file(SCMD_BUG);
 
-  log("Loading Typos.");
+  //log("Loading Typos.");
   load_ibt_file(SCMD_TYPO);
 
   if (!no_rent_check) {
@@ -786,11 +786,11 @@ void boot_db(void)
 
   /* Moved here so the object limit code works. -gg 6/24/98 */
   if (!mini_mud)  {
-    log("Booting houses.");
+    //log("Booting houses.");
     House_boot();
   }
 
-  log("Cleaning up last log.");
+  //log("Cleaning up last log.");
   clean_llog_entries();
 
 #if 1
@@ -807,8 +807,10 @@ void boot_db(void)
 #endif
 
   for (i = 0; i <= top_of_zone_table; i++) {
+#if 0 // by prool
     log("Resetting #%d: %s (rooms %d-%d).", zone_table[i].number,
 	zone_table[i].name, zone_table[i].bot, zone_table[i].top);
+#endif
     reset_zone(i);
   }
 
@@ -817,7 +819,7 @@ void boot_db(void)
   if (!boot_time)
     boot_time = time(0);
 
-  log("Boot db -- DONE.");
+  //log("Boot db -- DONE.");
 }
 
 /* reset the time in the game from file */

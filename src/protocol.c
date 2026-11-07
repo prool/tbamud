@@ -2452,7 +2452,7 @@ static void SendMSSP( descriptor_t *apDescriptor )
    int SizeBuffer = 3; /* IAC SB MSSP */
    int i; /* Loop counter */
 
-   log("prool debug: SendMSSP() '%s' port %d", apDescriptor->host, port); // prool
+   log("tbaMUD: prool debug: MSSP '%s' port %d", apDescriptor->host, port); // prool
 
    /* Before updating the following table, please read the MSSP specification:
     *

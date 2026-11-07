@@ -334,8 +334,8 @@ int main(int argc, char **argv)
 
   /* Moved here to distinguish command line options and to show up
    * in the log if stderr is redirected to a file. */
-  log("Loading configuration.");
-  log("%s", tbamud_version);
+  //log("Loading configuration.");
+  //log("%s", tbamud_version);
 
   if (chdir(dir) < 0) {
     perror("SYSERR: Fatal error changing to data directory");
@@ -558,7 +558,7 @@ static void init_game(ush_int local_port)
   boot_db();
 
 #if defined(CIRCLE_UNIX) || defined(CIRCLE_MACINTOSH)
-  log("Signal trapping.");
+  //log("Signal trapping.");
   signal_setup();
 #endif
 
@@ -568,7 +568,8 @@ static void init_game(ush_int local_port)
   if (fCopyOver) /* reload players */
   copyover_recover();
 
-  log("Entering game loop.");
+  //log("Entering game loop.");
+  log("tbaMUD/proolmod starts");
 
   game_loop(mother_desc);
 
@@ -819,7 +820,7 @@ void game_loop(socket_t local_mother_desc)
        * this branch.  Flush rather than tick: their slot is seconds old,
        * and nothing will be running to retire it when the minute is up. */
       ReportBugFlush();
-      log("No connections.  Going to sleep.");
+      //log("No connections.  Going to sleep."); // by prool
       FD_ZERO(&input_set);
       FD_SET(local_mother_desc, &input_set);
       if (select(local_mother_desc + 1, &input_set, (fd_set *) 0, (fd_set *) 0, NULL) < 0) {
@@ -827,8 +828,8 @@ void game_loop(socket_t local_mother_desc)
 	  log("Waking up to process signal.");
 	else
 	  perror("SYSERR: Select coma");
-      } else
-	log("New connection.  Waking up.");
+      } /* else
+	log("New connection.  Waking up."); */ // by prool
       gettimeofday(&last_time, (struct timezone *) 0);
     }
     /* Set up the input, output, and exception sets for select(). */
@@ -1613,9 +1614,11 @@ static int new_descriptor(socket_t s)
       !(from = gethostbyaddr((char *) &peer.sin_addr,
 		             sizeof(peer.sin_addr), AF_INET))) {
 
+#if 0 // by prool
     /* resolution failed */
     if (!CONFIG_NS_IS_SLOW)
       perror("SYSERR: gethostbyaddr");
+#endif
 
     /* find the numeric site address */
     strncpy(newd->host, (char *)inet_ntoa(peer.sin_addr), HOST_LENGTH);	/* strncpy: OK (n->host:HOST_LENGTH+1) */
@@ -1958,7 +1961,7 @@ static int process_input(struct descriptor_data *t)
 
     if (bytes_read < 0) {  /* Error or EOF, disconnect them. */
       if (bytes_read == -2)
-        log("WARNING: EOF on socket read (connection broken by peer) [%s]", t->host);
+        //log("WARNING: EOF on socket read (connection broken by peer) [%s]", t->host); // by prool
       return (-1);
     } else if (bytes_read == 0)	/* Just blocking, no problems. */
       return (0);
@@ -2212,8 +2215,8 @@ void close_socket(struct descriptor_data *d)
       mudlog(CMP, LVL_IMMORT, TRUE, "Losing player: %s [%s].", GET_NAME(d->character) ? GET_NAME(d->character) : "<null>", d->host);
       free_char(d->character);
     }
-  } else
-    mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char from [%s].", d->host);
+  } /* else
+    mudlog(CMP, LVL_IMMORT, TRUE, "Losing descriptor without char from [%s].", d->host); */ // by prool
 
   /* JE 2/22/95 -- part of my unending quest to make switch stable */
   if (d->original && d->original->desc)
