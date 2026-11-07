@@ -2010,7 +2010,8 @@ static int process_input(struct descriptor_data *t)
 	  } else
 	    space_left++;
 	}
-      } else if (isascii(*ptr) && isprint(*ptr)) {
+      ///} else if (isascii(*ptr) && isprint(*ptr)) {
+      } else if (((unsigned char)*ptr)>=32U) { // prool: for support full 8bit
 	if ((*(write_point++) = *ptr) == '$') {		/* copy one character */
 	  *(write_point++) = '$';	/* if it's a $, double it */
 	  space_left -= 2;
