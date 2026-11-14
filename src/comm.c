@@ -1154,8 +1154,10 @@ static void record_usage(void)
       sockets_playing++;
   }
 
+#if 0
   log("nusage: %-3d sockets connected, %-3d sockets playing",
 	  sockets_connected, sockets_playing);
+#endif
 
 #ifdef RUSAGE	/* Not RUSAGE_SELF because it doesn't guarantee prototype. */
   {
